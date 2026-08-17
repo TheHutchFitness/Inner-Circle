@@ -1,0 +1,82 @@
+{
+  "app_name": "Hutch's Inner Circle",
+  "personality": "7 Dark-First Utility (DARK) with Cyberpunk/Anime Fusion",
+  "personality_one_liner": "An intense, gamified powerlifting command center where every PR feels like leveling up in a gritty cyberpunk anime.",
+  "color": {
+    "surface": "#050508",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#12141A",
+    "onSurfaceSecondary": "#A0A5B5",
+    "surfaceTertiary": "#1A1D26",
+    "onSurfaceTertiary": "#C3C8D8",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#050508",
+    "brand": "#0055FF",
+    "brandPrimary": "#00E5FF",
+    "onBrandPrimary": "#001122",
+    "brandSecondary": "#0055FF",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#002A55",
+    "onBrandTertiary": "#00E5FF",
+    "success": "#39FF14",
+    "onSuccess": "#002200",
+    "warning": "#FFEA00",
+    "onWarning": "#332200",
+    "error": "#FF003C",
+    "onError": "#FFFFFF",
+    "info": "#00E5FF",
+    "onInfo": "#001122",
+    "border": "#1A1D26",
+    "borderStrong": "#0055FF",
+    "divider": "#12141A"
+  },
+  "typography": {
+    "displayFontFamily": "Rajdhani",
+    "textFontFamily": "IBM Plex Sans",
+    "scale": { "sm": 12, "base": 14, "lg": 16, "xl": 20, "2xl": 24 }
+  },
+  "spacing": { "rule": "Dense, athletic spacing to keep live stats visible without scrolling. Tight internal padding for list rows, generous padding for hero sections.", "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24, "2xl": 32, "3xl": 48 },
+  "radius_tokens": { "sm": 4, "md": 8, "lg": 12, "pill": 999 },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": ["Use subtle glowing borders (borderStrong with drop shadow) instead of glass for elevated elements."],
+    "dont's": ["Do not use blur or frosted glass; it softens the UI too much for a hardcore cyberpunk aesthetic."]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    { "name": "Onboarding & Auth", "purpose": "Immerse the user immediately into the dark, tech-heavy aesthetic while verifying Skool/Premium status.", "states": { "loading": "Glitch-effect loading spinner", "empty": "", "error": "Red neon toast" }, "layout": "Full-bleed background image of a dark powerlifting gym. Sharp, angled auth inputs. 'Enter the Circle' primary CTA at the bottom." },
+    { "name": "Dashboard", "purpose": "Act as the 'Mission Briefing' screen displaying the athlete's next workout, current rank, and progress.", "states": { "loading": "Skeleton grids with a sweeping blue highlight.", "empty": "No active program - 'Select a Protocol' CTA.", "error": "Data sync failed message with a mechanical retry button." }, "layout": "Hero section featuring user's anime avatar and rank badge. Quick-start workout card. Modular grid for weekly XP and Consistency tracking." },
+    { "name": "Workout Logger", "purpose": "Frictionless, live operational surface to track heavy lifts with extreme precision.", "states": { "loading": "Loading sets...", "empty": "Add first exercise.", "error": "Unable to save set." }, "layout": "Bottom-sheet overlay for active session. List rows for sets with tabular numbers. Plate-weight steppers for quick increments. Vertical 'voltage meter' progress bar tracking workout completion. Sticky 'Finish Workout' CTA." },
+    { "name": "Leaderboards", "purpose": "High-stakes gamified ranking across Consistency, Strength, and BW Ratio.", "states": { "loading": "Loading ranks...", "empty": "No data yet.", "error": "Failed to fetch leaderboard." }, "layout": "Three-tier podium display for top 3 athletes with gold/silver/bronze glowing borders. Below, ranked tables using flexbox rows, monospaced rank numbers, and right-aligned performance metrics. Tabs to switch between the 3 leaderboards." },
+    { "name": "Profile", "purpose": "A digital dossier showcasing the athlete's achievements, PRs, and anime persona.", "states": { "loading": "Loading profile...", "empty": "No PRs logged.", "error": "Failed to load stats." }, "layout": "Header with glowing anime avatar and Skool/Premium status badge. Grid of earned milestone badges (e.g., 135, 225, 315 plates). Embedded progress charts with neon cyan lines on dark backgrounds." },
+    { "name": "Athlete's Center & The Room", "purpose": "Premium AI workout builder and elite-only chat.", "states": { "loading": "Connecting...", "empty": "Start a conversation.", "error": "Connection lost." }, "layout": "Chat interface with stark tech typography. AI center features terminal-like text inputs and glowing generated program cards." }
+  ],
+  "images": {
+    "auth_bg": { "url": "https://images.pexels.com/photos/19132573/pexels-photo-19132573.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940", "alt": "A man prepares to lift a barbell in a dimly lit gym environment" },
+    "avatar_default": { "url": "https://images.pexels.com/photos/38950561/pexels-photo-38950561.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940", "alt": "Cyberpunk anime style character avatar" },
+    "badge_315": { "url": "https://images.unsplash.com/photo-1709315969349-1a43dea3efdc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwaGVhdnklMjBiYXJiZWxsJTIwbmVvbnxlbnwwfHx8fDE3ODcwMDEyOTZ8MA&ixlib=rb-4.1.0&q=85", "alt": "Heavy barbell in dark gym" }
+  },
+  "instructions_to_main_agent": [
+    "Execute the UI using a 'Dark-First Utility' aesthetic fused with Cyberpunk. Avoid soft, rounded corners; use strict, angular radius tokens (sm/md max) for a faceted, tech-heavy feel.",
+    "The color palette relies on Deep Black (#050508) as the root canvas, with Neon Cyan (#00E5FF) and Royal Blue (#0055FF) used exclusively for glowing accents, CTAs, and active states. Do NOT use default Material indigo.",
+    "Typography must drive the gaming aesthetic: Use Rajdhani for all headers, numbers, and stats to give an HUD/terminal feel. Use IBM Plex Sans for readability in body text and workout logs.",
+    "Implement the Workout Logger for speed: use plate-weight steppers instead of standard text inputs to make rack-side logging frictionless. Use tabular numbers (font-variant-numeric: tabular-nums) in all set/rep/weight rows to prevent shifting.",
+    "Leaderboards should use a podium structural pattern for the top 3 (Gold/Silver/Bronze highlights) and a dense, monospaced tabular list for ranks below.",
+    "Instead of traditional glassmorphism (which softens the UI), use stark borders and drop shadows mimicking 'neon glow' for elevated elements and active states.",
+    "Ensure the 'Premium' and 'Skool Member' visual states are highly distinct, using exclusive neon badges or avatar borders."
+  ]
+}
