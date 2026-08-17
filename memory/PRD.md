@@ -47,3 +47,10 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Add progress charts (victory-native) to profile using /api/progress/chart.
 - Unlockable backgrounds/widgets tied to level.
 - Adaptive next-workout suggestion.
+
+## Implemented (2026-06)
+- Login screen uses user-provided branded backdrop (assets/images/login-bg.png).
+- Annual subscription plan on paywall: Monthly $5.00 + Annual $39.99 (SAVE 33%, ~$3.33/mo). Plan selector toggles the purchase button. RC products: monthly prodf8cdb8e2a3, annual prod850a4129b3.
+- Weekly Recap (/app/recap): shareable card (XP gained, sessions, total volume, PR count, rank-up banner) from GET /api/recap/weekly (last 7 days). Workouts now persist xp_gained + pr_details.
+- Program History in Athlete's Center: BUILD / HISTORY tabs; saved AI programs listed and re-openable (GET /api/ai/programs).
+- Tests: 23/23 pytest passing.

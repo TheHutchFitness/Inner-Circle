@@ -175,9 +175,88 @@ class TestAI:
         assert r.status_code == 403
 
     def test_ai_allowed_for_elite(self, elite_token):
+        # Ensure skool-verified for elite
+        requests.post(f"{API}/profile/skool-verify", json={"code": "HUTCH-INNER-CIRCLE-2026"}, headers=auth_h(elite_token), timeout=15)
         payload = {"goal": "strength", "split": "ppl", "days_per_week": 5, "experience": "elite", "notes": "short"}
         r = requests.post(f"{API}/ai/build-workout", json=payload, headers=auth_h(elite_token), timeout=120)
         assert r.status_code == 200, r.text
         body = r.json()
         assert "program_text" in body
         assert len(body["program_text"]) > 50
+        assert "program_id" in body
+
+
+# Program History (new feature)
+class TestProgramHistory:
+    def test_ai_programs_list_reflects_new_program(self, elite_token):
+        # Ensure skool-verified
+        requests.post(f"{API}/profile/skool-verify", json={"code": "HUTCH-INNER-CIRCLE-2026"}, headers=auth_h(elite_token), timeout=15)
+
+        # Snapshot current list
+        pre = requests.get(f"{API}/ai/programs", headers=auth_h(elite_token), timeout=15)
+        assert pre.status_code == 200
+        pre_rows = pre.json()
+        assert isinstance(pre_rows, list)
+        pre_len = len(pre_rows)
+
+        # Create a new program
+        payload = {"goal": "hypertrophy", "split": "upper_lower", "days_per_week": 4, "experience": "elite", "notes": "TEST_history"}
+        r = requests.post(f"{API}/ai/build-workout", json=payload, headers=auth_h(elite_token), timeout=120)
+        assert r.status_code == 200, r.text
+        pid = r.json()["program_id"]
+
+        # Verify persistence
+        post = requests.get(f"{API}/ai/programs", headers=auth_h(elite_token), timeout=15)
+        assert post.status_code == 200
+        post_rows = post.json()
+        # Note: other tests may also create programs in parallel, so use >= pre_len+1
+        assert len(post_rows) >= pre_len + 1
+        assert any(p.get("program_id") == pid for p in post_rows)
+        # Fields
+        top = post_rows[0]
+        for key in ("program_id", "program_text", "created_at"):
+            assert key in top
+        # No mongo _id leaking
+        assert "_id" not in top
+
+
+# Weekly Recap (new feature)
+class TestWeeklyRecap:
+    def test_recap_shape(self, athlete_token):
+        r = requests.get(f"{API}/recap/weekly", headers=auth_h(athlete_token), timeout=15)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        for key in ("display_name", "avatar_id", "xp_gained", "workouts", "total_volume_lb", "prs", "pr_count", "rank_now", "rank_start", "promoted", "level"):
+            assert key in d, f"missing {key}"
+        assert isinstance(d["prs"], list)
+        assert isinstance(d["xp_gained"], int)
+        assert isinstance(d["workouts"], int)
+        assert isinstance(d["total_volume_lb"], int)
+
+    def test_recap_reflects_new_workout(self, athlete_token):
+        pre = requests.get(f"{API}/recap/weekly", headers=auth_h(athlete_token), timeout=15).json()
+        payload = {
+            "workout_name": "TEST_Recap Push",
+            "split_type": "ppl_push",
+            "exercises": [
+                {"name": "Bench Press", "sets": [
+                    {"reps": 5, "weight_lb": 245, "rpe": 8.5},
+                    {"reps": 3, "weight_lb": 255, "rpe": 9.5}
+                ]}
+            ],
+            "rating": 5,
+        }
+        r = requests.post(f"{API}/workouts/log", json=payload, headers=auth_h(athlete_token), timeout=20)
+        assert r.status_code == 200, r.text
+        gain = r.json()["xp_gained"]
+        post = requests.get(f"{API}/recap/weekly", headers=auth_h(athlete_token), timeout=15).json()
+        assert post["workouts"] == pre["workouts"] + 1
+        assert post["xp_gained"] == pre["xp_gained"] + gain
+        # 5*245 + 3*255 = 1225 + 765 = 1990
+        assert post["total_volume_lb"] >= pre["total_volume_lb"] + 1990
+        # PR was hit (bench went 225 or higher -> 255)
+        assert post["pr_count"] >= pre["pr_count"] + 1
+
+    def test_recap_requires_auth(self):
+        r = requests.get(f"{API}/recap/weekly", timeout=15)
+        assert r.status_code in (401, 403)

@@ -370,7 +370,6 @@ async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
         **inp.dict(),
         "logged_at": datetime.now(timezone.utc),
     }
-    await db.workouts.insert_one(doc)
 
     # Update PRs from main lifts
     lift_map = {
@@ -398,6 +397,10 @@ async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
         xp_gain += 100
         new_badges.add("pr_hunter")
 
+    doc["xp_gained"] = xp_gain
+    doc["pr_details"] = pr_details
+    await db.workouts.insert_one(doc)
+
     await db.users.update_one(
         {"user_id": user["user_id"]},
         {
@@ -420,6 +423,55 @@ async def workout_history(user=Depends(get_current_user)):
         if isinstance(r.get("logged_at"), datetime):
             r["logged_at"] = r["logged_at"].isoformat()
     return rows
+
+@api_router.get("/recap/weekly")
+async def weekly_recap(user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    rows = await db.workouts.find({"user_id": user["user_id"]}, {"_id": 0}).sort("logged_at", -1).to_list(500)
+    week_workouts = []
+    for r in rows:
+        ts = r.get("logged_at")
+        if isinstance(ts, str):
+            try:
+                ts = datetime.fromisoformat(ts)
+            except Exception:
+                ts = None
+        if isinstance(ts, datetime):
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            if ts >= week_ago:
+                week_workouts.append(r)
+
+    xp_week = sum(w.get("xp_gained", 50 + 10 * len(w.get("exercises", []))) for w in week_workouts)
+    prs_week = []
+    total_volume = 0
+    for w in week_workouts:
+        prs_week.extend(w.get("pr_details", []))
+        for ex in w.get("exercises", []):
+            for s in ex.get("sets", []):
+                total_volume += s.get("reps", 0) * s.get("weight_lb", 0)
+
+    current_xp = user.get("xp", 0)
+    rank_now = rank_from_xp(current_xp)
+    rank_start = rank_from_xp(max(0, current_xp - xp_week))
+    promoted = rank_now != rank_start
+
+    return {
+        "display_name": user.get("display_name"),
+        "avatar_id": user.get("avatar_id"),
+        "week_start": week_ago.date().isoformat(),
+        "week_end": now.date().isoformat(),
+        "xp_gained": xp_week,
+        "workouts": len(week_workouts),
+        "total_volume_lb": int(total_volume),
+        "prs": prs_week,
+        "pr_count": len(prs_week),
+        "rank_now": rank_now,
+        "rank_start": rank_start,
+        "promoted": promoted,
+        "level": level_from_xp(current_xp),
+    }
 
 @api_router.get("/workouts/next-suggestion")
 async def next_suggestion(user=Depends(get_current_user)):

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -22,6 +22,15 @@ export default function AthletesCenter() {
   const [loading, setLoading] = useState(false);
   const [program, setProgram] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [history, setHistory] = useState<any[]>([]);
+  const [tab, setTab] = useState<"build" | "history">("build");
+
+  const loadHistory = async () => {
+    try { setHistory(await apiFetch(token, "/api/ai/programs")); } catch {}
+  };
+  useEffect(() => {
+    if (canRank && canAI) loadHistory();
+  }, [canRank, canAI]);
 
   const build = async () => {
     setLoading(true); setErr(null); setProgram(null);
@@ -31,6 +40,7 @@ export default function AthletesCenter() {
         body: JSON.stringify({ goal, split, days_per_week: parseInt(days) || 4, experience, notes }),
       });
       setProgram(res.program_text);
+      await loadHistory();
     } catch (e: any) { setErr(e.message); }
     setLoading(false);
   };
@@ -65,6 +75,17 @@ export default function AthletesCenter() {
         <Text style={styles.h1}>ATHLETE'S CENTER</Text>
         <Text style={styles.helper}>Coach Hutch builds a custom protocol based on your stats.</Text>
 
+        <View style={styles.tabRow}>
+          <Pressable testID="ac-tab-build" onPress={() => setTab("build")} style={[styles.tabBtn, tab === "build" && styles.tabBtnActive]}>
+            <Text style={[styles.tabBtnText, tab === "build" && styles.tabBtnTextActive]}>BUILD NEW</Text>
+          </Pressable>
+          <Pressable testID="ac-tab-history" onPress={() => setTab("history")} style={[styles.tabBtn, tab === "history" && styles.tabBtnActive]}>
+            <Text style={[styles.tabBtnText, tab === "history" && styles.tabBtnTextActive]}>HISTORY ({history.length})</Text>
+          </Pressable>
+        </View>
+
+        {tab === "build" ? (
+          <>
         <Field label="GOAL"><TextInput testID="ai-goal" value={goal} onChangeText={setGoal} style={styles.input} placeholderTextColor={colors.textDim}/></Field>
         <Field label="SPLIT PREFERENCE"><TextInput testID="ai-split" value={split} onChangeText={setSplit} style={styles.input} /></Field>
         <Field label="DAYS PER WEEK"><TextInput testID="ai-days" value={days} onChangeText={setDays} keyboardType="numeric" style={styles.input}/></Field>
@@ -81,6 +102,23 @@ export default function AthletesCenter() {
           <View style={styles.output}>
             <Text style={styles.outputTitle}>YOUR CUSTOM PROTOCOL</Text>
             <Text style={styles.outputBody}>{program}</Text>
+          </View>
+        )}
+          </>
+        ) : (
+          <View style={{ marginTop: spacing.md }}>
+            {history.length === 0 ? (
+              <Text style={styles.helper}>No saved protocols yet. Build one to see it here.</Text>
+            ) : (
+              history.map((h) => (
+                <Pressable testID={`ac-history-${h.program_id}`} key={h.program_id} onPress={() => { setProgram(h.program_text); setTab("build"); }} style={styles.histCard}>
+                  <Text style={styles.histTitle}>{h.request?.goal?.toUpperCase() || "PROTOCOL"} · {h.request?.split}</Text>
+                  <Text style={styles.histMeta}>{h.request?.days_per_week}x/wk · {new Date(h.created_at).toLocaleDateString()}</Text>
+                  <Text numberOfLines={2} style={styles.histPreview}>{h.program_text}</Text>
+                  <Text style={styles.histView}>TAP TO VIEW →</Text>
+                </Pressable>
+              ))
+            )}
           </View>
         )}
       </ScrollView>
@@ -107,6 +145,16 @@ const styles = StyleSheet.create({
   back: { color: colors.brandPrimary, letterSpacing: 2, fontWeight: "800", marginBottom: spacing.md },
   h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
   helper: { color: colors.textDim, marginTop: 4, marginBottom: spacing.md },
+  tabRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  tabBtn: { flex: 1, paddingVertical: spacing.sm, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  tabBtnActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  tabBtnText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2, fontSize: 12 },
+  tabBtnTextActive: { color: colors.brandPrimary },
+  histCard: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  histTitle: { color: colors.text, fontWeight: "800", letterSpacing: 1, fontSize: 13 },
+  histMeta: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, marginTop: 2, fontWeight: "700" },
+  histPreview: { color: colors.textDim, fontSize: 12, marginTop: spacing.sm, lineHeight: 17 },
+  histView: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "800", marginTop: spacing.sm },
   label: { color: colors.textDim, letterSpacing: 3, fontSize: 10, fontWeight: "700" },
   input: { marginTop: 4, backgroundColor: colors.surface2, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 12, borderWidth: 1, borderColor: colors.border },
   primary: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm },

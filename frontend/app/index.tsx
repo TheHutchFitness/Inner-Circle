@@ -112,19 +112,15 @@ export default function Index() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.heroWrap}>
           <Image
-            source="https://images.pexels.com/photos/19132573/pexels-photo-19132573.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+            source={require("../assets/images/login-bg.png")}
             style={styles.hero}
             contentFit="cover"
           />
           <LinearGradient
-            colors={["rgba(5,5,8,0)", "rgba(5,5,8,0.7)", colors.surface]}
+            colors={["rgba(5,5,8,0)", "rgba(5,5,8,0.5)", colors.surface]}
+            locations={[0.55, 0.8, 1]}
             style={StyleSheet.absoluteFill}
           />
-          <View style={styles.heroText}>
-            <Text testID="brand-mark" style={styles.brandMark}>HUTCH'S</Text>
-            <Text style={styles.brandBig}>INNER CIRCLE</Text>
-            <Text style={styles.tagline}>ENTER THE PROTOCOL</Text>
-          </View>
         </View>
 
         <View style={styles.card}>
@@ -192,13 +188,12 @@ export default function Index() {
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   container: { paddingBottom: spacing.xl },
-  heroWrap: { height: 340, width: "100%", position: "relative" },
+  heroWrap: { width: "100%", aspectRatio: 1.79, position: "relative" },
   hero: { width: "100%", height: "100%" },
-  heroText: { position: "absolute", bottom: spacing.xl, left: spacing.lg, right: spacing.lg },
   brandMark: { color: colors.brandPrimary, fontSize: 14, letterSpacing: 6, fontWeight: "700" },
   brandBig: { color: colors.text, fontSize: 34, fontWeight: "900", letterSpacing: 3, marginTop: 4 },
   tagline: { color: colors.textDim, letterSpacing: 4, marginTop: spacing.sm, fontSize: 12 },
-  card: { marginHorizontal: spacing.lg, marginTop: -spacing.md, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  card: { marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
   tabRow: { flexDirection: "row", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.lg, overflow: "hidden" },
   tab: { flex: 1, paddingVertical: spacing.md, alignItems: "center" },
   tabActive: { backgroundColor: colors.brandTertiary, borderBottomWidth: 2, borderBottomColor: colors.brandPrimary },

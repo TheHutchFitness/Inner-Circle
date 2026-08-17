@@ -14,13 +14,25 @@ export default function Paywall() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const currentOffering = offerings?.current;
-  const pkg =
+  const monthlyPkg =
     currentOffering?.monthly ||
     currentOffering?.availablePackages?.find(
       (p: any) => p.identifier === "$rc_monthly" || p.packageType === "MONTHLY"
-    ) ||
-    currentOffering?.availablePackages?.[0];
-  const price = pkg?.product.priceString || "$5.00";
+    );
+  const annualPkg =
+    currentOffering?.annual ||
+    currentOffering?.availablePackages?.find(
+      (p: any) => p.identifier === "$rc_annual" || p.packageType === "ANNUAL"
+    );
+
+  const [plan, setPlan] = useState<"monthly" | "annual">("monthly");
+  const pkg = plan === "annual" ? annualPkg : monthlyPkg;
+  const price = pkg?.product.priceString || (plan === "annual" ? "$39.99" : "$5.00");
+
+  const monthlyAmount = monthlyPkg?.product.price ?? 5;
+  const annualAmount = annualPkg?.product.price ?? 39.99;
+  const savingsPct = monthlyAmount > 0 ? Math.max(0, Math.round((1 - annualAmount / (monthlyAmount * 12)) * 100)) : 0;
+  const annualPerMonth = (annualAmount / 12).toFixed(2);
 
   const doPurchase = async () => {
     setConfirmOpen(false);
@@ -61,15 +73,20 @@ export default function Paywall() {
           </View>
         ))}
 
-        <View style={styles.priceCard}>
-          {isLoading ? <ActivityIndicator color={colors.brandPrimary} /> : (
-            <>
-              <Text style={styles.priceLabel}>MONTHLY</Text>
-              <Text style={styles.priceBig}>{price}</Text>
-              <Text style={styles.priceSub}>Cancel anytime</Text>
-            </>
-          )}
+        <View style={styles.planRow}>
+          <Pressable testID="plan-monthly" onPress={() => setPlan("monthly")} style={[styles.planCard, plan === "monthly" && styles.planCardActive]}>
+            <Text style={[styles.planLabel, plan === "monthly" && styles.planLabelActive]}>MONTHLY</Text>
+            <Text style={styles.planPrice}>{monthlyPkg?.product.priceString || "$5.00"}</Text>
+            <Text style={styles.planPer}>per month</Text>
+          </Pressable>
+          <Pressable testID="plan-annual" onPress={() => setPlan("annual")} style={[styles.planCard, plan === "annual" && styles.planCardActive]}>
+            {savingsPct > 0 && <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>SAVE {savingsPct}%</Text></View>}
+            <Text style={[styles.planLabel, plan === "annual" && styles.planLabelActive]}>ANNUAL</Text>
+            <Text style={styles.planPrice}>{annualPkg?.product.priceString || "$39.99"}</Text>
+            <Text style={styles.planPer}>${annualPerMonth}/mo · billed yearly</Text>
+          </Pressable>
         </View>
+        {isLoading && <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing.md }} />}
 
         {isSubscribed ? (
           <View style={styles.activeCard}>
@@ -101,7 +118,7 @@ export default function Paywall() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>CONFIRM PURCHASE</Text>
-            <Text style={styles.modalBody}>Subscribe to Hutch's Inner Circle Premium for {price}/mo?</Text>
+            <Text style={styles.modalBody}>Subscribe to Hutch's Inner Circle Premium — {plan === "annual" ? `${price}/yr` : `${price}/mo`}?</Text>
             <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.lg }}>
               <Pressable onPress={() => setConfirmOpen(false)} style={[styles.modalBtn, { backgroundColor: colors.surface3 }]}><Text style={styles.modalBtnText}>CANCEL</Text></Pressable>
               <Pressable testID="confirm-purchase" onPress={doPurchase} style={[styles.modalBtn, { backgroundColor: colors.brandPrimary }]}><Text style={[styles.modalBtnText, { color: "#001122" }]}>CONFIRM</Text></Pressable>
@@ -126,6 +143,15 @@ const styles = StyleSheet.create({
   priceLabel: { color: colors.brandPrimary, letterSpacing: 4, fontWeight: "800" },
   priceBig: { color: colors.text, fontSize: 42, fontWeight: "900", marginTop: 4 },
   priceSub: { color: colors.textDim, marginTop: 4 },
+  planRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
+  planCard: { flex: 1, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+  planCardActive: { borderColor: colors.brandPrimary, borderWidth: 2, backgroundColor: colors.brandTertiary },
+  planLabel: { color: colors.textDim, letterSpacing: 3, fontWeight: "800", fontSize: 12 },
+  planLabelActive: { color: colors.brandPrimary },
+  planPrice: { color: colors.text, fontSize: 26, fontWeight: "900", marginTop: 6 },
+  planPer: { color: colors.textDim, fontSize: 10, marginTop: 2, letterSpacing: 1, textAlign: "center" },
+  saveBadge: { position: "absolute", top: -10, backgroundColor: colors.success, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.pill },
+  saveBadgeText: { color: "#002200", fontWeight: "900", fontSize: 10, letterSpacing: 1 },
   primary: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm },
   primaryText: { color: "#001122", fontWeight: "900", letterSpacing: 3 },
   restoreBtn: { marginTop: spacing.md, alignItems: "center", padding: spacing.md },

@@ -53,9 +53,14 @@ export default function Dashboard() {
             <Text style={styles.eyebrow}>MISSION BRIEFING</Text>
             <Text style={styles.title}>WELCOME, {user.display_name?.toUpperCase()}</Text>
           </View>
-          <Pressable testID="open-vault" onPress={() => router.push("/vault")} style={styles.vaultBtn}>
-            <Text style={styles.vaultBtnText}>◈ VAULT</Text>
-          </Pressable>
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <Pressable testID="open-recap" onPress={() => router.push("/recap")} style={styles.vaultBtn}>
+              <Text style={styles.vaultBtnText}>▤ RECAP</Text>
+            </Pressable>
+            <Pressable testID="open-vault" onPress={() => router.push("/vault")} style={styles.vaultBtn}>
+              <Text style={styles.vaultBtnText}>◈ VAULT</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 
