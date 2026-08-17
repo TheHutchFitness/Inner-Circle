@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoid
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
+import { PRCelebration } from "@/src/components/PRCelebration";
 
 type SetT = { reps: number; weight_lb: number; rpe: number };
 type Exercise = { name: string; sets: SetT[] };
@@ -16,6 +17,7 @@ export default function WorkoutScreen() {
   const [critique, setCritique] = useState("");
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -72,6 +74,9 @@ export default function WorkoutScreen() {
       });
       await refresh();
       setNotice(`+${res.xp_gained} XP${res.pr_hit ? " · NEW PR!" : ""}`);
+      if (res.pr_hit && res.pr_details?.length) {
+        setCelebration({ prs: res.pr_details, user: res.user });
+      }
       setActive(null);
     } catch (e: any) {
       setNotice(e.message);
@@ -142,6 +147,7 @@ export default function WorkoutScreen() {
   }
 
   return (
+    <>
     <ScrollView style={{ flex: 1, backgroundColor: colors.surface }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <Text style={[styles.eyebrow, { paddingHorizontal: spacing.lg }]}>PROTOCOLS</Text>
       <Text style={[styles.h1, { paddingHorizontal: spacing.lg }]}>SELECT YOUR SPLIT</Text>
@@ -165,6 +171,13 @@ export default function WorkoutScreen() {
         </View>
       ))}
     </ScrollView>
+    <PRCelebration
+      visible={!!celebration}
+      prs={celebration?.prs || []}
+      user={celebration?.user}
+      onClose={() => setCelebration(null)}
+    />
+    </>
   );
 }
 

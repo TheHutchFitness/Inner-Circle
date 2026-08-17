@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, avatarFor, AVATARS, RANK_COLORS, fmtWeight } from "@/src/lib/theme";
+import { StrengthChart } from "@/src/components/StrengthChart";
+
+const LIFT_TABS = [["BENCH","bench"],["SQUAT","squat"],["DEAD","deadlift"],["OHP","ohp"]];
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
@@ -12,6 +15,14 @@ export default function Profile() {
   const { isSubscribed } = useSubscription();
   const router = useRouter();
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [chart, setChart] = useState<any>(null);
+  const [liftTab, setLiftTab] = useState("bench");
+
+  useEffect(() => {
+    (async () => {
+      try { setChart(await apiFetch(token, "/api/progress/chart")); } catch {}
+    })();
+  }, [token]);
 
   if (!user) return null;
   const av = avatarFor(user.avatar_id);
@@ -58,6 +69,18 @@ export default function Profile() {
             <Text style={styles.prValue}>{fmtWeight(user.prs?.[key] || 0)}</Text>
           </View>
         ))}
+      </View>
+
+      <Text style={styles.section}>STRENGTH CURVE</Text>
+      <View style={styles.chartCard}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartTabs}>
+          {LIFT_TABS.map(([label, key]) => (
+            <Pressable testID={`chart-tab-${key}`} key={key} onPress={() => setLiftTab(key)} style={[styles.chartChip, liftTab === key && styles.chartChipActive]}>
+              <Text style={[styles.chartChipText, liftTab === key && styles.chartChipTextActive]}>{label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <StrengthChart data={chart?.[liftTab] || []} color={colors.brandPrimary} />
       </View>
 
       <Text style={styles.section}>MILESTONE BADGES</Text>
@@ -119,6 +142,12 @@ const styles = StyleSheet.create({
   infoL: { color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
   infoV: { color: colors.text, fontSize: 18, fontWeight: "900", marginTop: 4 },
   section: { color: colors.text, letterSpacing: 4, fontWeight: "800", fontSize: 13, paddingHorizontal: spacing.lg, marginTop: spacing.xl, marginBottom: spacing.sm },
+  chartCard: { marginHorizontal: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
+  chartTabs: { gap: spacing.sm, paddingBottom: spacing.md },
+  chartChip: { paddingHorizontal: spacing.md, height: 32, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, justifyContent: "center", backgroundColor: colors.surface3, flexShrink: 0 },
+  chartChipActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  chartChipText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2, fontSize: 11 },
+  chartChipTextActive: { color: colors.brandPrimary },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingHorizontal: spacing.lg },
   prCard: { width: "48%", backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
   prLabel: { color: colors.brandPrimary, fontSize: 11, letterSpacing: 3, fontWeight: "800" },

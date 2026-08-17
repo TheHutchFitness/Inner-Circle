@@ -45,3 +45,17 @@ export const RANK_COLORS: Record<string, string> = {
 export function fmtWeight(w: number) {
   return `${Math.round(w)} lb`;
 }
+
+export const BACKGROUNDS: Record<string, string[]> = {
+  bg_default: ["#002A55", "#12141A"],
+  bg_cyber: ["#001A33", "#003A5C"],
+  bg_toxic: ["#0A2A00", "#12141A"],
+  bg_inferno: ["#2A0010", "#12141A"],
+  bg_void: ["#1A0033", "#050508"],
+  bg_freak: ["#330000", "#0A0000"],
+};
+
+export function bgColors(id?: string): [string, string] {
+  const c = BACKGROUNDS[id || "bg_default"] || BACKGROUNDS.bg_default;
+  return [c[0], c[1]];
+}

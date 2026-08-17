@@ -25,14 +25,16 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Implemented (2026-05)
 - Email/password + Google auth, sessions, /auth/me with rank.
 - Dashboard: avatar, rank, XP bar, stats, PR vault, protocol CTAs, premium CTA.
-- Workout logger: program library (PPL/Upper-Lower), plate steppers for reps/weight/RPE, add/remove sets, 5-star rating + critique, XP + PR + milestone badge awarding.
-- Workout history + progress chart endpoints.
+- Adaptive "Next Mission" suggestion on dashboard (/api/workouts/next-suggestion) — rotates program + flags weakest lift.
+- Unlockable Vault (/app/vault): XP/level-gated backgrounds (applied to dashboard gradient) + widgets. Endpoints: /api/unlockables, /api/profile/set-background.
+- Progress "Strength Curve" chart on profile (SVG, per-lift tabs) via /api/progress/chart.
+- Animated "NEW PR" celebration modal + shareable card (react-native-view-shot + expo-sharing) on PR hit.
+- Workout logger: program library (PPL/Upper-Lower), plate steppers for reps/weight/RPE, add/remove sets, 5-star rating + critique, XP + PR + milestone badge awarding (returns pr_details).
 - 3 leaderboards (podium top-3 + ranked list, "you" highlight).
 - Profile: anime avatar picker, info grid, PR vault, milestone badges, premium/skool pills.
 - Settings: edit profile + Skool code verification.
-- Community chat (polling, gated). The Room (elite-only, gated). Athlete's Center AI (Claude, rank+premium gated). Paywall (RevenueCat purchase/restore).
-- Seed users: athlete/elite/freak @test.com.
-- Backend: 19/19 pytest passing.
+- Community chat (polling, gated). The Room (elite-only, gated read+write). Athlete's Center AI (Claude, rank+premium gated). Paywall (RevenueCat purchase/restore).
+- Seed users: athlete/elite/freak @test.com. Backend: 19/19 pytest passing.
 
 ## Backlog / Remaining
 - P1: XP/level-based unlockable app backgrounds & widgets (not yet built).

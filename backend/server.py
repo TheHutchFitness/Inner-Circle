@@ -80,6 +80,9 @@ class SkoolVerifyIn(BaseModel):
 class SubscriptionSet(BaseModel):
     is_premium: bool
 
+class BackgroundSet(BaseModel):
+    background_id: str
+
 class AIWorkoutRequest(BaseModel):
     goal: str
     split: str
@@ -164,6 +167,7 @@ def default_user_doc(email: str, name: str, picture: str = "") -> dict:
         "streak_days": 0,
         "last_workout_date": None,
         "skool_verified": False,
+        "active_background": "bg_default",
         "created_at": datetime.now(timezone.utc),
     }
 
@@ -320,6 +324,42 @@ async def list_programs(user=Depends(get_current_user)):
     return DEFAULT_PROGRAMS
 
 
+# ---------- Unlockables (XP/level rewards) ----------
+BACKGROUNDS = [
+    {"id": "bg_default", "name": "Midnight Steel", "level": 1, "colors": ["#002A55", "#12141A"]},
+    {"id": "bg_cyber", "name": "Cyber Grid", "level": 3, "colors": ["#001A33", "#003A5C"]},
+    {"id": "bg_toxic", "name": "Toxic Surge", "level": 6, "colors": ["#0A2A00", "#12141A"]},
+    {"id": "bg_inferno", "name": "Inferno", "level": 10, "colors": ["#2A0010", "#12141A"]},
+    {"id": "bg_void", "name": "The Void", "level": 15, "colors": ["#1A0033", "#050508"]},
+    {"id": "bg_freak", "name": "Freak Mode", "level": 20, "colors": ["#330000", "#0A0000"]},
+]
+WIDGETS = [
+    {"id": "w_streak", "name": "Streak Tracker", "level": 2, "desc": "Live consecutive-day counter"},
+    {"id": "w_volume", "name": "Volume Meter", "level": 5, "desc": "Weekly tonnage moved"},
+    {"id": "w_nextrank", "name": "Rank Progress", "level": 8, "desc": "XP-to-next-rank gauge"},
+    {"id": "w_quote", "name": "War Cry", "level": 12, "desc": "Daily motivation banner"},
+]
+
+@api_router.get("/unlockables")
+async def get_unlockables(user=Depends(get_current_user)):
+    lvl = user.get("level", 1)
+    backgrounds = [{**b, "unlocked": lvl >= b["level"], "active": user.get("active_background", "bg_default") == b["id"]} for b in BACKGROUNDS]
+    widgets = [{**w, "unlocked": lvl >= w["level"]} for w in WIDGETS]
+    return {"level": lvl, "backgrounds": backgrounds, "widgets": widgets}
+
+@api_router.post("/profile/set-background")
+async def set_background(inp: BackgroundSet, user=Depends(get_current_user)):
+    bg = next((b for b in BACKGROUNDS if b["id"] == inp.background_id), None)
+    if not bg:
+        raise HTTPException(status_code=400, detail="Unknown background")
+    if user.get("level", 1) < bg["level"]:
+        raise HTTPException(status_code=403, detail=f"Unlocks at level {bg['level']}")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_background": inp.background_id}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return fresh
+
+
 # ---------- Workouts ----------
 @api_router.post("/workouts/log")
 async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
@@ -339,14 +379,17 @@ async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
     prs = user.get("prs", {"bench": 0, "squat": 0, "deadlift": 0, "ohp": 0})
     new_badges = set(user.get("badges", []))
     pr_hit = False
+    pr_details = []
     for ex in inp.exercises:
         lift_key = lift_map.get(ex.name)
         if not lift_key:
             continue
         top = max((s.weight_lb for s in ex.sets), default=0)
         if top > prs.get(lift_key, 0):
+            prev = prs.get(lift_key, 0)
             prs[lift_key] = top
             pr_hit = True
+            pr_details.append({"lift": lift_key, "name": ex.name, "weight": top, "previous": prev})
             for m in milestones_for(top):
                 new_badges.add(f"{lift_key}_{m}")
 
@@ -368,7 +411,7 @@ async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
     fresh["rank"] = rank_from_xp(fresh["xp"])
     doc.pop("_id", None)
     doc["logged_at"] = doc["logged_at"].isoformat()
-    return {"workout": doc, "user": fresh, "xp_gained": xp_gain, "pr_hit": pr_hit}
+    return {"workout": doc, "user": fresh, "xp_gained": xp_gain, "pr_hit": pr_hit, "pr_details": pr_details}
 
 @api_router.get("/workouts/history")
 async def workout_history(user=Depends(get_current_user)):
@@ -377,6 +420,49 @@ async def workout_history(user=Depends(get_current_user)):
         if isinstance(r.get("logged_at"), datetime):
             r["logged_at"] = r["logged_at"].isoformat()
     return rows
+
+@api_router.get("/workouts/next-suggestion")
+async def next_suggestion(user=Depends(get_current_user)):
+    rank = rank_from_xp(user["xp"])
+    # Pick program appropriate to rank
+    if rank in ("Advanced", "Elite", "Freak"):
+        program = next(p for p in DEFAULT_PROGRAMS if p["program_id"] == "prog_ppl_advanced")
+    elif rank == "Intermediate":
+        program = next(p for p in DEFAULT_PROGRAMS if p["program_id"] == "prog_ppl_intermediate")
+    else:
+        program = next(p for p in DEFAULT_PROGRAMS if p["program_id"] == "prog_upper_lower")
+
+    seq = [w["key"] for w in program["workouts"]]
+    # Find last workout for this program's split to rotate to the next one
+    recent = await db.workouts.find({"user_id": user["user_id"]}, {"_id": 0}).sort("logged_at", -1).limit(5).to_list(5)
+    next_key = seq[0]
+    for r in recent:
+        st = r.get("split_type", "")
+        last_key = st.split("_")[-1] if st else None
+        if last_key in seq:
+            idx = seq.index(last_key)
+            next_key = seq[(idx + 1) % len(seq)]
+            break
+    workout = next(w for w in program["workouts"] if w["key"] == next_key)
+
+    # Adaptive focus: weakest of the big 4 relative to typical ratios
+    prs = user.get("prs", {"bench": 0, "squat": 0, "deadlift": 0, "ohp": 0})
+    targets = {"bench": 1.0, "squat": 1.3, "deadlift": 1.5, "ohp": 0.6}  # relative to bench baseline
+    base = max(prs.get("bench", 0), 1)
+    ratios = {k: (prs.get(k, 0) / base) / targets[k] if targets[k] else 1 for k in targets}
+    weakest = min(ratios, key=ratios.get)
+    focus_names = {"bench": "Bench Press", "squat": "Back Squat", "deadlift": "Deadlift", "ohp": "Overhead Press"}
+    focus = focus_names[weakest]
+
+    return {
+        "program_id": program["program_id"],
+        "program_name": program["name"],
+        "split": program["split"],
+        "workout": workout,
+        "focus_lift": focus,
+        "focus_note": f"Your {focus} is lagging behind your other lifts — attack it with intent today.",
+        "based_on": rank,
+    }
 
 @api_router.get("/progress/chart")
 async def progress_chart(user=Depends(get_current_user)):
@@ -553,6 +639,7 @@ async def seed():
             "streak_days": 12,
             "last_workout_date": datetime.now(timezone.utc).isoformat(),
             "skool_verified": s["email"] == "elite@test.com",
+            "active_background": "bg_default",
             "password_hash": hash_password("TestPass123!"),
             "created_at": datetime.now(timezone.utc),
         }

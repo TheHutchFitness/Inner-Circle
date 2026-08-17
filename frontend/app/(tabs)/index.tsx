@@ -1,10 +1,11 @@
+import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { useAuth } from "@/src/lib/auth";
+import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgColors } from "@/src/lib/theme";
 
 function nextRankInfo(xp: number) {
   const thresholds = [
@@ -19,9 +20,16 @@ function nextRankInfo(xp: number) {
 
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { isSubscribed } = useSubscription();
   const router = useRouter();
+  const [suggestion, setSuggestion] = useState<any>(null);
+
+  useEffect(() => {
+    (async () => {
+      try { setSuggestion(await apiFetch(token, "/api/workouts/next-suggestion")); } catch {}
+    })();
+  }, [token, user?.xp]);
 
   if (!user) return null;
   const avatar = avatarFor(user.avatar_id);
@@ -29,16 +37,26 @@ export default function Dashboard() {
   const rankColor = RANK_COLORS[rank] || colors.brandPrimary;
   const next = nextRankInfo(user.xp);
   const progress = next.name === "MAX" ? 1 : Math.min(1, user.xp / next.xp);
+  const bg = bgColors(user.active_background);
 
   const isPremium = isSubscribed || user.skool_verified;
   const canAthletesCenter = rank === "Advanced" || rank === "Elite" || rank === "Freak";
   const canRoom = rank === "Elite" || rank === "Freak";
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
+      <LinearGradient colors={[bg[0], colors.surface]} style={StyleSheet.absoluteFill} />
+      <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>MISSION BRIEFING</Text>
-        <Text style={styles.title}>WELCOME, {user.display_name?.toUpperCase()}</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <View>
+            <Text style={styles.eyebrow}>MISSION BRIEFING</Text>
+            <Text style={styles.title}>WELCOME, {user.display_name?.toUpperCase()}</Text>
+          </View>
+          <Pressable testID="open-vault" onPress={() => router.push("/vault")} style={styles.vaultBtn}>
+            <Text style={styles.vaultBtnText}>◈ VAULT</Text>
+          </Pressable>
+        </View>
       </View>
 
       <LinearGradient colors={[colors.brandTertiary, colors.surface2]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.heroCard}>
@@ -85,15 +103,31 @@ export default function Dashboard() {
         ))}
       </View>
 
-      <Text style={styles.sectionTitle}>PROTOCOLS</Text>
-      <Pressable testID="quick-start-workout" onPress={() => router.push("/(tabs)/workout")} style={styles.ctaCard}>
-        <View>
-          <Text style={styles.ctaTitle}>QUICK START</Text>
-          <Text style={styles.ctaSub}>Launch training session</Text>
-        </View>
-        <Text style={styles.ctaArrow}>▶</Text>
-      </Pressable>
+      <Text style={styles.sectionTitle}>NEXT MISSION</Text>
+      {suggestion ? (
+        <Pressable testID="adaptive-suggestion" onPress={() => router.push("/(tabs)/workout")} style={styles.adaptiveCard}>
+          <View style={styles.adaptiveHead}>
+            <Text style={styles.adaptiveTag}>ADAPTIVE · {suggestion.based_on?.toUpperCase()}</Text>
+            <Text style={styles.adaptiveArrow}>▶</Text>
+          </View>
+          <Text style={styles.adaptiveTitle}>{suggestion.workout?.name?.toUpperCase()}</Text>
+          <Text style={styles.adaptiveProg}>{suggestion.program_name}</Text>
+          <View style={styles.focusPill}>
+            <Text style={styles.focusPillText}>FOCUS: {suggestion.focus_lift?.toUpperCase()}</Text>
+          </View>
+          <Text style={styles.adaptiveNote}>{suggestion.focus_note}</Text>
+        </Pressable>
+      ) : (
+        <Pressable testID="quick-start-workout" onPress={() => router.push("/(tabs)/workout")} style={styles.ctaCard}>
+          <View>
+            <Text style={styles.ctaTitle}>QUICK START</Text>
+            <Text style={styles.ctaSub}>Launch training session</Text>
+          </View>
+          <Text style={styles.ctaArrow}>▶</Text>
+        </Pressable>
+      )}
 
+      <Text style={styles.sectionTitle}>PROTOCOLS</Text>
       <Pressable testID="open-athletes-center" onPress={() => router.push("/athletes-center")} style={[styles.ctaCard, !canAthletesCenter && styles.locked]}>
         <View>
           <Text style={styles.ctaTitle}>ATHLETE'S CENTER {canAthletesCenter ? "" : "🔒"}</Text>
@@ -116,13 +150,25 @@ export default function Dashboard() {
           <Text style={styles.premiumCtaSub}>Chatrooms + AI Programming</Text>
         </Pressable>
       )}
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
+  root: { flex: 1, backgroundColor: "transparent" },
   header: { paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  vaultBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.sm },
+  vaultBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
+  adaptiveCard: { marginHorizontal: spacing.lg, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong },
+  adaptiveHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  adaptiveTag: { color: colors.brandPrimary, letterSpacing: 3, fontSize: 10, fontWeight: "800" },
+  adaptiveArrow: { color: colors.brandPrimary, fontSize: 16 },
+  adaptiveTitle: { color: colors.text, fontSize: 20, fontWeight: "900", letterSpacing: 1, marginTop: 6 },
+  adaptiveProg: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  focusPill: { alignSelf: "flex-start", backgroundColor: colors.brandTertiary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 4, marginTop: spacing.md, borderWidth: 1, borderColor: colors.borderStrong },
+  focusPillText: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "800" },
+  adaptiveNote: { color: colors.textMid, fontSize: 12, marginTop: spacing.sm, lineHeight: 18 },
   eyebrow: { color: colors.brandPrimary, letterSpacing: 4, fontSize: 11, fontWeight: "700" },
   title: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
   heroCard: { marginHorizontal: spacing.lg, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderStrong },
