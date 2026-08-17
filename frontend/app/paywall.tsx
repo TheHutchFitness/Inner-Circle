@@ -14,7 +14,12 @@ export default function Paywall() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const currentOffering = offerings?.current;
-  const pkg = currentOffering?.availablePackages[0];
+  const pkg =
+    currentOffering?.monthly ||
+    currentOffering?.availablePackages?.find(
+      (p: any) => p.identifier === "$rc_monthly" || p.packageType === "MONTHLY"
+    ) ||
+    currentOffering?.availablePackages?.[0];
   const price = pkg?.product.priceString || "$5.00";
 
   const doPurchase = async () => {

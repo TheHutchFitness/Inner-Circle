@@ -1,0 +1,56 @@
+{
+  "summary": "Bug NOT fixed. Paywall still displays $9.99 for the MONTHLY plan (both the large price card and 'SUBSCRIBE — $9.99' button). Root cause is server-side: RevenueCat's product pricing for pro.monthly is still $9.99 (amount_micros 9990000). The frontend code in /app/frontend/app/paywall.tsx is correct — it explicitly selects currentOffering.monthly / '$rc_monthly' / packageType 'MONTHLY' and renders pkg.product.priceString. The reported RevenueCat product-price update to $5.00 via the integration proxy did NOT actually persist on RevenueCat's side.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "RevenueCat integration proxy (product price upsert for $rc_monthly / pro.monthly)",
+        "issue": "The POST to $INTEGRATION_PROXY_URL/internal/revenuecat/projects/1d06066f-.../products with {price:5.00, amount_micros:5000000} did NOT update the live price. RevenueCat GET rcbilling/v1/.../products?id=pro.monthly returns current_price.amount_micros=9990000 ($9.99). Main agent must re-run the upsert (or update via the RC dashboard test-store product pricing) and re-verify with the RC API before retesting the UI.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "paywall.tsx price display",
+        "issue": "Shows '$9.99' in MONTHLY price card and 'SUBSCRIBE — $9.99' button. Expected $5.00. Root cause is RC-side pricing, not the RN component. File: /app/frontend/app/paywall.tsx:23,68,87,104.",
+        "testID": "paywall-purchase",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Paywall price rendering",
+        "issue": "The frontend reads the priceString directly from RevenueCat's Offerings/rcbilling response. Any hardcoded fallback '$5.00' in code is only used when pkg is undefined — it is NOT used here because offerings load successfully and the real (wrong) price $9.99 is returned. Fixing this in the RN code (e.g. hardcoding $5.00) would mask the real store-side pricing bug and break real purchases.",
+        "affected_testIDs": ["paywall-purchase"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "Console warnings",
+        "issue": "'textShadow*' style props are deprecated, use 'textShadow'. 'props.pointerEvents is deprecated. Use style.pointerEvents'. Not blocking, but should be cleaned up."
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Re-run the RevenueCat integration-proxy price upsert for $rc_monthly to $5.00 and VERIFY by curling https://api.revenuecat.com/rcbilling/v1/.../products?id=pro.monthly (or the internal proxy status endpoint) that current_price.amount_micros == 5000000 BEFORE claiming the bug is fixed.",
+    "If the proxy upsert is idempotent but not effective, try alternative payloads: some price updates in RC create a new price record (note price_id 'prc85efb12e66a94bd7b212' in the current response) instead of mutating the old one — you may need to attach the new price to the product/package or update the offering.",
+    "After RC returns $5.00, retest the paywall UI (Profile tab → MANAGE PREMIUM → verify MONTHLY card + SUBSCRIBE button both show $5.00).",
+    "Do NOT hardcode $5.00 in paywall.tsx — the current code correctly reads from RC; the fix belongs on the RevenueCat side.",
+    "Also update pro.annual price if annual pricing is expected to change ($79.99 was returned; per memory/revenuecat.md that is intentional and not in-app, so likely no action)."
+  ],
+  "critical_code_review_comments": [
+    "paywall.tsx line 23: fallback 'const price = pkg?.product.priceString || \"$5.00\"' is only used when pkg is nullish. Since offerings load, pkg is defined and this fallback is a no-op. Keep it, but it should not be relied on for the fix.",
+    "revenuecat.tsx correctly picks the Test Store API key on web/DEV; init and offerings query look fine — no code changes required."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "0% (bug still reproduces)"},
+  "seed_data_creation": "None. Used existing seeded athlete@test.com.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reproduction: login athlete@test.com / TestPass123! → Profile (ME) tab → tap [data-testid=open-paywall-profile] → observe MONTHLY $9.99 and SUBSCRIBE — $9.99. Verification of fix requires the RevenueCat API for pro.monthly to return current_price.amount_micros=5000000. The network call to watch is GET https://api.revenuecat.com/rcbilling/v1/subscribers/.../products?id=pro.monthly&id=pro.annual.",
+  "rca_of_issue": "The RevenueCat Web/Test-Store Offerings API (https://api.revenuecat.com/v1/subscribers/{id}/offerings + https://api.revenuecat.com/rcbilling/v1/subscribers/{id}/products?id=pro.monthly) returns current_price.amount_micros=9990000 ($9.99) for pro.monthly. The frontend paywall renders exactly this priceString. The main agent's fix (explicitly selecting currentOffering.monthly instead of availablePackages[0]) does not matter because ALL monthly packages point to the same pro.monthly product which is still $9.99 in RevenueCat. The real bug is that the integration-proxy price update to $5.00 either never applied or did not propagate to the Test Store price record used by the SDK. Mitigation: main agent must re-issue the RC product/price update, confirm via the RC API, then retest the UI."
+}

@@ -7,7 +7,7 @@
 - entitlement_lookup_key: pro
 - offering_lookup_key: default
 - Packages:
-  - $rc_monthly -> prod9f03d1e92b   ($5.00 / P1M, trial: none)
+  - $rc_monthly -> prodf8cdb8e2a3   ($5.00 / P1M, trial: none)   # recreated to apply $5 price
   - $rc_annual  -> prod499e14ff1b   ($79.99 / P1Y, trial: none) [not used by app but provisioned]
 - Dashboard: https://app.revenuecat.com/projects/proj93f78c96
 

@@ -1,0 +1,28 @@
+{
+  "summary": "BUG FIX VERIFIED. Paywall now correctly displays $5.00 for the MONTHLY plan. Screenshot confirms MONTHLY price card reads '$5.00' and the paywall-purchase button reads 'SUBSCRIBE — $5.00'. RevenueCat rcbilling network response for pro.monthly returns amount_micros=5000000 ($5.00), confirming the RC-side recreation of the monthly product (prodf8cdb8e2a3) with the correct price propagated. Flow validated: login athlete@test.com / TestPass123! → ME (Profile) tab → tap MANAGE PREMIUM (open-paywall-profile) → paywall renders correct price. Annual product still returns amount_micros=79990000 ($79.99) as expected per revenuecat.md. No red screens, no blocking errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "Deprecation warnings (non-blocking)", "issue": "Console shows 'textShadow* style props are deprecated. Use textShadow.' and 'props.pointerEvents is deprecated. Use style.pointerEvents'. Not blocking the paywall fix but should be cleaned up. Look for legacy textShadowColor/textShadowOffset/textShadowRadius style usages and any pointerEvents prop passed directly to components."}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Bug fix verified — no further paywall action needed.",
+    "Optional cleanup: migrate deprecated 'textShadow*' style props to the single 'textShadow' prop and move pointerEvents into style objects to silence warnings."
+  ],
+  "critical_code_review_comments": [
+    "paywall.tsx selects monthly explicitly via currentOffering.monthly / $rc_monthly / packageType MONTHLY — correct.",
+    "revenuecat.tsx correctly picks the RC Test Store API key on web/DEV and offerings are cached with 5-min staleTime; a fresh page load fetched updated pricing successfully."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only test)", "frontend": "100% (paywall shows $5.00 as expected)"},
+  "seed_data_creation": "None. Used seeded athlete@test.com / TestPass123!.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Paywall $5.00 monthly bug is resolved and verified end-to-end via Playwright + RC rcbilling network capture (amount_micros=5000000 for pro.monthly). Repro path if a regression appears: login athlete@test.com → ME tab → tap [data-testid=open-paywall-profile] → check [data-testid=paywall-purchase] inner text.",
+  "rca_of_issue": "Root cause was the RevenueCat Test-Store product price for pro.monthly still being $9.99 (iteration_1). The main agent DELETED and RECREATED the monthly product with a $5.00 price (new product id prodf8cdb8e2a3, amount_micros 5000000). The recreated price is now returned by the rcbilling products endpoint and rendered by paywall.tsx via pkg.product.priceString. Verified: (1) rcbilling GET /products?id=pro.monthly returns amount_micros:5000000, (2) UI MONTHLY card = '$5.00', (3) SUBSCRIBE button = 'SUBSCRIBE — $5.00'."
+}
