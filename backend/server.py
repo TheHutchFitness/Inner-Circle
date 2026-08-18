@@ -261,6 +261,74 @@ async def profile_me(user=Depends(get_current_user)):
     user["rank"] = rank_from_xp(user["xp"])
     return user
 
+@api_router.get("/profile/attributes")
+async def profile_attributes(user=Depends(get_current_user)):
+    prs = user.get("prs", {}) or {}
+    bench = prs.get("bench", 0); squat = prs.get("squat", 0)
+    deadlift = prs.get("deadlift", 0); ohp = prs.get("ohp", 0)
+    bw = max(1, user.get("bodyweight_lb", 1) or 1)
+    total = bench + squat + deadlift + ohp
+    workouts = user.get("workouts_logged", 0) or 0
+    streak = user.get("streak_days", 0) or 0
+    xp = user.get("xp", 0) or 0
+    lvl = level_from_xp(xp)
+    badges = len(user.get("badges", []) or [])
+
+    def clamp(v):
+        return max(5, min(100, round(v)))
+
+    # In-app percentile for strength total (global-in-app comparison)
+    all_totals = []
+    async for u in db.users.find({}, {"_id": 0, "prs": 1}):
+        p = u.get("prs", {}) or {}
+        all_totals.append(p.get("bench", 0) + p.get("squat", 0) + p.get("deadlift", 0) + p.get("ohp", 0))
+    if all_totals:
+        below = sum(1 for t in all_totals if t <= total)
+        app_percentile = round(below / len(all_totals) * 100)
+    else:
+        app_percentile = 50
+
+    # Global benchmark: approx elite raw total ~1450 lb (bench 350 + squat 500 + dead 600 ... scaled)
+    global_strength = total / 1450 * 100
+    strength = clamp(0.6 * global_strength + 0.4 * app_percentile)
+    # Power = relative strength (total per bodyweight); ~7x bw = elite
+    power = clamp((total / bw) / 7.0 * 100)
+    # Speed = explosive/press proxy (ohp relative) + training frequency
+    speed = clamp((ohp / bw) / 0.9 * 60 + min(40, workouts * 0.8))
+    # Endurance = volume/consistency
+    endurance = clamp(workouts * 1.4 + streak * 2.2)
+    # Grit = progression + achievements
+    grit = clamp(lvl * 3.2 + badges * 3.5)
+
+    stats = {"strength": strength, "power": power, "speed": speed, "endurance": endurance, "grit": grit}
+    overall = round(sum(stats.values()) / len(stats))
+
+    # Class title from dominant axis
+    dominant = max(stats, key=stats.get)
+    spread = max(stats.values()) - min(stats.values())
+    titles = {
+        "strength": "JUGGERNAUT", "power": "POWERHOUSE", "speed": "STRIKER",
+        "endurance": "MARATHONER", "grit": "WARLORD",
+    }
+    class_title = "ALL-ROUNDER" if spread <= 12 else titles[dominant]
+
+    # Class tier from overall attribute score
+    if overall < 25: tier = "E"
+    elif overall < 40: tier = "D"
+    elif overall < 55: tier = "C"
+    elif overall < 70: tier = "B"
+    elif overall < 85: tier = "A"
+    else: tier = "S"
+
+    return {
+        "stats": stats,
+        "overall": overall,
+        "class_title": class_title,
+        "class_tier": tier,
+        "dominant": dominant,
+        "app_percentile": app_percentile,
+    }
+
 @api_router.patch("/profile/update")
 async def update_profile(inp: ProfileUpdate, user=Depends(get_current_user)):
     update = {k: v for k, v in inp.dict().items() if v is not None}
@@ -347,6 +415,150 @@ RANK_PERK_BG = {
     "Freak": "bg_freak",
 }
 
+# ---------- Quests ----------
+QUEST_TEMPLATES = {
+    "daily": [
+        {"id": "d_train", "title": "Answer the Call", "flavor": "A Daily Quest has arrived. Log a training session.", "reward_xp": 60, "objectives": [{"key": "workouts", "label": "Log workouts today", "target": 1}]},
+        {"id": "d_sets", "title": "Grind Sets", "flavor": "Volume builds the vessel. Complete your working sets.", "reward_xp": 70, "objectives": [{"key": "sets", "label": "Complete sets today", "target": 12}]},
+        {"id": "d_volume", "title": "Iron Tonnage", "flavor": "Move serious weight before the day resets.", "reward_xp": 80, "objectives": [{"key": "volume", "label": "Move total lb today", "target": 8000}]},
+    ],
+    "weekly": [
+        {"id": "w_consistency", "title": "Weekly Warrior", "flavor": "Show up. Discipline over motivation.", "reward_xp": 250, "objectives": [{"key": "workouts", "label": "Sessions this week", "target": 4}]},
+        {"id": "w_pr", "title": "Break Limits", "flavor": "Set a new personal record this week.", "reward_xp": 300, "objectives": [{"key": "prs", "label": "New PRs this week", "target": 1}]},
+        {"id": "w_volume", "title": "Mountain Mover", "flavor": "Accumulate massive weekly tonnage.", "reward_xp": 280, "objectives": [{"key": "volume", "label": "Move total lb this week", "target": 60000}]},
+    ],
+    "monthly": [
+        {"id": "m_grind", "title": "Monthly Monster", "flavor": "A month of relentless work.", "reward_type": "badge", "reward_value": "quest_monthly_monster", "reward_label": "Monthly Monster Badge", "objectives": [{"key": "workouts", "label": "Sessions this month", "target": 16}]},
+        {"id": "m_pr", "title": "Record Breaker", "flavor": "Rewrite your limits repeatedly.", "reward_type": "background", "reward_value": "bg_void", "reward_label": "The Void Background", "objectives": [{"key": "prs", "label": "New PRs this month", "target": 4}]},
+        {"id": "m_ascend", "title": "Ascendant", "flavor": "Pure dedication. Earn the Prime card.", "reward_type": "card", "reward_value": "prime_card", "reward_label": "Prime Card Badge", "objectives": [{"key": "xp", "label": "XP earned this month", "target": 2000}]},
+    ],
+}
+
+
+def _period_key(scope: str, now: datetime) -> str:
+    if scope == "daily":
+        return now.strftime("%Y-%m-%d")
+    if scope == "weekly":
+        iso = now.isocalendar()
+        return f"{iso[0]}-W{iso[1]:02d}"
+    return now.strftime("%Y-%m")
+
+
+async def _metrics_for(user_id: str, scope: str, now: datetime):
+    if scope == "daily":
+        start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    elif scope == "weekly":
+        start = now - timedelta(days=7)
+    else:
+        start = now - timedelta(days=30)
+    rows = await db.workouts.find({"user_id": user_id}, {"_id": 0}).sort("logged_at", -1).to_list(1000)
+    workouts = sets = prs = xp = volume = 0
+    for r in rows:
+        ts = r.get("logged_at")
+        if isinstance(ts, str):
+            try: ts = datetime.fromisoformat(ts)
+            except Exception: ts = None
+        if not isinstance(ts, datetime):
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if ts < start:
+            continue
+        workouts += 1
+        prs += len(r.get("pr_details", []) or [])
+        xp += r.get("xp_gained", 0) or 0
+        for ex in r.get("exercises", []) or []:
+            for s in ex.get("sets", []) or []:
+                sets += 1
+                volume += (s.get("reps", 0) or 0) * (s.get("weight_lb", 0) or 0)
+    return {"workouts": workouts, "sets": sets, "prs": prs, "xp": xp, "volume": int(volume)}
+
+
+async def _build_quests(user, scope: str, now: datetime):
+    metrics = await _metrics_for(user["user_id"], scope, now)
+    pkey = _period_key(scope, now)
+    total_users = max(1, await db.users.count_documents({}))
+    out = []
+    for tmpl in QUEST_TEMPLATES[scope]:
+        quest_key = f"{scope}:{tmpl['id']}:{pkey}"
+        objectives = []
+        complete = True
+        for ob in tmpl["objectives"]:
+            cur = min(metrics.get(ob["key"], 0), ob["target"])
+            if metrics.get(ob["key"], 0) < ob["target"]:
+                complete = False
+            objectives.append({"label": ob["label"], "current": cur, "target": ob["target"]})
+        claim = await db.quest_claims.find_one({"user_id": user["user_id"], "quest_key": quest_key})
+        completers = await db.quest_claims.count_documents({"quest_key": quest_key})
+        out.append({
+            "id": quest_key,
+            "scope": scope,
+            "title": tmpl["title"],
+            "flavor": tmpl["flavor"],
+            "objectives": objectives,
+            "complete": complete,
+            "claimed": bool(claim),
+            "reward_xp": tmpl.get("reward_xp", 0),
+            "reward_type": tmpl.get("reward_type", "xp"),
+            "reward_label": tmpl.get("reward_label", f"{tmpl.get('reward_xp', 0)} XP"),
+            "global_completions": completers,
+            "global_percent": round(completers / total_users * 100, 1),
+        })
+    return out
+
+
+@api_router.get("/quests")
+async def get_quests(scope: str = "daily", user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    if scope == "all":
+        data = {}
+        for sc in ("daily", "weekly", "monthly"):
+            data[sc] = await _build_quests(user, sc, now)
+        return data
+    if scope not in QUEST_TEMPLATES:
+        raise HTTPException(status_code=400, detail="Invalid scope")
+    return {scope: await _build_quests(user, scope, now)}
+
+
+@api_router.post("/quests/claim")
+async def claim_quest(payload: dict, user=Depends(get_current_user)):
+    quest_id = payload.get("quest_id", "")
+    parts = quest_id.split(":")
+    if len(parts) < 3:
+        raise HTTPException(status_code=400, detail="Bad quest id")
+    scope, tmpl_id = parts[0], parts[1]
+    tmpl = next((t for t in QUEST_TEMPLATES.get(scope, []) if t["id"] == tmpl_id), None)
+    if not tmpl:
+        raise HTTPException(status_code=404, detail="Quest not found")
+    now = datetime.now(timezone.utc)
+    quests = await _build_quests(user, scope, now)
+    q = next((x for x in quests if x["id"] == quest_id), None)
+    if not q:
+        raise HTTPException(status_code=404, detail="Quest not active")
+    if not q["complete"]:
+        raise HTTPException(status_code=400, detail="Objectives not met")
+    if q["claimed"]:
+        raise HTTPException(status_code=400, detail="Already claimed")
+
+    await db.quest_claims.insert_one({"user_id": user["user_id"], "quest_key": quest_id, "claimed_at": now})
+    reward_msg = ""
+    rtype = tmpl.get("reward_type", "xp")
+    if rtype == "xp" or scope in ("daily", "weekly"):
+        gained = tmpl.get("reward_xp", 0)
+        await award_xp(user["user_id"], gained)
+        reward_msg = f"+{gained} XP"
+    elif rtype == "badge" or rtype == "card":
+        await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"badges": tmpl["reward_value"]}})
+        reward_msg = tmpl.get("reward_label", "New badge")
+    elif rtype == "background":
+        await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"extra_unlocks": tmpl["reward_value"]}})
+        reward_msg = tmpl.get("reward_label", "New background")
+
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return {"ok": True, "reward": reward_msg, "user": fresh}
+
+
 @api_router.get("/unlockables")
 async def get_unlockables(user=Depends(get_current_user)):
     lvl = user.get("level", 1)
@@ -357,9 +569,10 @@ async def get_unlockables(user=Depends(get_current_user)):
     for r in rank_order[: rank_order.index(rank) + 1]:
         if r in RANK_PERK_BG:
             earned_perks.add(RANK_PERK_BG[r])
+    extra = set(user.get("extra_unlocks", []) or [])
     backgrounds = [{
         **b,
-        "unlocked": lvl >= b["level"] or b["id"] in earned_perks or b["id"] == active,
+        "unlocked": lvl >= b["level"] or b["id"] in earned_perks or b["id"] == active or b["id"] in extra,
         "active": active == b["id"],
         "perk_rank": next((r for r, bid in RANK_PERK_BG.items() if bid == b["id"]), None),
     } for b in BACKGROUNDS]

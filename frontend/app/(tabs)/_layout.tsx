@@ -9,6 +9,7 @@ const TABS = [
   { name: "index", label: "HQ", icon: "◆" },
   { name: "workout", label: "TRAIN", icon: "▲" },
   { name: "leaderboard", label: "RANK", icon: "☰" },
+  { name: "quests", label: "QUESTS", icon: "❖" },
   { name: "community", label: "SOCIAL", icon: "◍" },
   { name: "profile", label: "ME", icon: "◉" },
 ];
@@ -49,6 +50,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" />
       <Tabs.Screen name="workout" />
       <Tabs.Screen name="leaderboard" />
+      <Tabs.Screen name="quests" />
       <Tabs.Screen name="community" />
       <Tabs.Screen name="profile" />
     </Tabs>
@@ -66,7 +68,7 @@ const styles = StyleSheet.create({
   item: { flex: 1, alignItems: "center", paddingVertical: 4 },
   icon: { color: colors.textDim, fontSize: 18, marginBottom: 2 },
   iconFocus: { color: colors.brandPrimary, textShadowColor: colors.brandPrimary, textShadowRadius: 8 },
-  label: { color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
+  label: { color: colors.textDim, fontSize: 9, letterSpacing: 1, fontWeight: "700" },
   labelFocus: { color: colors.brandPrimary },
   underline: { position: "absolute", top: 0, height: 2, width: 24, backgroundColor: colors.brandPrimary },
 });

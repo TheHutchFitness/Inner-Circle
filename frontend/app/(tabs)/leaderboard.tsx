@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, avatarFor, RANK_COLORS } from "@/src/lib/theme";
+import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 const BOARDS = [
   { key: "xp", label: "LEVEL", desc: "Overall Level" },
@@ -39,6 +40,7 @@ export default function Leaderboards() {
   const rest = rows.slice(3);
 
   return (
+    <SwipeTabs current="leaderboard">
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <Image source={BOARD_BG[board]} style={styles.bgImage} contentFit="cover" />
       <LinearGradient
@@ -101,6 +103,7 @@ export default function Leaderboards() {
       )}
     </ScrollView>
     </View>
+    </SwipeTabs>
   );
 }
 

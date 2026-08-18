@@ -9,9 +9,11 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS } from "@/src/lib/theme";
 import { StrengthChart } from "@/src/components/StrengthChart";
+import { RadarChart } from "@/src/components/RadarChart";
 import { HudSectionHeader } from "@/src/components/Hud";
+import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"], ["OHP", "ohp"]];
 
@@ -22,6 +24,7 @@ export default function Profile() {
   const router = useRouter();
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [chart, setChart] = useState<any>(null);
+  const [attrs, setAttrs] = useState<any>(null);
   const [liftTab, setLiftTab] = useState("bench");
   const [showStats, setShowStats] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
@@ -32,14 +35,19 @@ export default function Profile() {
   const shimmerStyle = useAnimatedStyle(() => ({ opacity: 0.35 + shimmer.value * 0.5 }));
 
   useEffect(() => {
-    (async () => { try { setChart(await apiFetch(token, "/api/progress/chart")); } catch {} })();
-  }, [token]);
+    (async () => {
+      try { setChart(await apiFetch(token, "/api/progress/chart")); } catch {}
+      try { setAttrs(await apiFetch(token, "/api/profile/attributes")); } catch {}
+    })();
+  }, [token, user?.xp]);
 
   if (!user) return null;
   const av = avatarFor(user.avatar_id);
   const rank = user.rank || "Beginner";
   const rankColor = RANK_COLORS[rank];
   const portrait = avatarImage(user.avatar_id);
+  const frame = frameFor(rank);
+  const tierColor = CLASS_TIER_COLORS[attrs?.class_tier] || rankColor;
   const totalLift = (user.prs?.bench || 0) + (user.prs?.squat || 0) + (user.prs?.deadlift || 0) + (user.prs?.ohp || 0);
 
   const pickAvatar = async (avatar_id: string) => {
@@ -58,6 +66,7 @@ export default function Profile() {
   };
 
   return (
+    <SwipeTabs current="profile">
     <ScrollView style={{ flex: 1, backgroundColor: colors.surface }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <View style={styles.topRow}>
         <Text style={styles.hudTag}>⌁ PLAYER CARD</Text>
@@ -69,12 +78,12 @@ export default function Profile() {
         <Animated.View style={[styles.cardGlow, { shadowColor: rankColor }, shimmerStyle]} />
         <Pressable testID="change-avatar" onPress={() => setAvatarOpen(true)}>
           <View ref={cardRef} collapsable={false} style={styles.cardWrap}>
-            <LinearGradient colors={[rankColor + "55", "#0A0C12", "#050508"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
+            <LinearGradient colors={frame.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.card, { borderColor: frame.border }]}>
               {/* corner brackets */}
-              <View style={[styles.corner, styles.tl, { borderColor: rankColor }]} />
-              <View style={[styles.corner, styles.tr, { borderColor: rankColor }]} />
-              <View style={[styles.corner, styles.bl, { borderColor: rankColor }]} />
-              <View style={[styles.corner, styles.br, { borderColor: rankColor }]} />
+              <View style={[styles.corner, styles.tl, { borderColor: frame.border }]} />
+              <View style={[styles.corner, styles.tr, { borderColor: frame.border }]} />
+              <View style={[styles.corner, styles.bl, { borderColor: frame.border }]} />
+              <View style={[styles.corner, styles.br, { borderColor: frame.border }]} />
 
               <View style={styles.cardHeaderRow}>
                 <Text style={[styles.rankStamp, { color: rankColor, borderColor: rankColor }]}>{rank.toUpperCase()}</Text>
@@ -93,7 +102,13 @@ export default function Profile() {
 
               <View style={styles.namePlate}>
                 <Text style={styles.playerName}>{user.display_name?.toUpperCase()}</Text>
-                <Text style={[styles.playerClass, { color: rankColor }]}>{av.label.toUpperCase()} CLASS</Text>
+                <View style={styles.classRow}>
+                  <View style={[styles.tierBadge, { borderColor: tierColor }]}>
+                    <Text style={[styles.tierText, { color: tierColor }]}>{attrs?.class_tier || "—"}</Text>
+                  </View>
+                  <Text style={[styles.playerClass, { color: rankColor }]}>{attrs?.class_title || `${av.label.toUpperCase()} CLASS`}</Text>
+                </View>
+                <Text style={styles.frameName}>◈ {frame.name}</Text>
                 <View style={styles.pillRow}>
                   {isSubscribed && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ PREMIUM</Text></View>}
                   {user.skool_verified && <View style={[styles.pill, { backgroundColor: colors.success }]}><Text style={styles.pillText}>✓ SKOOL</Text></View>}
@@ -108,7 +123,20 @@ export default function Profile() {
             </LinearGradient>
           </View>
         </Pressable>
-        <Text style={styles.tapHint}>TAP THE CARD TO SWITCH YOUR AVATAR</Text>
+        <Text style={styles.tapHint}>TAP THE CARD TO SWITCH YOUR CLASS</Text>
+      </View>
+
+      {/* COMBAT STATS RADAR */}
+      <HudSectionHeader label="COMBAT STATS" />
+      <View style={styles.radarCard}>
+        <View style={styles.radarClassRow}>
+          <Text style={styles.radarClassTitle}>{attrs?.class_title || "—"}</Text>
+          <View style={[styles.tierBadgeLg, { borderColor: tierColor }]}>
+            <Text style={[styles.tierTextLg, { color: tierColor }]}>{attrs?.class_tier || "—"}-CLASS</Text>
+          </View>
+        </View>
+        <RadarChart stats={attrs?.stats} color={rankColor} size={230} />
+        <Text style={styles.radarNote}>Overall {attrs?.overall ?? 0}/100 · Top {100 - (attrs?.app_percentile ?? 50)}% in-app · vs global lift standards</Text>
       </View>
 
       {/* STATS / SHARE actions */}
@@ -177,7 +205,7 @@ export default function Profile() {
       <Modal visible={avatarOpen} transparent animationType="fade" onRequestClose={() => setAvatarOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>SELECT FIGHTER</Text>
+            <Text style={styles.modalTitle}>SELECT CLASS</Text>
             <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={styles.avatarGrid}>
               {AVATARS.map((a) => {
                 const img = avatarImage(a.id);
@@ -195,6 +223,7 @@ export default function Profile() {
         </View>
       </Modal>
     </ScrollView>
+    </SwipeTabs>
   );
 }
 
@@ -231,7 +260,11 @@ const styles = StyleSheet.create({
   holoLine: { position: "absolute", top: "45%", left: 0, right: 0, height: 2, backgroundColor: "rgba(0,229,255,0.25)" },
   namePlate: { marginTop: spacing.md },
   playerName: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1 },
-  playerClass: { fontSize: 11, letterSpacing: 3, fontWeight: "800", marginTop: 2 },
+  classRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: 4 },
+  tierBadge: { borderWidth: 2, width: 26, height: 26, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
+  tierText: { fontSize: 14, fontWeight: "900" },
+  playerClass: { fontSize: 12, letterSpacing: 3, fontWeight: "900" },
+  frameName: { color: colors.textDim, fontSize: 9, letterSpacing: 2, fontWeight: "700", marginTop: 4 },
   pillRow: { flexDirection: "row", gap: 6, marginTop: spacing.sm, flexWrap: "wrap" },
   pill: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   pillText: { color: "#001122", fontWeight: "900", fontSize: 9, letterSpacing: 1 },
@@ -241,6 +274,12 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, height: 6, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden" },
   barFill: { height: "100%" },
   tapHint: { color: colors.textDim, fontSize: 10, letterSpacing: 2, marginTop: spacing.sm, fontWeight: "700" },
+  radarCard: { marginHorizontal: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, alignItems: "center" },
+  radarClassRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md, marginBottom: spacing.sm },
+  radarClassTitle: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 2 },
+  tierBadgeLg: { borderWidth: 2, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
+  tierTextLg: { fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  radarNote: { color: colors.textDim, fontSize: 10, letterSpacing: 1, marginTop: spacing.sm, textAlign: "center", paddingHorizontal: spacing.md },
   actionRow: { flexDirection: "row", gap: spacing.md, paddingHorizontal: spacing.lg, marginTop: spacing.lg },
   actionBtn: { flex: 1, borderWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm, backgroundColor: colors.surface2 },
   actionBtnActive: { backgroundColor: colors.brandTertiary },

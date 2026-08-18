@@ -55,6 +55,18 @@ export const AVATAR_IMAGES: Record<string, any> = {
   avatar_shinobi: require("@/assets/images/av_shinobi.png"),
   avatar_phoenix: require("@/assets/images/av_phoenix.png"),
   avatar_reaper: require("@/assets/images/av_reaper.png"),
+  avatar_wolf: require("@/assets/images/av_wolf.png"),
+  avatar_ghost: require("@/assets/images/av_ghost.png"),
+  avatar_dragon: require("@/assets/images/av_dragon.png"),
+  avatar_hutch: require("@/assets/images/av_hutch.png"),
+  avatar_berserker: require("@/assets/images/av_berserker.png"),
+  avatar_samurai: require("@/assets/images/av_samurai.png"),
+  avatar_mecha: require("@/assets/images/av_mecha.png"),
+  avatar_thunder: require("@/assets/images/av_thunder.png"),
+  avatar_kraken: require("@/assets/images/av_kraken.png"),
+  avatar_ace: require("@/assets/images/av_ace.png"),
+  avatar_star: require("@/assets/images/av_star.png"),
+  avatar_oni: require("@/assets/images/av_oni.png"),
 };
 
 export function avatarImage(id?: string) {
@@ -64,6 +76,23 @@ export function avatarImage(id?: string) {
 export function hasAvatarArt(id?: string) {
   return !!AVATAR_IMAGES[id || ""];
 }
+
+// Holographic card frames unlocked by rank (higher rank = fancier frame)
+export const CARD_FRAMES: Record<string, { name: string; colors: [string, string, string]; border: string; glow: string }> = {
+  Beginner:     { name: "STEEL FRAME",     colors: ["#2A2F3A", "#0A0C12", "#050508"], border: "#3A4152", glow: "#4A5568" },
+  Intermediate: { name: "CYAN FRAME",      colors: ["#00E5FF55", "#0A0C12", "#050508"], border: "#00E5FF", glow: "#00E5FF" },
+  Advanced:     { name: "COBALT FRAME",    colors: ["#0055FF66", "#0A0C12", "#050508"], border: "#0055FF", glow: "#0055FF" },
+  Elite:        { name: "GILDED FRAME",    colors: ["#FFEA0066", "#0A0C12", "#050508"], border: "#FFEA00", glow: "#FFEA00" },
+  Freak:        { name: "CRIMSON PRIME",   colors: ["#FF003C66", "#12040A", "#050508"], border: "#FF003C", glow: "#FF003C" },
+};
+
+export function frameFor(rank?: string) {
+  return CARD_FRAMES[rank || "Beginner"] || CARD_FRAMES.Beginner;
+}
+
+export const CLASS_TIER_COLORS: Record<string, string> = {
+  E: "#8A8F9E", D: "#A0A5B5", C: "#00E5FF", B: "#0055FF", A: "#FFEA00", S: "#FF003C",
+};
 
 export const RANK_COLORS: Record<string, string> = {
   Beginner: "#A0A5B5",

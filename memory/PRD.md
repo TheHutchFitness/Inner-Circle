@@ -48,6 +48,14 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Unlockable backgrounds/widgets tied to level.
 - Adaptive next-workout suggestion.
 
+## Implemented (2026-06 — Quests + Radar + Swipe)
+- QUESTS tab (Daily/Weekly/Monthly/All sub-tabs): auto-generated quests from the athlete's workout logs/stats. Daily+weekly reward XP; monthly reward badges/backgrounds/player-card badge. Tap a quest → Solo-Leveling "QUEST INFO" modal with GOAL objectives, GLOBAL CLEARANCE (players + %), reward, and CLAIM. Backend: /api/quests, /api/quests/claim, quest_claims collection; progress computed live from workouts in day/7d/30d windows.
+- Player-card COMBAT STATS radar (STR/PWR/SPD/END/GRT) from /api/profile/attributes — blends global lift benchmarks + in-app percentile — with a derived CLASS title and S/A/B/C/D/E class tier.
+- Rank-based holographic card FRAMES (Steel→Crimson Prime).
+- All 20 anime portrait avatars wired ("SELECT CLASS" picker).
+- Swipe left/right to change tabs (react-native-gesture-handler + GestureHandlerRootView).
+- 6-tab bar: HQ/TRAIN/RANK/QUESTS/SOCIAL/ME. Tests: 39/39 pytest passing.
+
 ## Implemented (2026-06 — Player Card + HUD polish)
 - ME tab redesigned as a dynamic holographic PLAYER CARD (game character-card look): AI anime hero portrait, rank stamp, LV, class, PWR/XP/LOGS stat bars, premium/skool pills; tap card to open "SELECT FIGHTER" picker; STATS toggle + SHARE (capture card).
 - 8 AI-generated full anime-hero portrait avatars (Nano Banana) replace emoji: ronin, kaido, titan, saiyan, demon, shinobi, phoenix, reaper; portraits also show on HQ hero avatar.

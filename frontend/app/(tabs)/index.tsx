@@ -8,6 +8,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage, avatarImage } from "@/src/lib/theme";
 import { HudSectionHeader, HudFrame } from "@/src/components/Hud";
+import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 function nextRankInfo(xp: number) {
   const thresholds = [
@@ -45,6 +46,7 @@ export default function Dashboard() {
   const canRoom = rank === "Elite" || rank === "Freak";
 
   return (
+    <SwipeTabs current="index">
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <Image source={bgImage(user.active_background)} style={styles.bgArt} contentFit="cover" />
       <LinearGradient
@@ -166,6 +168,7 @@ export default function Dashboard() {
       )}
       </ScrollView>
     </View>
+    </SwipeTabs>
   );
 }
 

@@ -7,6 +7,7 @@ import { colors, spacing, radius } from "@/src/lib/theme";
 import { PRCelebration } from "@/src/components/PRCelebration";
 import { RankUpCelebration } from "@/src/components/RankUpCelebration";
 import { takePendingWorkout } from "@/src/lib/pendingWorkout";
+import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 type SetT = { reps: number; weight_lb: number; rpe: number };
 type Exercise = { name: string; sets: SetT[] };
@@ -201,6 +202,7 @@ export default function WorkoutScreen() {
   }
 
   return (
+    <SwipeTabs current="workout">
     <>
     <ScrollView style={{ flex: 1, backgroundColor: colors.surface }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <Text style={[styles.eyebrow, { paddingHorizontal: spacing.lg }]}>PROTOCOLS</Text>
@@ -239,6 +241,7 @@ export default function WorkoutScreen() {
       onClose={() => setRankUp(null)}
     />
     </>
+    </SwipeTabs>
   );
 }
 

@@ -5,6 +5,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, avatarFor, RANK_COLORS } from "@/src/lib/theme";
 import { useRouter } from "expo-router";
+import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 export default function Community() {
   const insets = useSafeAreaInsets();
@@ -62,6 +63,7 @@ export default function Community() {
   }
 
   return (
+    <SwipeTabs current="community">
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.surface }} keyboardVerticalOffset={80}>
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.lg }}>
         <Text style={styles.eyebrow}>▚ THE CIRCLE //</Text>
@@ -98,6 +100,7 @@ export default function Community() {
         </Pressable>
       </View>
     </KeyboardAvoidingView>
+    </SwipeTabs>
   );
 }
 
