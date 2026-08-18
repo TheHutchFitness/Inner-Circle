@@ -1017,6 +1017,7 @@ WORKOUT_TEMPLATES = [
 class CustomExerciseIn(BaseModel):
     name: str
     category: Optional[str] = "Custom"
+    desc: Optional[str] = ""
 
 
 @api_router.get("/workout/templates")
@@ -1210,7 +1211,15 @@ async def complete_personal_quest(inp: PersonalCompleteIn, user=Depends(get_curr
 @api_router.get("/exercises")
 async def list_exercises(user=Depends(get_current_user)):
     custom = user.get("custom_exercises", []) or []
-    return {"library": EXERCISE_LIBRARY, "custom": custom}
+    # Recent & favourites: most-used exercises from the athlete's recent logs
+    recent_counts: dict[str, int] = {}
+    async for w in db.workouts.find({"user_id": user["user_id"]}, {"_id": 0, "exercises": 1}).sort("logged_at", -1).limit(60):
+        for ex in w.get("exercises", []) or []:
+            n = ex.get("name")
+            if n:
+                recent_counts[n] = recent_counts.get(n, 0) + 1
+    recent = [{"name": n, "count": c} for n, c in sorted(recent_counts.items(), key=lambda x: -x[1])][:6]
+    return {"library": EXERCISE_LIBRARY, "custom": custom, "recent": recent}
 
 
 @api_router.post("/exercises/custom")
@@ -1218,10 +1227,52 @@ async def add_custom_exercise(inp: CustomExerciseIn, user=Depends(get_current_us
     name = inp.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name required")
-    entry = {"name": name, "category": (inp.category or "Custom").strip() or "Custom"}
+    entry = {"name": name, "category": (inp.category or "Custom").strip() or "Custom", "desc": (inp.desc or "").strip()[:300]}
     await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"custom_exercises": entry}})
     custom = (await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "custom_exercises": 1})).get("custom_exercises", [])
     return {"custom": custom, "added": entry}
+
+
+@api_router.get("/exercises/demo")
+async def exercise_demo(name: str, user=Depends(get_current_user)):
+    key = (name or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="name required")
+    cached = await db.exercise_demos.find_one({"name": key}, {"_id": 0})
+    if cached and cached.get("media_id"):
+        return {"name": key, "media_id": cached["media_id"]}
+    desc = next((e.get("desc", "") for e in EXERCISE_LIBRARY if e["name"] == key), "")
+    try:
+        import base64 as _b64
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"exdemo-{uuid.uuid4().hex[:8]}",
+                       system_message="You are an expert fitness form illustrator.")
+        chat.with_model("gemini", "gemini-3.1-flash-image-preview").with_params(modalities=["image", "text"])
+        prompt = (
+            f"Clean instructional side-view illustration of a single muscular athlete performing the '{key}' exercise "
+            f"with correct form, captured mid-repetition. {desc} "
+            "Cyberpunk-anime gym aesthetic, subtle cyan rim lighting, plain dark background, full body clearly visible. "
+            "No text, no labels, no watermark."
+        )
+        text, images = await chat.send_message_multimodal_response(UserMessage(text=prompt))
+        if not images:
+            raise RuntimeError(f"no image (text={text[:60]})")
+        raw = _b64.b64decode(images[0]["data"])
+        path = f"{STORAGE_APP_NAME}/exercise_demos/{uuid.uuid4().hex}.png"
+        await storage_put(path, raw, "image/png")
+        media_id = new_id("med")
+        now = datetime.now(timezone.utc)
+        await db.chat_media.insert_one({
+            "media_id": media_id, "user_id": "system", "storage_path": path,
+            "content_type": "image/png", "media_type": "image", "size": len(raw),
+            "original_name": f"{key}.png", "created_at": now,
+        })
+        await db.exercise_demos.update_one({"name": key},
+            {"$set": {"name": key, "media_id": media_id, "storage_path": path, "created_at": now}}, upsert=True)
+        return {"name": key, "media_id": media_id}
+    except Exception as e:
+        logger.error(f"Exercise demo gen failed for '{key}': {e}")
+        raise HTTPException(status_code=502, detail="Could not generate a demo right now — try again")
 
 
 def _range_start(rng: str, now: datetime):
@@ -3368,6 +3419,7 @@ async def seed():
     await db.verified_purchases.create_index([("user_id", 1), ("entitlement", 1)], unique=True)
     await db.rc_webhook_events.create_index("event_id", unique=True)
     await db.set_presets.create_index("user_id")
+    await db.exercise_demos.create_index("name", unique=True)
 
     # Warm up object storage (non-fatal if it fails at boot)
     try:
