@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
@@ -16,6 +16,7 @@ export default function CoachPrograms() {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
 
   const load = async () => {
     try { setRows(await apiFetch(token, "/api/custom-program/requests")); }
@@ -40,6 +41,7 @@ export default function CoachPrograms() {
       } else {
         form.append("file", { uri: asset.uri, name, type } as any);
       }
+      form.append("note", (notes[req.request_id] ?? req.program_note ?? "").trim());
       const r = await fetch(`${API}/api/custom-program/requests/${req.request_id}/deliver`, {
         method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form,
       });
@@ -87,6 +89,17 @@ export default function CoachPrograms() {
               <Text style={styles.label}>CONTACT</Text>
               <Text style={styles.body}>{(r.contact_method || "email")}: {r.contact_value || r.email}</Text>
               {r.program_file_name && <Text style={styles.delivered}>✓ Delivered: {r.program_file_name}</Text>}
+              <Text style={styles.label}>PERSONAL NOTE (shown to buyer)</Text>
+              <TextInput
+                testID={`coach-note-${r.request_id}`}
+                value={notes[r.request_id] ?? r.program_note ?? ""}
+                onChangeText={(t) => setNotes((n) => ({ ...n, [r.request_id]: t }))}
+                placeholder="e.g. Start week 1 light, focus on depth. Message me after session 3."
+                placeholderTextColor={colors.textDim}
+                multiline
+                maxLength={500}
+                style={styles.noteInput}
+              />
               <Pressable testID={`coach-deliver-${r.request_id}`} onPress={() => deliver(r)} disabled={busyId === r.request_id} style={styles.uploadBtn}>
                 {busyId === r.request_id ? <ActivityIndicator color="#001122" /> : <Text style={styles.uploadText}>{r.program_file_name ? "REPLACE PROGRAM FILE" : "UPLOAD PROGRAM FILE"}</Text>}
               </Pressable>
@@ -120,6 +133,7 @@ const styles = StyleSheet.create({
   label: { color: colors.textDim, letterSpacing: 2, fontSize: 9, fontWeight: "800", marginTop: spacing.sm },
   body: { color: colors.text, marginTop: 2, lineHeight: 18 },
   delivered: { color: colors.success, marginTop: spacing.sm, fontWeight: "700", fontSize: 12 },
+  noteInput: { color: colors.text, backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginTop: 4, minHeight: 60, textAlignVertical: "top" },
   uploadBtn: { marginTop: spacing.md, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm },
   uploadText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },
   msg: { color: colors.brandPrimary, textAlign: "center", marginTop: spacing.md, letterSpacing: 1 },

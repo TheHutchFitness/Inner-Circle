@@ -295,13 +295,21 @@ export default function CustomProgram() {
             {receipt && <ReceiptCard receipt={receipt} onResend={resendReceipt} resending={resending} resendMsg={resendMsg} />}
 
             {savedIntake?.program_media_id ? (
-              <Pressable
-                testID="cp-download"
-                onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${savedIntake.program_media_id}?token=${token}`)}
-                style={styles.primary}
-              >
-                <Text style={styles.primaryText}>⬇ DOWNLOAD YOUR PROGRAM</Text>
-              </Pressable>
+              <>
+                {!!savedIntake?.program_note && (
+                  <View style={styles.coachNote}>
+                    <Text style={styles.coachNoteLabel}>✎ NOTE FROM COACH HUTCH</Text>
+                    <Text style={styles.coachNoteText}>{savedIntake.program_note}</Text>
+                  </View>
+                )}
+                <Pressable
+                  testID="cp-download"
+                  onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${savedIntake.program_media_id}?token=${token}`)}
+                  style={styles.primary}
+                >
+                  <Text style={styles.primaryText}>⬇ DOWNLOAD YOUR PROGRAM</Text>
+                </Pressable>
+              </>
             ) : (
               <View style={styles.awaitBox}>
                 <Text style={styles.awaitText}>Coach is writing your program — you&apos;ll get it right here when it&apos;s ready.</Text>
@@ -425,4 +433,7 @@ const styles = StyleSheet.create({
   resendBtn: { marginTop: spacing.md, borderWidth: 1, borderColor: colors.warning, borderRadius: radius.sm, paddingVertical: spacing.sm, alignItems: "center", minHeight: 44, justifyContent: "center" },
   resendBtnText: { color: colors.warning, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   resendMsg: { color: colors.success, fontSize: 12, marginTop: spacing.sm, textAlign: "center" },
+  coachNote: { backgroundColor: colors.surface3, borderLeftWidth: 3, borderLeftColor: colors.brandPrimary, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.md },
+  coachNoteLabel: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "900" },
+  coachNoteText: { color: colors.text, marginTop: 6, lineHeight: 20 },
 });

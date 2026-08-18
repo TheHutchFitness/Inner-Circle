@@ -142,3 +142,6 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Implemented (2026-06 — Tap Judge Names + Coach Delivery Alert)
 - TAP JUDGE NAMES: judge board endpoint now returns user_id (feed/comments already had it). judge.tsx names in the board, feed cards, and comments are tappable → open MemberSheet. Verified.
 - COACH DELIVERY ALERT: when Coach uploads a program (deliver endpoint) it sets delivered_seen=False. New GET /api/custom-program/alert -> {program_ready, unseen, file_name, delivered_at}; POST /api/custom-program/alert/seen clears it. Home (index.tsx) polls the alert and shows a green "PROGRAM READY" badge + updated subtitle on the 1-on-1 Custom Program CTA when unseen; opening the custom-program screen (delivered intake) auto-marks it seen so the badge clears. Verified full lifecycle (not-ready → ready+unseen → seen). No push notifications used (in-app only).
+
+## Implemented (2026-06 — Coach Delivery Note)
+- DELIVERY NOTE: deliver endpoint now accepts an optional `note` form field (stored as program_note, ≤500 chars). Coach Inbox (coach-programs.tsx) has a per-request multiline "PERSONAL NOTE (shown to buyer)" input sent with the file upload. Buyer's custom-program confirm view shows a "✎ NOTE FROM COACH HUTCH" card above the download button when a note exists. Verified end-to-end (note stored + rendered to buyer).

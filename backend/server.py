@@ -2271,7 +2271,7 @@ async def custom_program_requests(user=Depends(get_current_user)):
     return rows
 
 @api_router.post("/custom-program/requests/{request_id}/deliver")
-async def custom_program_deliver(request_id: str, file: UploadFile = File(...), user=Depends(get_current_user)):
+async def custom_program_deliver(request_id: str, file: UploadFile = File(...), note: Optional[str] = Form(None), user=Depends(get_current_user)):
     """Coach-only: upload the finished program file for a buyer."""
     if not _is_owner(user):
         raise HTTPException(status_code=403, detail="Coach access only")
@@ -2301,6 +2301,7 @@ async def custom_program_deliver(request_id: str, file: UploadFile = File(...), 
     await db.custom_program_requests.update_one(
         {"request_id": request_id},
         {"$set": {"program_media_id": media_id, "program_file_name": file.filename or "program",
+                  "program_note": (note or "").strip()[:500],
                   "status": "delivered", "delivered_at": datetime.now(timezone.utc),
                   "delivered_seen": False}},
     )
