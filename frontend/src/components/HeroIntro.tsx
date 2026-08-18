@@ -73,7 +73,7 @@ export function HeroIntro({ user, mode, onDone }: { user: any; mode: "signup" | 
   const lvl = user?.level ?? 1;
 
   return (
-    <View style={styles.root} pointerEvents="none">
+    <View style={[styles.root, { pointerEvents: "none" }]}>
       <View style={styles.portraitWrap}>
         {portrait ? (
           <Animated.View style={[StyleSheet.absoluteFill, portraitStyle]}>

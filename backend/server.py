@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends, UploadFile, File, Form
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends, UploadFile, File, Form, Request
 from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -28,6 +28,25 @@ db = client[os.environ['DB_NAME']]
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 SKOOL_CODE = os.environ.get('SKOOL_VERIFICATION_CODE', '4882')
+
+# ---------- RevenueCat server-side purchase verification ----------
+# Paid lifetime tiers (Custom Program $200, Founder Backer $25) grant PERSISTENT
+# server-side privileges, so they can NOT be granted on the client's word alone.
+# RevenueCat posts a signed purchase event to /api/revenuecat/webhook (authenticated
+# by this shared secret, configured in the RevenueCat dashboard) — that webhook is the
+# ONLY trusted source that can write to the `verified_purchases` collection and flip the
+# grant flags. The client /unlock and /back endpoints fail-closed unless a verified
+# purchase exists, closing the free-unlock exploit.
+RC_WEBHOOK_AUTH = os.environ.get("REVENUECAT_WEBHOOK_AUTH", "").strip()
+CUSTOM_PROGRAM_ENTITLEMENT = "custom_program"
+BACKER_ENTITLEMENT = "backer"
+# RevenueCat event types that represent an active/granted purchase
+RC_GRANT_EVENTS = {
+    "INITIAL_PURCHASE", "NON_RENEWING_PURCHASE", "RENEWAL",
+    "PRODUCT_CHANGE", "UNCANCELLATION", "TRANSFER", "SUBSCRIPTION_EXTENDED",
+}
+# Event types that revoke access (refund / chargeback)
+RC_REVOKE_EVENTS = {"REFUND", "REFUND_REVERSED"}
 
 # ---------- Emergent Object Storage (chat media) ----------
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
@@ -1924,18 +1943,118 @@ async def my_ai_programs(user=Depends(get_current_user)):
     return rows
 
 
+# ---------- RevenueCat webhook + server-side purchase verification ----------
+def _grant_set_for_entitlement(ent: str):
+    if ent == CUSTOM_PROGRAM_ENTITLEMENT:
+        return {"custom_program_purchased": True, "athletes_center_access": True,
+                "custom_program_purchased_at": datetime.now(timezone.utc)}
+    if ent == BACKER_ENTITLEMENT:
+        return {"founder_backer": True, "backed_at": datetime.now(timezone.utc)}
+    return None
+
+def _revoke_set_for_entitlement(ent: str):
+    if ent == CUSTOM_PROGRAM_ENTITLEMENT:
+        return {"custom_program_purchased": False, "athletes_center_access": False}
+    if ent == BACKER_ENTITLEMENT:
+        return {"founder_backer": False}
+    return None
+
+async def _find_user_by_candidates(candidates):
+    ids = [c for c in candidates if c and not str(c).startswith("$RCAnonymousID:")]
+    if not ids:
+        return None
+    return await db.users.find_one({"user_id": {"$in": ids}}, {"_id": 0, "password_hash": 0})
+
+async def has_verified_purchase(user_id: str, entitlement: str) -> bool:
+    row = await db.verified_purchases.find_one(
+        {"user_id": user_id, "entitlement": entitlement, "revoked": {"$ne": True}}
+    )
+    return bool(row)
+
+@api_router.post("/revenuecat/webhook")
+async def revenuecat_webhook(request: Request, authorization: Optional[str] = Header(None)):
+    """Server-side proof of purchase. RevenueCat POSTs a signed purchase event here,
+    authenticated by the shared REVENUECAT_WEBHOOK_AUTH secret configured in the RC
+    dashboard. This is the ONLY path that writes verified_purchases + flips paid flags."""
+    if not RC_WEBHOOK_AUTH:
+        raise HTTPException(status_code=503, detail="RevenueCat webhook not configured")
+    if not authorization or not secrets.compare_digest(authorization.strip(), RC_WEBHOOK_AUTH):
+        raise HTTPException(status_code=401, detail="Invalid webhook authorization")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    event = body.get("event") or {}
+    etype = (event.get("type") or "").upper()
+    event_id = event.get("id") or new_id("rcevt")
+
+    # Idempotency — never process the same RC event twice
+    if await db.rc_webhook_events.find_one({"event_id": event_id}):
+        return {"ok": True, "duplicate": True}
+    await db.rc_webhook_events.insert_one(
+        {"event_id": event_id, "type": etype, "received_at": datetime.now(timezone.utc)}
+    )
+
+    ents = event.get("entitlement_ids") or (
+        [event["entitlement_id"]] if event.get("entitlement_id") else []
+    )
+    ents = [e for e in ents if e in (CUSTOM_PROGRAM_ENTITLEMENT, BACKER_ENTITLEMENT)]
+
+    candidates = [event.get("app_user_id"), event.get("original_app_user_id")] + (event.get("aliases") or [])
+    user = await _find_user_by_candidates(candidates)
+    fallback_uid = next((c for c in candidates if c and not str(c).startswith("$RCAnonymousID:")), None)
+
+    processed = []
+    for ent in ents:
+        uid = (user or {}).get("user_id") or fallback_uid
+        if not uid:
+            continue
+        if etype in RC_GRANT_EVENTS:
+            await db.verified_purchases.update_one(
+                {"user_id": uid, "entitlement": ent},
+                {"$set": {
+                    "user_id": uid, "entitlement": ent,
+                    "product_id": event.get("product_id"), "store": event.get("store"),
+                    "environment": event.get("environment"), "event_id": event_id,
+                    "event_type": etype, "revoked": False,
+                    "verified_at": datetime.now(timezone.utc),
+                }},
+                upsert=True,
+            )
+            if user:
+                grant = _grant_set_for_entitlement(ent)
+                if grant:
+                    await db.users.update_one({"user_id": user["user_id"]}, {"$set": grant})
+            processed.append({"entitlement": ent, "action": "granted"})
+        elif etype in RC_REVOKE_EVENTS:
+            await db.verified_purchases.update_one(
+                {"user_id": uid, "entitlement": ent},
+                {"$set": {"revoked": True, "revoked_at": datetime.now(timezone.utc)}},
+            )
+            if user:
+                rev = _revoke_set_for_entitlement(ent)
+                if rev:
+                    await db.users.update_one({"user_id": user["user_id"]}, {"$set": rev})
+            processed.append({"entitlement": ent, "action": "revoked"})
+
+    return {"ok": True, "processed": processed}
+
+
 # ---------- 1-on-1 Custom Program ($200 lifetime) ----------
 @api_router.post("/custom-program/unlock")
 async def custom_program_unlock(user=Depends(get_current_user)):
-    """Called by the client after a successful RevenueCat lifetime purchase.
-    Grants instant Athlete's Center access and flags the one-time purchase."""
+    """Sync endpoint called by the client after a RevenueCat lifetime purchase.
+    Grants Athlete's Center access ONLY if RevenueCat has confirmed the purchase
+    server-side (via the webhook). Fail-closed — no verified purchase, no grant."""
+    if not await has_verified_purchase(user["user_id"], CUSTOM_PROGRAM_ENTITLEMENT):
+        raise HTTPException(
+            status_code=402,
+            detail="Purchase not verified yet. If you just purchased, wait a few seconds and tap Restore.",
+        )
     await db.users.update_one(
         {"user_id": user["user_id"]},
-        {"$set": {
-            "custom_program_purchased": True,
-            "athletes_center_access": True,
-            "custom_program_purchased_at": datetime.now(timezone.utc),
-        }},
+        {"$set": _grant_set_for_entitlement(CUSTOM_PROGRAM_ENTITLEMENT)},
     )
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     fresh["rank"] = rank_from_xp(fresh["xp"])
@@ -2074,10 +2193,17 @@ async def founders_list(user=Depends(get_current_user)):
 
 @api_router.post("/founders/back")
 async def founders_back(user=Depends(get_current_user)):
-    """Called by the client after a successful RevenueCat 'Backer' purchase."""
+    """Sync endpoint called by the client after a RevenueCat 'Backer' purchase.
+    Flags the backer ONLY if RevenueCat has confirmed the purchase server-side
+    (via the webhook). Fail-closed — no verified purchase, no backer status."""
+    if not await has_verified_purchase(user["user_id"], BACKER_ENTITLEMENT):
+        raise HTTPException(
+            status_code=402,
+            detail="Purchase not verified yet. If you just purchased, wait a few seconds and tap Restore.",
+        )
     await db.users.update_one(
         {"user_id": user["user_id"]},
-        {"$set": {"founder_backer": True, "backed_at": datetime.now(timezone.utc)}},
+        {"$set": _grant_set_for_entitlement(BACKER_ENTITLEMENT)},
     )
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     fresh["rank"] = rank_from_xp(fresh["xp"])
@@ -2475,6 +2601,8 @@ async def seed():
     await db.chat_messages.create_index([("room", 1), ("created_at", -1)])
     await db.chat_media.create_index("media_id", unique=True)
     await db.verification_codes.create_index([("user_id", 1), ("channel", 1)], unique=True)
+    await db.verified_purchases.create_index([("user_id", 1), ("entitlement", 1)], unique=True)
+    await db.rc_webhook_events.create_index("event_id", unique=True)
 
     # Warm up object storage (non-fatal if it fails at boot)
     try:

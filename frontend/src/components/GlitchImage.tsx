@@ -32,7 +32,7 @@ function StaticNoise({ w, h }: { w: number; h: number }) {
   }, [w, h]);
   const st = useAnimatedStyle(() => ({ opacity: op.value, transform: [{ translateY: ty.value }] }));
   return (
-    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, st]}>
+    <Animated.View style={[StyleSheet.absoluteFill, { pointerEvents: "none" }, st]}>
       <RNImage source={NOISE} style={{ width: w, height: h + 12 }} resizeMode="repeat" />
     </Animated.View>
   );
@@ -46,7 +46,7 @@ function ScanSweep({ w, h }: { w: number; h: number }) {
   }, [h]);
   const st = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
   return (
-    <Animated.View pointerEvents="none" style={[styles.sweep, { width: w }, st]} />
+    <Animated.View style={[styles.sweep, { width: w, pointerEvents: "none" }, st]} />
   );
 }
 

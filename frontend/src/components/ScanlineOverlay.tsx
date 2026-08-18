@@ -15,7 +15,7 @@ export function ScanlineOverlay({ height = 844 }: { height?: number }) {
   const sweep = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
 
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}>
+    <View style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}>
       {/* Static faint horizontal scanlines */}
       <View style={styles.lines}>
         {Array.from({ length: Math.ceil(height / 4) }).map((_, i) => (

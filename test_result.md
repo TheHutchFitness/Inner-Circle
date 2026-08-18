@@ -105,6 +105,18 @@
 user_problem_statement: "Hutch's Inner Circle fitness app. This session: (1) Sprint testing 40yd/100m on cardio screen with stopwatch + best-time logging (+40 XP on PR). (2) Cardio runs/rides award XP. (3) Wire sprints/cardio/steps into Player Card radar (SPD/END). (4) 10 permanent milestone bots on leaderboards + live ACTIVE PLAYERS counter (min 10) on RANK screen. (5) Rename ◈ VAULT unlockables screen/button to INVENTORY (keep PR VAULT). (6) CONDITIONING card on ME page: daily steps + heart rate with manual entry + Apple Health/Health Connect sync (native only). (7) Purge ghost test accounts. (8) Hero leveling cinematic intro: ~4.5s HERO AWAKENED on first signup, ~1.5s WELCOME BACK flash on each login."
 
 backend:
+  - task: "SECURITY FIX: RevenueCat server-side purchase verification for lifetime tiers ($200 custom_program, $25 backer)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "P0 fix. Previously POST /api/custom-program/unlock and POST /api/founders/back blindly granted paid privileges to any authed request (free-unlock exploit). Added POST /api/revenuecat/webhook (auth via REVENUECAT_WEBHOOK_AUTH shared secret in backend/.env; raw Authorization header, NOT Bearer). Webhook is the ONLY writer of verified_purchases collection + paid flags; idempotent via rc_webhook_events unique event id; REFUND revokes. Hardened unlock/back to fail-closed (402) unless a verified_purchases row exists. Self-tested with curl: exploit now 402, wrong webhook auth 401, correct webhook grants (200 granted), duplicate event skipped, REFUND revokes, unlock after refund 402. Needs testing_agent confirmation."
+
   - task: "Sprint log/me endpoints (40yd/100m), best time, +40 XP on PR"
     implemented: true
     working: true
@@ -687,4 +699,4 @@ frontend:
 
 agent_communication:
     -agent: "main"
-    -message: "SIXTH batch. Coach Memory + Save Plan backend verified by main. FRONTEND-test: (1) Save Plan: login elite@test.com, open AI COACH, send any question, on the coach reply tap 'SAVE TO TRAIN' (testID coach-save-<id>), go to Train tab -> a 'COACH PLANS' section shows the saved plan (testID coach-plan-<id>); delete works. (2) Boss Countdown: Quests -> ☠ BOSS tab -> boss quest cards show '⏳ Nd left'. (3) Score Share: on The Judge, submit a real physique JPEG then confirm a '↗ SHARE' button appears next to CRITIQUES (clicking may open native share sheet / no-op on web — just verify present). (4) Verify Nudge: temporarily set phone_verified=false AND email_verified=false on elite@test.com in mongo (elite is skool_verified so still gets Judge access), reload, open The Judge -> a 'Verify to unlock uploads' banner (testID judge-verify-nudge) shows and tapping opens the verify modal; restore phone_verified=true after. (5) Voice Ask: just confirm the 🎤 button (testID coach-voice) renders on the coach input and does not crash when tapped (real transcription needs a mic; skip if headless has none). Coach Memory needs no UI test. Do NOT retest prior batches. Do NOT attempt RevenueCat purchases."
+    -message: "SECURITY FIX (P0) — RevenueCat server-side purchase verification. BACKEND-ONLY test requested. The two lifetime-tier grant endpoints used to hand out paid content to any authed request; now they fail-closed. Please verify: (login test users from /app/memory/test_credentials.md; webhook secret REVENUECAT_WEBHOOK_AUTH is in that file too). Tests: (1) POST /api/custom-program/unlock and POST /api/founders/back WITHOUT any verified purchase -> expect 402. (2) POST /api/revenuecat/webhook with WRONG Authorization -> 401; with MISSING Authorization -> 401. (3) POST /api/revenuecat/webhook with correct Authorization header (raw secret value, NOT 'Bearer') and body {\"event\":{\"id\":\"<unique>\",\"type\":\"INITIAL_PURCHASE\",\"app_user_id\":\"<that user's user_id from /api/auth/me>\",\"entitlement_ids\":[\"custom_program\"],\"product_id\":\"custom_program_lifetime\",\"store\":\"APP_STORE\",\"environment\":\"SANDBOX\"}} -> 200 processed granted; THEN POST /api/custom-program/unlock -> 200 and user shows custom_program_purchased + athletes_center_access. (4) Same for backer entitlement -> then POST /api/founders/back -> 200 and user is founder_backer. (5) Duplicate webhook (same event id) -> {duplicate:true}. (6) REFUND event for custom_program -> then /api/custom-program/unlock -> 402 again. Use a throwaway test user (e.g. athlete@test.com) so grants don't pollute elite. Do NOT test frontend. Do NOT attempt real RevenueCat purchases."

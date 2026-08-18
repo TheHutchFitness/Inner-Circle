@@ -79,13 +79,35 @@ export default function CustomProgram() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // The server grants access only after RevenueCat confirms the purchase via its
+  // webhook (server-side proof). That can lag a couple seconds, so retry briefly.
+  const syncUnlock = async (attempts = 5): Promise<boolean> => {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        await apiFetch(token, "/api/custom-program/unlock", { method: "POST" });
+        return true;
+      } catch (e: any) {
+        const m = String(e?.message || e).toLowerCase();
+        if (!m.includes("not verified") && !m.includes("402")) throw e;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+    return false;
+  };
+
   const doPurchase = async () => {
     if (!pkg) { setMsg("This offer isn't available yet — please try again shortly."); return; }
     setMsg(null);
     try {
       await purchase(pkg);
-      await apiFetch(token, "/api/custom-program/unlock", { method: "POST" });
+      setMsg("Verifying your purchase…");
+      const ok = await syncUnlock();
       await refresh();
+      if (!ok) {
+        setMsg("Purchase received — we're still confirming it with the store. Tap Restore in a moment to finish unlocking.");
+      } else {
+        setMsg(null);
+      }
       setView("intake");
     } catch (e: any) {
       if (!String(e?.message || e).includes("userCancelled")) setMsg(e?.message || "Purchase failed");
@@ -96,10 +118,10 @@ export default function CustomProgram() {
     setMsg(null);
     try {
       await restore();
-      await apiFetch(token, "/api/custom-program/unlock", { method: "POST" }).catch(() => {});
+      const ok = await syncUnlock(3);
       await refresh();
       await loadStatus();
-      setMsg("Purchases restored.");
+      setMsg(ok ? "Purchases restored." : "We're still confirming your purchase with the store — please try again shortly.");
     } catch (e: any) { setMsg(e?.message || "Restore failed"); }
   };
 

@@ -57,16 +57,34 @@ export default function Founders() {
   };
   useEffect(() => { if (token) load(); /* eslint-disable-next-line */ }, [token]);
 
+  // Backer status is granted server-side only after RevenueCat confirms the purchase
+  // via its webhook — retry briefly to cover webhook lag.
+  const syncBack = async (attempts = 5): Promise<boolean> => {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        await apiFetch(token, "/api/founders/back", { method: "POST" });
+        return true;
+      } catch (e: any) {
+        const m = String(e?.message || e).toLowerCase();
+        if (!m.includes("not verified") && !m.includes("402")) throw e;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+    return false;
+  };
+
   const back = async () => {
     setMsg(null);
     if (!pkg) { setMsg("Backing isn't available yet — please try again shortly."); return; }
     try {
       await purchase(pkg);
-      await apiFetch(token, "/api/founders/back", { method: "POST" });
+      setMsg("Verifying your purchase…");
+      const ok = await syncBack();
       await refresh();
       await load();
       setTab("backers");
-      setCelebrate(true);
+      if (ok) { setMsg(null); setCelebrate(true); }
+      else setMsg("Purchase received — we're still confirming it with the store. Your backer badge will appear shortly.");
     } catch (e: any) {
       if (!String(e?.message || e).includes("userCancelled")) setMsg(e?.message || "Purchase failed");
     }

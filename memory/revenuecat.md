@@ -22,3 +22,18 @@ curl -sS -H "Authorization: Bearer sk-emergent-d1870BbC12273Fe879" "$INTEGRATION
 
 ## Store-side prerequisites (user manual — required for real purchases)
 See payments panel FAQ.
+
+## Server-side purchase verification (lifetime tiers — custom_program & backer)
+The $200 Custom Program (`custom_program`) and $25 Founder Backer (`backer`) grant
+PERSISTENT server-side privileges, so the backend must NOT trust the client's word.
+Verification is done via a RevenueCat **webhook**:
+- Endpoint: `POST /api/revenuecat/webhook` (server.py). Authenticated by a shared secret
+  stored in backend/.env as `REVENUECAT_WEBHOOK_AUTH` (value lives only in .env).
+- The webhook is the ONLY writer of the `verified_purchases` collection + the paid flags
+  (`custom_program_purchased`/`athletes_center_access`, `founder_backer`). Idempotent via
+  `rc_webhook_events` (unique event id). REFUND events revoke.
+- `POST /api/custom-program/unlock` and `POST /api/founders/back` are fail-closed: they
+  return 402 unless a matching verified_purchases row exists (frontend retries for webhook lag).
+- USER MANUAL STEP (post-deploy): RevenueCat Dashboard → Integrations → Webhooks → add a
+  webhook. URL = `https://<deployed-domain>/api/revenuecat/webhook`, Authorization header =
+  the REVENUECAT_WEBHOOK_AUTH value. Without this, real purchases won't auto-grant server access.
