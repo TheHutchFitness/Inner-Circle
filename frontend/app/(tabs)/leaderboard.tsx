@@ -138,7 +138,10 @@ export default function Leaderboards() {
                     <Text style={styles.podiumEmoji}>{av.emoji}</Text>
                   </View>
                   <Text style={styles.podiumName} numberOfLines={1}>{p.display_name}</Text>
-                  <Text style={[styles.podiumRankBadge, { color: RANK_COLORS[p.rank] }]}>{p.rank}</Text>
+                  <View style={styles.podiumRankRow}>
+                    <Text style={[styles.podiumRankBadge, { color: RANK_COLORS[p.rank] }]}>{p.rank}</Text>
+                    {p.founder_backer && <Text style={styles.backerStar}>★</Text>}
+                  </View>
                   <Text style={styles.podiumMetric}>{p.metric}</Text>
                   <Text style={styles.podiumMetricLabel}>{p.metric_label}</Text>
                 </View>
@@ -155,7 +158,10 @@ export default function Leaderboards() {
                   <Text style={styles.rowRank}>#{i + 4}</Text>
                   <Text style={styles.rowEmoji}>{av.emoji}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.rowName}>{r.display_name}</Text>
+                    <View style={styles.rowNameRow}>
+                      <Text style={styles.rowName}>{r.display_name}</Text>
+                      {r.founder_backer && <View style={styles.backerPill}><Text style={styles.backerPillText}>★ BACKER</Text></View>}
+                    </View>
                     <Text style={[styles.rowSub, { color: RANK_COLORS[r.rank] }]}>{r.rank}</Text>
                   </View>
                   <Text style={styles.rowMetric}>{r.metric}</Text>
@@ -197,6 +203,11 @@ const styles = StyleSheet.create({
   podiumEmoji: { fontSize: 28 },
   podiumName: { color: colors.text, fontWeight: "800", marginTop: 6, fontSize: 12 },
   podiumRankBadge: { fontSize: 9, letterSpacing: 2, fontWeight: "800", marginTop: 2 },
+  podiumRankRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  backerStar: { color: colors.warning, fontSize: 10, fontWeight: "900" },
+  rowNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  backerPill: { backgroundColor: "rgba(255,234,0,0.14)", borderWidth: 1, borderColor: colors.warning, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1 },
+  backerPillText: { color: colors.warning, fontSize: 7, fontWeight: "900", letterSpacing: 1 },
   podiumMetric: { color: colors.text, fontWeight: "900", fontSize: 18, marginTop: 4 },
   podiumMetricLabel: { color: colors.textDim, fontSize: 9, letterSpacing: 1 },
   listWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },

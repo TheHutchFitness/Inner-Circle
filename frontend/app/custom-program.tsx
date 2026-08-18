@@ -56,6 +56,19 @@ export default function CustomProgram() {
   const [notes, setNotes] = useState("");
   const [savedIntake, setSavedIntake] = useState<any>(null);
   const [receipt, setReceipt] = useState<any>(null);
+  const [resending, setResending] = useState(false);
+  const [resendMsg, setResendMsg] = useState<string | null>(null);
+
+  const resendReceipt = async () => {
+    setResending(true); setResendMsg(null);
+    try {
+      const r = await apiFetch(token, "/api/receipt/resend", {
+        method: "POST", body: JSON.stringify({ entitlement: "custom_program" }),
+      });
+      setResendMsg(`Receipt sent to ${r.sent_to}`);
+    } catch (e: any) { setResendMsg(e?.message || "Couldn't send — try again"); }
+    setResending(false);
+  };
 
   const pkg = findCustomPkg(offerings);
   const price = pkg?.product?.priceString || "$200.00";
@@ -203,7 +216,7 @@ export default function CustomProgram() {
             <View style={styles.unlockedBanner}>
               <Text style={styles.unlockedText}>✓ PAYMENT CONFIRMED · ATHLETE&apos;S CENTER UNLOCKED</Text>
             </View>
-            {receipt && <ReceiptCard receipt={receipt} />}
+            {receipt && <ReceiptCard receipt={receipt} onResend={resendReceipt} resending={resending} resendMsg={resendMsg} />}
             <Text style={styles.formIntro}>Tell Coach Hutch everything he needs to build your program.</Text>
 
             <Field label="YOUR GOALS *">
@@ -270,7 +283,7 @@ export default function CustomProgram() {
               )}
             </View>
 
-            {receipt && <ReceiptCard receipt={receipt} />}
+            {receipt && <ReceiptCard receipt={receipt} onResend={resendReceipt} resending={resending} resendMsg={resendMsg} />}
 
             {savedIntake?.program_media_id ? (
               <Pressable
@@ -310,7 +323,7 @@ function Field({ label, children }: any) {
   );
 }
 
-export function ReceiptCard({ receipt }: { receipt: any }) {
+export function ReceiptCard({ receipt, onResend, resending, resendMsg }: { receipt: any; onResend?: () => void; resending?: boolean; resendMsg?: string | null }) {
   const date = receipt?.purchased_at
     ? new Date(receipt.purchased_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
     : "—";
@@ -328,6 +341,12 @@ export function ReceiptCard({ receipt }: { receipt: any }) {
       <View style={styles.receiptDivider} />
       <ReceiptRow k="TOTAL" v={receipt?.amount || "—"} strong />
       <Text style={styles.receiptFoot}>One-time payment · yours for life. Keep this order number for your records.</Text>
+      {onResend && (
+        <Pressable testID="cp-resend-receipt" onPress={onResend} disabled={resending} style={styles.resendBtn}>
+          {resending ? <ActivityIndicator color={colors.warning} /> : <Text style={styles.resendBtnText}>✉ EMAIL ME THIS RECEIPT</Text>}
+        </Pressable>
+      )}
+      {!!resendMsg && <Text style={styles.resendMsg}>{resendMsg}</Text>}
     </View>
   );
 }
@@ -394,4 +413,7 @@ const styles = StyleSheet.create({
   receiptMono: { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", letterSpacing: 1, color: colors.warning },
   receiptStrong: { color: colors.warning, fontSize: 16, fontWeight: "900" },
   receiptFoot: { color: colors.textDim, fontSize: 11, lineHeight: 16, marginTop: 4 },
+  resendBtn: { marginTop: spacing.md, borderWidth: 1, borderColor: colors.warning, borderRadius: radius.sm, paddingVertical: spacing.sm, alignItems: "center", minHeight: 44, justifyContent: "center" },
+  resendBtnText: { color: colors.warning, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  resendMsg: { color: colors.success, fontSize: 12, marginTop: spacing.sm, textAlign: "center" },
 });

@@ -234,6 +234,9 @@ export default function Profile() {
       <Pressable testID="open-paywall-profile" onPress={() => router.push("/paywall")} style={styles.linkBtn}>
         <Text style={styles.linkText}>MANAGE PREMIUM</Text>
       </Pressable>
+      <Pressable testID="open-purchases" onPress={() => router.push("/purchases")} style={styles.linkBtn}>
+        <Text style={styles.linkText}>MY PURCHASES</Text>
+      </Pressable>
       <Pressable testID="sign-out" onPress={signOut} style={[styles.linkBtn, { borderColor: colors.error }]}>
         <Text style={[styles.linkText, { color: colors.error }]}>SIGN OUT</Text>
       </Pressable>

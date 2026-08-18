@@ -623,6 +623,7 @@ async def cardio_leaderboard(board: str = "overall", activity: str = "run", dist
             "display_name": u.get("display_name"),
             "avatar_id": u.get("avatar_id"),
             "rank": rank_from_xp(u.get("xp", 0)),
+            "founder_backer": bool(u.get("founder_backer")),
             "metric": round(metric, 2),
             "metric_label": label,
         })
@@ -1983,6 +1984,37 @@ async def has_verified_purchase(user_id: str, entitlement: str) -> bool:
     )
     return bool(row)
 
+# Human-readable product metadata for receipts / order history
+PURCHASE_PRODUCTS = {
+    CUSTOM_PROGRAM_ENTITLEMENT: ("1-on-1 Custom Program", "$200.00"),
+    BACKER_ENTITLEMENT: ("Founder Backer", "$25.00"),
+}
+
+def _receipt_resend_email(user: dict, ent: str, vp: dict):
+    """A formatted receipt email (includes order number + amount) for the resend action."""
+    name = escape((user.get("display_name") or "Athlete").strip())
+    product, amount = PURCHASE_PRODUCTS.get(ent, (ent, ""))
+    order = escape(str(vp.get("order_number") or "—"))
+    when = vp.get("verified_at")
+    date_str = when.strftime("%b %d, %Y") if isinstance(when, datetime) else "—"
+    subject = f"Your Hutch's Inner Circle receipt — {order}"
+    html = f"""
+    <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0b0b0e;">
+      <h2 style="letter-spacing:1px;">HUTCH'S INNER CIRCLE</h2>
+      <p>Hey {name}, here's your receipt.</p>
+      <table style="width:100%;border-collapse:collapse;margin-top:12px;">
+        <tr><td style="padding:6px 0;color:#666;">Order #</td><td style="padding:6px 0;text-align:right;font-weight:bold;">{order}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Item</td><td style="padding:6px 0;text-align:right;">{escape(product)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Date</td><td style="padding:6px 0;text-align:right;">{date_str}</td></tr>
+        <tr><td style="padding:10px 0;border-top:1px solid #ddd;color:#666;">Total</td><td style="padding:10px 0;border-top:1px solid #ddd;text-align:right;font-weight:bold;">{escape(amount)}</td></tr>
+      </table>
+      <p style="color:#666;font-size:13px;margin-top:12px;">One-time payment. Keep this order number for your records.</p>
+      <p>— Coach Hutch</p>
+    </div>"""
+    return subject, html
+
+
+
 def _receipt_email_for(user: dict, ent: str):
     """Returns (subject, html) for the purchase thank-you/receipt, or None."""
     name = escape((user.get("display_name") or "Athlete").strip())
@@ -2303,6 +2335,47 @@ async def founders_back(user=Depends(get_current_user)):
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     fresh["rank"] = rank_from_xp(fresh["xp"])
     return fresh
+
+
+# ---------- Purchases: order history + receipt resend ----------
+@api_router.get("/purchases")
+async def my_purchases(user=Depends(get_current_user)):
+    rows = await db.verified_purchases.find(
+        {"user_id": user["user_id"], "revoked": {"$ne": True}}, {"_id": 0}
+    ).sort("verified_at", -1).to_list(100)
+    out = []
+    for r in rows:
+        product, amount = PURCHASE_PRODUCTS.get(r.get("entitlement"), (r.get("entitlement") or "Purchase", ""))
+        out.append({
+            "order_number": r.get("order_number"),
+            "entitlement": r.get("entitlement"),
+            "product": product,
+            "amount": amount,
+            "store": r.get("store"),
+            "purchased_at": (r["verified_at"].isoformat() if isinstance(r.get("verified_at"), datetime) else r.get("verified_at")),
+        })
+    return {"purchases": out}
+
+class ReceiptResendIn(BaseModel):
+    entitlement: str
+
+@api_router.post("/receipt/resend")
+async def resend_receipt(inp: ReceiptResendIn, user=Depends(get_current_user)):
+    ent = inp.entitlement
+    if ent not in (CUSTOM_PROGRAM_ENTITLEMENT, BACKER_ENTITLEMENT):
+        raise HTTPException(status_code=400, detail="Invalid item")
+    vp = await db.verified_purchases.find_one(
+        {"user_id": user["user_id"], "entitlement": ent, "revoked": {"$ne": True}}
+    )
+    if not vp:
+        raise HTTPException(status_code=404, detail="No purchase found for this item")
+    to = (user.get("email") or "").strip()
+    if not to:
+        raise HTTPException(status_code=400, detail="No email on file — add one in your profile")
+    subject, html = _receipt_resend_email(user, ent, vp)
+    await send_email(to=to, subject=subject, html=html)  # raises HTTPException on failure
+    return {"ok": True, "sent_to": to, "order_number": vp.get("order_number")}
+
 
 
 # ---------- The Judge (AI physique critique + member comments) ----------
