@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef } from "react";
-import { LogBox, StatusBar, View, StyleSheet } from "react-native";
+import { LogBox, StatusBar, View, StyleSheet, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -12,7 +12,7 @@ import { UnitsProvider } from "@/src/lib/units";
 import { initializeRevenueCat, SubscriptionProvider, useRCIdentityBinder } from "@/src/lib/revenuecat";
 import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
 import { HeroIntro } from "@/src/components/HeroIntro";
-import { isEnhancedPalette, colors } from "@/src/lib/theme";
+import { isEnhancedPalette, applyEnhancedPalette, colors } from "@/src/lib/theme";
 import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
 
 LogBox.ignoreAllLogs(true);
@@ -39,19 +39,19 @@ function IntroGate() {
 }
 
 // Keeps the red palette in sync with the logged-in athlete's Enhanced status.
-// If the runtime palette doesn't match (fresh login / logout on this device),
-// persist the flag and reload once so every StyleSheet re-evaluates.
+// Web reloads once (fast, safe) so every StyleSheet re-evaluates red; native
+// applies the palette in-memory (new screens render red) to avoid reload loops.
 function EnhancedSync() {
   const { user } = useAuth();
   const done = useRef(false);
   useEffect(() => {
     if (!user) return;
     const want = !!user.enhanced;
+    persistEnhancedFlag(want);
     const have = isEnhancedPalette();
-    if (want === have) { persistEnhancedFlag(want); return; }
-    if (done.current) return;
-    done.current = true;
-    (async () => { await persistEnhancedFlag(want); reloadApp(); })();
+    if (want === have) return;
+    if (want) applyEnhancedPalette();
+    if (Platform.OS === "web" && !done.current) { done.current = true; reloadApp(); }
   }, [user?.enhanced, user?.user_id]);
   return null;
 }

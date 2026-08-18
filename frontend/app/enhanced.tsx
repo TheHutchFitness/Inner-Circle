@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal, Switch } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator, Modal, Switch, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from "react-native-reanimated";
@@ -88,8 +88,9 @@ export default function Enhanced() {
       await refresh();
       await loadRoom();
       setStatus((s: any) => ({ ...s, enhanced: true }));
-      // reload the bundle so every screen re-renders with the crimson palette
-      setTimeout(() => reloadApp(), 1300);
+      // Web: reload so every StyleSheet re-renders crimson. Native: palette is
+      // applied in-memory (screens turn red as they mount) — no reload needed.
+      if (Platform.OS === "web") setTimeout(() => reloadApp(), 1300);
     } catch (e: any) { setMsg(e?.message || "Something went wrong"); }
   };
 

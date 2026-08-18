@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, ScrollView, Pressable, TextInput, Activi
 import { Image } from "expo-image";
 import { apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
+import { MuscleMap } from "@/src/components/MuscleMap";
 
 type Ex = { name: string; category: string; desc?: string };
 
@@ -12,6 +13,7 @@ export function ExerciseLibraryModal({
   const [library, setLibrary] = useState<Ex[]>([]);
   const [custom, setCustom] = useState<Ex[]>([]);
   const [recent, setRecent] = useState<{ name: string; count: number }[]>([]);
+  const [favourites, setFavourites] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState("All");
@@ -29,7 +31,7 @@ export function ExerciseLibraryModal({
   const load = async () => {
     try {
       const r = await apiFetch(token, "/api/exercises");
-      setLibrary(r.library || []); setCustom(r.custom || []); setRecent(r.recent || []);
+      setLibrary(r.library || []); setCustom(r.custom || []); setRecent(r.recent || []); setFavourites(r.favourites || []);
     } catch {}
     setLoading(false);
   };
@@ -59,17 +61,29 @@ export function ExerciseLibraryModal({
     return recent.map((r) => byName.get(r.name) || { name: r.name, category: "Recent" });
   }, [recent, all]);
 
-  // Grouped list; when browsing All with no search, surface a Recent group first
+  const favExercises = useMemo(() => {
+    const byName = new Map(all.map((e) => [e.name, e]));
+    return favourites.map((n) => byName.get(n) || { name: n, category: "Favourite" });
+  }, [favourites, all]);
+
+  const toggleFav = async (name: string) => {
+    const on = !favourites.includes(name);
+    setFavourites((f) => (on ? [...f, name] : f.filter((x) => x !== name)));
+    try { await apiFetch(token, "/api/exercises/favourite", { method: "POST", body: JSON.stringify({ name, on }) }); } catch {}
+  };
+
+  // Grouped list; when browsing All with no search, surface Favourites then Recent first
   const groups = useMemo(() => {
     const out: [string, Ex[]][] = [];
-    if (cat === "All" && !q.trim() && recentExercises.length) {
-      out.push(["★ Recent & Favourites", recentExercises]);
+    if (cat === "All" && !q.trim()) {
+      if (favExercises.length) out.push(["★ Favourites", favExercises]);
+      if (recentExercises.length) out.push(["Recent", recentExercises]);
     }
     const g: Record<string, Ex[]> = {};
     for (const e of filtered) { (g[e.category] = g[e.category] || []).push(e); }
     for (const k of Object.keys(g)) out.push([k, g[k]]);
     return out;
-  }, [filtered, recentExercises, cat, q]);
+  }, [filtered, recentExercises, favExercises, cat, q]);
 
   const toggle = (name: string) => setSel((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
 
@@ -86,11 +100,11 @@ export function ExerciseLibraryModal({
     setCreating(false);
   };
 
-  const openDemo = async (e: Ex) => {
+  const openDemo = async (e: Ex, force = false) => {
     setDetail(e); setDemoUri(null); setDemoErr(false); setDemoLoading(true);
     try {
-      const r = await apiFetch(token, `/api/exercises/demo?name=${encodeURIComponent(e.name)}`);
-      setDemoUri(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${r.media_id}?token=${token}`);
+      const r = await apiFetch(token, `/api/exercises/demo?name=${encodeURIComponent(e.name)}${force ? "&force=1" : ""}`);
+      setDemoUri(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${r.media_id}?token=${token}&v=${Date.now()}`);
     } catch { setDemoErr(true); }
     setDemoLoading(false);
   };
@@ -164,6 +178,9 @@ export function ExerciseLibraryModal({
                           <Text style={[styles.rowName, on && styles.rowNameOn]}>{e.name}</Text>
                           {!!e.desc && <Text style={styles.rowDesc}>{e.desc}</Text>}
                         </View>
+                        <Pressable testID={`lib-fav-${e.name}`} onPress={() => toggleFav(e.name)} hitSlop={8} style={styles.infoBtn}>
+                          <Text style={[styles.starText, favourites.includes(e.name) && styles.starOn]}>{favourites.includes(e.name) ? "\u2605" : "\u2606"}</Text>
+                        </Pressable>
                         <Pressable testID={`lib-info-${e.name}`} onPress={() => openDemo(e)} hitSlop={8} style={styles.infoBtn}>
                           <Text style={styles.infoText}>{"\u24D8"}</Text>
                         </Pressable>
@@ -191,18 +208,29 @@ export function ExerciseLibraryModal({
               <Pressable testID="demo-close" onPress={() => setDetail(null)}><Text style={styles.close}>✕</Text></Pressable>
             </View>
             {!!detail?.category && <Text style={styles.detailCat}>{detail.category.toUpperCase()}</Text>}
-            <View style={styles.demoBox}>
-              {demoLoading ? (
-                <View style={styles.demoCenter}>
-                  <ActivityIndicator color={colors.brandPrimary} />
-                  <Text style={styles.demoHint}>{"Generating form demo..."}</Text>
-                </View>
-              ) : demoErr ? (
-                <View style={styles.demoCenter}><Text style={styles.demoHint}>{"Couldn't load a demo. Tap the info icon again to retry."}</Text></View>
-              ) : demoUri ? (
-                <Image source={{ uri: demoUri }} style={styles.demoImg} contentFit="cover" transition={200} />
-              ) : null}
+            <View style={styles.detailBody}>
+              <View style={styles.demoBox}>
+                {demoLoading ? (
+                  <View style={styles.demoCenter}>
+                    <ActivityIndicator color={colors.brandPrimary} />
+                    <Text style={styles.demoHint}>{"Generating form demo..."}</Text>
+                  </View>
+                ) : demoErr ? (
+                  <View style={styles.demoCenter}><Text style={styles.demoHint}>{"Couldn't load a demo. Tap regenerate to retry."}</Text></View>
+                ) : demoUri ? (
+                  <Image source={{ uri: demoUri }} style={styles.demoImg} contentFit="cover" transition={200} />
+                ) : null}
+              </View>
+              <MuscleMap category={detail?.category} />
             </View>
+            <Pressable
+              testID="demo-regen"
+              onPress={() => detail && openDemo(detail, true)}
+              disabled={demoLoading}
+              style={[styles.regenBtn, demoLoading && { opacity: 0.5 }]}
+            >
+              <Text style={styles.regenText}>{"\u21BB REGENERATE ART"}</Text>
+            </Pressable>
             {!!detail?.desc && <Text style={styles.detailDesc}>{detail.desc}</Text>}
             <Pressable
               testID="demo-add"
@@ -244,6 +272,8 @@ const styles = StyleSheet.create({
   rowDesc: { color: colors.textDim, fontSize: 11, lineHeight: 15, marginTop: 3 },
   infoBtn: { width: 30, height: 30, alignItems: "center", justifyContent: "center", marginRight: 6 },
   infoText: { color: colors.brandPrimary, fontSize: 18, fontWeight: "700" },
+  starText: { color: colors.textDim, fontSize: 18, fontWeight: "700" },
+  starOn: { color: colors.warning },
   check: { width: 24, height: 24, borderRadius: 6, borderWidth: 1, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
   checkOn: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
   checkMark: { color: "#001122", fontWeight: "900" },
@@ -253,10 +283,13 @@ const styles = StyleSheet.create({
   detailCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.lg },
   detailTitle: { color: colors.text, fontWeight: "900", fontSize: 18, flex: 1, paddingRight: spacing.sm },
   detailCat: { color: colors.brandPrimary, letterSpacing: 2, fontWeight: "800", fontSize: 10, marginBottom: spacing.sm },
-  demoBox: { height: 260, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: "hidden", marginBottom: spacing.md },
+  detailBody: { flexDirection: "row", gap: spacing.md, alignItems: "center", marginBottom: spacing.sm },
+  demoBox: { flex: 1, height: 200, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
   demoCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.lg },
   demoHint: { color: colors.textDim, fontSize: 12, textAlign: "center" },
   demoImg: { width: "100%", height: "100%" },
+  regenBtn: { alignSelf: "flex-start", borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 8, marginBottom: spacing.md },
+  regenText: { color: colors.brandPrimary, fontWeight: "800", fontSize: 11, letterSpacing: 1 },
   detailDesc: { color: colors.textMid, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
   detailAdd: { backgroundColor: colors.brandPrimary, paddingVertical: 14, alignItems: "center", borderRadius: radius.sm },
   detailAddText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },
