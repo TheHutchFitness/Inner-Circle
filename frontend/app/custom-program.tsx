@@ -316,6 +316,29 @@ export default function CustomProgram() {
               </View>
             )}
 
+            {Array.isArray(savedIntake?.deliveries) && savedIntake.deliveries.length > 1 && (
+              <View style={styles.historyBox}>
+                <Text style={styles.historyLabel}>📁 PROGRAM HISTORY</Text>
+                {[...savedIntake.deliveries].reverse().map((d: any, i: number) => (
+                  <Pressable
+                    key={d.media_id || i}
+                    testID={`cp-history-${i}`}
+                    onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${d.media_id}?token=${token}`)}
+                    style={styles.historyRow}
+                  >
+                    <Text style={styles.historyIcon}>⬇</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.historyName} numberOfLines={1}>{d.file_name || "program"}</Text>
+                      <Text style={styles.historyDate}>
+                        {d.delivered_at ? new Date(d.delivered_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : ""}
+                        {i === 0 ? "  · LATEST" : ""}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
             <Pressable testID="cp-open-ac" onPress={() => router.push("/athletes-center")} style={styles.primary}>
               <Text style={styles.primaryText}>OPEN ATHLETE&apos;S CENTER</Text>
             </Pressable>
@@ -436,4 +459,10 @@ const styles = StyleSheet.create({
   coachNote: { backgroundColor: colors.surface3, borderLeftWidth: 3, borderLeftColor: colors.brandPrimary, borderRadius: radius.sm, padding: spacing.md, marginBottom: spacing.md },
   coachNoteLabel: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "900" },
   coachNoteText: { color: colors.text, marginTop: 6, lineHeight: 20 },
+  historyBox: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.md },
+  historyLabel: { color: colors.textDim, fontSize: 11, letterSpacing: 2, fontWeight: "900", marginBottom: spacing.sm },
+  historyRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  historyIcon: { color: colors.brandPrimary, fontSize: 18, fontWeight: "900" },
+  historyName: { color: colors.text, fontWeight: "700" },
+  historyDate: { color: colors.textDim, fontSize: 11, marginTop: 2, letterSpacing: 1 },
 });

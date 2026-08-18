@@ -145,3 +145,8 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 
 ## Implemented (2026-06 — Coach Delivery Note)
 - DELIVERY NOTE: deliver endpoint now accepts an optional `note` form field (stored as program_note, ≤500 chars). Coach Inbox (coach-programs.tsx) has a per-request multiline "PERSONAL NOTE (shown to buyer)" input sent with the file upload. Buyer's custom-program confirm view shows a "✎ NOTE FROM COACH HUTCH" card above the download button when a note exists. Verified end-to-end (note stored + rendered to buyer).
+
+## Implemented (2026-06 — Delivery Email + Program History + Buyer Search)
+- DELIVERY EMAIL: deliver endpoint now emails the buyer (Emergent Resend) "Your custom program is ready 💪" with the coach's note embedded (fire-and-forget; failures logged, never block delivery). Verified 202 Accepted.
+- PROGRAM HISTORY: each delivery is appended to a `deliveries` array [{media_id, file_name, note, delivered_at}] on the request (latest also stays as program_media_id). Buyer's custom-program screen shows a "📁 PROGRAM HISTORY" list (newest first, latest tagged) with re-download links for every past file. Verified (2 deliveries listed).
+- BUYER SEARCH: Coach Sales Recap Top Buyers list now has a search box (testID buyer-search) that filters buyers by name client-side. Frontend-only.

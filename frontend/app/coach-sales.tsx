@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform, TextInput } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,6 +19,7 @@ export default function CoachSales() {
   const { token } = useAuth();
   const [data, setData] = useState<any>(null);
   const [buyers, setBuyers] = useState<any[]>([]);
+  const [buyerQuery, setBuyerQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -88,20 +89,36 @@ export default function CoachSales() {
             {buyers.length === 0 ? (
               <Text style={styles.empty}>No Custom Program buyers yet.</Text>
             ) : (
-              buyers.map((b, i) => (
-                <View key={b.order_number || i} testID={`buyer-${i}`} style={styles.buyerCard}>
-                  <Text style={styles.buyerEmoji}>{avatarFor(b.avatar_id).emoji}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.buyerName}>{b.display_name}</Text>
-                    <Text style={styles.buyerOrder}>{b.order_number} · {b.has_intake ? (b.intake_status || "submitted").toUpperCase() : "NO INTAKE YET"}</Text>
-                  </View>
-                  {b.has_intake && (
-                    <Pressable testID={`buyer-intake-${i}`} onPress={() => router.push("/coach-programs")} style={styles.intakeBtn}>
-                      <Text style={styles.intakeBtnText}>VIEW INTAKE</Text>
-                    </Pressable>
-                  )}
-                </View>
-              ))
+              <>
+                <TextInput
+                  testID="buyer-search"
+                  value={buyerQuery}
+                  onChangeText={setBuyerQuery}
+                  placeholder="🔍 Search buyers by name…"
+                  placeholderTextColor={colors.textDim}
+                  style={styles.search}
+                  autoCapitalize="none"
+                />
+                {(() => {
+                  const q = buyerQuery.trim().toLowerCase();
+                  const filtered = q ? buyers.filter((b) => (b.display_name || "").toLowerCase().includes(q)) : buyers;
+                  if (filtered.length === 0) return <Text style={styles.empty}>No buyers match “{buyerQuery}”.</Text>;
+                  return filtered.map((b, i) => (
+                    <View key={b.order_number || i} testID={`buyer-${i}`} style={styles.buyerCard}>
+                      <Text style={styles.buyerEmoji}>{avatarFor(b.avatar_id).emoji}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.buyerName}>{b.display_name}</Text>
+                        <Text style={styles.buyerOrder}>{b.order_number} · {b.has_intake ? (b.intake_status || "submitted").toUpperCase() : "NO INTAKE YET"}</Text>
+                      </View>
+                      {b.has_intake && (
+                        <Pressable testID={`buyer-intake-${i}`} onPress={() => router.push("/coach-programs")} style={styles.intakeBtn}>
+                          <Text style={styles.intakeBtnText}>VIEW INTAKE</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ));
+                })()}
+              </>
             )}
           </>
         )}
@@ -134,6 +151,7 @@ const styles = StyleSheet.create({
   monthMeta: { color: colors.textMid, fontSize: 12 },
   monthBreak: { color: colors.textDim, fontSize: 11 },
   buyerCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  search: { color: colors.text, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginBottom: spacing.md, minHeight: 44 },
   buyerEmoji: { fontSize: 26 },
   buyerName: { color: colors.text, fontWeight: "800", letterSpacing: 1 },
   buyerOrder: { color: colors.textDim, fontSize: 11, marginTop: 2, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },

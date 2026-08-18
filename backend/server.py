@@ -2298,13 +2298,37 @@ async def custom_program_deliver(request_id: str, file: UploadFile = File(...), 
         "content_type": ct, "media_type": "file", "size": len(data),
         "original_name": file.filename, "created_at": datetime.now(timezone.utc),
     })
+    note_clean = (note or "").strip()[:500]
+    now = datetime.now(timezone.utc)
+    delivery_entry = {
+        "media_id": media_id, "file_name": file.filename or "program",
+        "note": note_clean, "delivered_at": now,
+    }
     await db.custom_program_requests.update_one(
         {"request_id": request_id},
         {"$set": {"program_media_id": media_id, "program_file_name": file.filename or "program",
-                  "program_note": (note or "").strip()[:500],
-                  "status": "delivered", "delivered_at": datetime.now(timezone.utc),
-                  "delivered_seen": False}},
+                  "program_note": note_clean,
+                  "status": "delivered", "delivered_at": now,
+                  "delivered_seen": False},
+         "$push": {"deliveries": delivery_entry}},
     )
+    # Notify the buyer by email (fire-and-forget)
+    buyer = await db.users.find_one({"user_id": req["user_id"]}, {"_id": 0, "email": 1, "display_name": 1})
+    if buyer and (buyer.get("email") or "").strip():
+        name = escape((buyer.get("display_name") or "Athlete").strip())
+        note_html = f'<div style="background:#f4f4f4;border-left:4px solid #111;padding:12px 14px;margin:14px 0;"><strong>Note from Coach Hutch:</strong><br/>{escape(note_clean)}</div>' if note_clean else ""
+        html = f"""
+        <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0b0b0e;">
+          <h2 style="letter-spacing:1px;">HUTCH'S INNER CIRCLE</h2>
+          <p>Hey {name},</p>
+          <p><strong>Your custom program is ready.</strong> Open the app &rarr; Home &rarr; 1-on-1 Custom Program to download it.</p>
+          {note_html}
+          <p>Let's get to work.<br/>— Coach Hutch</p>
+        </div>"""
+        try:
+            await send_email(to=buyer["email"].strip(), subject="Your custom program is ready 💪", html=html)
+        except Exception as e:
+            logger.warning(f"Delivery email failed for {buyer.get('email')}: {e}")
     return {"ok": True, "media_id": media_id, "file_name": file.filename}
 
 
