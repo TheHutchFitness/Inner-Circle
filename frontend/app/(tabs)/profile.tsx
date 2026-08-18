@@ -9,7 +9,7 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex } from "@/src/lib/theme";
 import { StrengthChart } from "@/src/components/StrengthChart";
 import { RadarChart } from "@/src/components/RadarChart";
 import { HudSectionHeader } from "@/src/components/Hud";
@@ -47,7 +47,8 @@ export default function Profile() {
   const rank = user.rank || "Beginner";
   const rankColor = RANK_COLORS[rank];
   const portrait = avatarImage(user.avatar_id);
-  const frame = frameFor(rank);
+  const bossFrameUnlocked = (user.extra_unlocks || []).includes("frame_boss");
+  const frame = (bossFrameUnlocked && rankIndex(rank) < 5) ? CARD_FRAMES.Boss : frameFor(rank);
   const tierColor = CLASS_TIER_COLORS[attrs?.class_tier] || rankColor;
   const totalLift = (user.prs?.bench || 0) + (user.prs?.squat || 0) + (user.prs?.deadlift || 0) + (user.prs?.ohp || 0);
 
@@ -113,6 +114,7 @@ export default function Profile() {
                 <View style={styles.pillRow}>
                   {isSubscribed && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ PREMIUM</Text></View>}
                   {user.skool_verified && <View style={[styles.pill, { backgroundColor: colors.success }]}><Text style={styles.pillText}>✓ SKOOL</Text></View>}
+                  {user.founder_backer && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ BACKER</Text></View>}
                 </View>
                 {/* mini stat bars */}
                 <View style={styles.barsRow}>

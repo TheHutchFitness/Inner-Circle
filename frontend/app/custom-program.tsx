@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator,
-  TextInput, KeyboardAvoidingView, Platform,
+  TextInput, KeyboardAvoidingView, Platform, Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -70,10 +70,14 @@ export default function CustomProgram() {
   };
 
   useEffect(() => {
-    setContactValue(user?.email || "");
+    if (user?.email) setContactValue(user.email);
+  }, [user?.email]);
+
+  useEffect(() => {
+    if (!token) return;
     loadStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   const doPurchase = async () => {
     if (!pkg) { setMsg("This offer isn't available yet — please try again shortly."); return; }
@@ -124,6 +128,12 @@ export default function CustomProgram() {
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, padding: spacing.lg, paddingBottom: 60 }}>
         {Header}
+
+        {user?.all_rooms_access && (
+          <Pressable testID="cp-coach-inbox" onPress={() => router.push("/coach-programs")} style={styles.coachBtn}>
+            <Text style={styles.coachBtnText}>🛠 COACH INBOX — DELIVER PROGRAMS</Text>
+          </Pressable>
+        )}
 
         <LinearGradient colors={["#3A2E00", colors.surface2]} style={styles.hero}>
           <Text style={styles.badge}>EXCLUSIVE · $200</Text>
@@ -235,6 +245,20 @@ export default function CustomProgram() {
               )}
             </View>
 
+            {savedIntake?.program_media_id ? (
+              <Pressable
+                testID="cp-download"
+                onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${savedIntake.program_media_id}?token=${token}`)}
+                style={styles.primary}
+              >
+                <Text style={styles.primaryText}>⬇ DOWNLOAD YOUR PROGRAM</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.awaitBox}>
+                <Text style={styles.awaitText}>Coach is writing your program — you&apos;ll get it right here when it&apos;s ready.</Text>
+              </View>
+            )}
+
             <Pressable testID="cp-open-ac" onPress={() => router.push("/athletes-center")} style={styles.primary}>
               <Text style={styles.primaryText}>OPEN ATHLETE&apos;S CENTER</Text>
             </Pressable>
@@ -296,4 +320,8 @@ const styles = StyleSheet.create({
   summaryBox: { alignSelf: "stretch", marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.surface3, borderRadius: radius.sm, borderLeftWidth: 3, borderLeftColor: colors.warning },
   summaryLabel: { color: colors.warning, letterSpacing: 2, fontSize: 10, fontWeight: "800" },
   summaryText: { color: colors.text, marginTop: 4, lineHeight: 19 },
+  awaitBox: { marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderLeftWidth: 3, borderLeftColor: colors.brandPrimary },
+  awaitText: { color: colors.textMid, lineHeight: 19 },
+  coachBtn: { marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary, alignItems: "center" },
+  coachBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
 });

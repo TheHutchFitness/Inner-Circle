@@ -147,6 +147,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
                 <Text style={st.msgEmoji}>{av.emoji}</Text>
                 <Text style={st.msgName}>{m.display_name}</Text>
                 <Text style={[st.msgRank, { color: RANK_COLORS[m.rank] || accent }]}>{m.rank?.toUpperCase()}</Text>
+                {m.founder_backer && <Text style={st.msgBacker}>★</Text>}
                 {m.skool_verified && <Text style={st.msgSkool}>✓</Text>}
               </View>
               {m.media_id && m.media_type === "image" && (
@@ -221,6 +222,7 @@ const st = StyleSheet.create({
   msgName: { color: colors.text, fontWeight: "800", fontSize: 13 },
   msgRank: { fontSize: 9, letterSpacing: 2, fontWeight: "800" },
   msgSkool: { color: colors.success, fontWeight: "900" },
+  msgBacker: { color: colors.warning, fontWeight: "900" },
   msgText: { color: colors.textMid, lineHeight: 19 },
   image: { width: "100%", height: 220, borderRadius: radius.sm, marginBottom: 6, backgroundColor: colors.surface3 },
   video: { width: "100%", height: 220, borderRadius: radius.sm, marginBottom: 6, backgroundColor: "#000" },

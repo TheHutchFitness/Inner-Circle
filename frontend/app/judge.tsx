@@ -57,6 +57,8 @@ export default function Judge() {
   const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access;
 
   const [feed, setFeed] = useState<any[]>([]);
+  const [board, setBoard] = useState<any[]>([]);
+  const [view, setView] = useState<"feed" | "board">("feed");
   const [pending, setPending] = useState<any>(null);
   const [caption, setCaption] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -69,7 +71,8 @@ export default function Judge() {
   const scrollRef = useRef<ScrollView>(null);
 
   const load = async () => { try { setFeed(await apiFetch(token, "/api/judge/feed")); } catch {} };
-  useEffect(() => { if (canJudge) load(); /* eslint-disable-next-line */ }, [canJudge]);
+  const loadBoard = async () => { try { setBoard(await apiFetch(token, "/api/judge/leaderboard")); } catch {} };
+  useEffect(() => { if (canJudge) { load(); loadBoard(); } /* eslint-disable-next-line */ }, [canJudge]);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
 
@@ -127,6 +130,7 @@ export default function Judge() {
       if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Submission failed"); }
       setPending(null); setCaption("");
       await load();
+      await loadBoard();
       setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 60);
     } catch (e: any) { setErr(e.message); }
     setSubmitting(false);
@@ -205,8 +209,36 @@ export default function Judge() {
           {err && <Text style={st.err}>{err}</Text>}
         </View>
 
-        <Text style={st.section}>THE LINEUP</Text>
-        {feed.length === 0 ? (
+        <View style={st.viewToggle}>
+          <Pressable testID="judge-view-feed" onPress={() => setView("feed")} style={[st.viewBtn, view === "feed" && st.viewBtnActive]}>
+            <Text style={[st.viewBtnText, view === "feed" && st.viewBtnTextActive]}>THE LINEUP</Text>
+          </Pressable>
+          <Pressable testID="judge-view-board" onPress={() => { setView("board"); loadBoard(); }} style={[st.viewBtn, view === "board" && st.viewBtnActive]}>
+            <Text style={[st.viewBtnText, view === "board" && st.viewBtnTextActive]}>🏆 TOP THIS WEEK</Text>
+          </Pressable>
+        </View>
+
+        {view === "board" ? (
+          board.length === 0 ? (
+            <Text style={st.empty}>No scored physiques this week yet. Submit one to top the board.</Text>
+          ) : (
+            board.map((b) => {
+              const rc = RANK_COLORS[b.rank] || colors.brandPrimary;
+              const medal = b.rank_pos === 1 ? "🥇" : b.rank_pos === 2 ? "🥈" : b.rank_pos === 3 ? "🥉" : `#${b.rank_pos}`;
+              return (
+                <View key={b.submission_id} testID={`judge-board-${b.rank_pos}`} style={st.boardRow}>
+                  <Text style={st.boardPos}>{medal}</Text>
+                  <Image source={{ uri: mediaUrl(b.media_id) }} style={st.boardThumb} contentFit="cover" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={st.boardName}>{b.display_name} {b.founder_backer ? "★" : ""}</Text>
+                    <Text style={[st.cardRank, { color: rc }]}>{b.rank?.toUpperCase()}</Text>
+                  </View>
+                  <Text style={[st.boardScore, { color: scoreColor(b.overall) }]}>{b.overall.toFixed(1)}</Text>
+                </View>
+              );
+            })
+          )
+        ) : feed.length === 0 ? (
           <Text style={st.empty}>No physiques on stage yet. Be the first to be judged.</Text>
         ) : (
           feed.map((s) => {
@@ -215,7 +247,7 @@ export default function Judge() {
               <View key={s.submission_id} testID={`judge-sub-${s.submission_id}`} style={st.card}>
                 <View style={st.cardHead}>
                   <Text style={st.cardEmoji}>{avatarFor(s.avatar_id).emoji}</Text>
-                  <Text style={st.cardName}>{s.display_name}</Text>
+                  <Text style={st.cardName}>{s.display_name} {s.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
                   <Text style={[st.cardRank, { color: rc }]}>{s.rank?.toUpperCase()}</Text>
                 </View>
                 <Image source={{ uri: mediaUrl(s.media_id) }} style={st.subImage} contentFit="cover" transition={150} />
@@ -244,7 +276,7 @@ export default function Judge() {
                 <View key={c.comment_id} style={st.comment}>
                   <View style={st.commentHead}>
                     <Text style={st.cardEmoji}>{avatarFor(c.avatar_id).emoji}</Text>
-                    <Text style={st.commentName}>{c.display_name}</Text>
+                    <Text style={st.commentName}>{c.display_name} {c.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
                     <Text style={[st.cardRank, { color: RANK_COLORS[c.rank] || colors.brandPrimary }]}>{c.rank?.toUpperCase()}</Text>
                   </View>
                   <Text style={st.commentText}>{c.text}</Text>
@@ -290,6 +322,16 @@ const st = StyleSheet.create({
   judging: { color: colors.brandPrimary, textAlign: "center", marginTop: spacing.md, letterSpacing: 2 },
   err: { color: colors.error, marginTop: spacing.md, textAlign: "center" },
   section: { color: colors.text, fontSize: 14, letterSpacing: 4, fontWeight: "800", marginTop: spacing.xl, marginBottom: spacing.md },
+  viewToggle: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xl, marginBottom: spacing.md },
+  viewBtn: { flex: 1, paddingVertical: spacing.sm, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  viewBtnActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  viewBtnText: { color: colors.textDim, fontWeight: "800", letterSpacing: 1, fontSize: 12 },
+  viewBtnTextActive: { color: colors.brandPrimary },
+  boardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
+  boardPos: { width: 34, textAlign: "center", fontSize: 16, fontWeight: "900", color: colors.text },
+  boardThumb: { width: 46, height: 46, borderRadius: radius.sm, backgroundColor: colors.surface3 },
+  boardName: { color: colors.text, fontWeight: "800", letterSpacing: 1 },
+  boardScore: { fontSize: 22, fontWeight: "900" },
   empty: { color: colors.textDim, textAlign: "center", marginVertical: spacing.lg },
   card: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.lg },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },

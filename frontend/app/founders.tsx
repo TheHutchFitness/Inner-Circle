@@ -54,7 +54,7 @@ export default function Founders() {
     try { setData(await apiFetch(token, "/api/founders")); } catch {}
     setLoading(false);
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { if (token) load(); /* eslint-disable-next-line */ }, [token]);
 
   const back = async () => {
     setMsg(null);

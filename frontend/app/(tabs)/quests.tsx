@@ -11,6 +11,7 @@ const SCOPES = [
   { key: "daily", label: "DAILY" },
   { key: "weekly", label: "WEEKLY" },
   { key: "monthly", label: "MONTHLY" },
+  { key: "boss", label: "☠ BOSS" },
   { key: "all", label: "ALL" },
 ];
 
@@ -80,7 +81,7 @@ export default function Quests() {
     setTimeout(() => setToast(null), 2600);
   };
 
-  const scopes = scope === "all" ? ["daily", "weekly", "monthly"] : [scope];
+  const scopes = scope === "all" ? ["daily", "weekly", "monthly", "boss"] : [scope];
 
   // ---------- FIRST-ENTRY GOAL INTAKE ----------
   if (personal && (personal.needs_setup || editingGoals)) {

@@ -421,3 +421,100 @@ test_plan:
 agent_communication:
     -agent: "main"
     -message: "NEW batch. Test BACKEND: (1) /api/custom-program/unlock+intake+status, (2) /api/founders + /api/founders/back, (3) /api/judge/submit (multipart JPEG physique image + caption) then /api/judge/feed and /api/judge/{id}/comments GET+POST — verify critique JSON has overall+4 categories+notes (uses GPT-5.6-terra vision via emergentintegrations, EMERGENT_LLM_KEY already set), (4) rank system already verified. Use a REAL physique-like JPEG per /app/image_testing.md rules (real features, not blank). FRONTEND: login=elite@test.com/TestPass123! (elite is skool_verified => can access The Judge). Verify HOME tab label, centered RECAP/INVENTORY/RANKS buttons, and CTAs open Founders/Judge/Custom-Program/Progression screens. On The Judge: upload a physique photo (web file input), submit, confirm AI score card renders, add a comment. Founders: list renders + tabs switch. Progression: 8 ranks render. IMPORTANT: RevenueCat purchases CANNOT complete on web/Expo Go — do NOT attempt to complete a purchase; only verify offer screens render and the backend unlock/back endpoints (call them directly with a bearer token) grant access. Do NOT retest older sprint/cardio/workout tasks."
+
+#==================== SESSION: Boss Quests + Backer Perks + Judge Leaderboard + Program Delivery ====================
+backend:
+  - task: "Boss Quests (rare high-reward: unlock Boss frame + Boss background)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "QUEST_TEMPLATES['boss'] with 2 quests; /api/quests?scope=boss and scope=all include boss. Claim awards reward_xp + typed reward (frame->extra_unlocks 'frame_boss'; background->bg_boss). Verified list returns 2 boss quests."
+  - task: "Judge weekly leaderboard endpoint"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "GET /api/judge/leaderboard returns last-7-day submissions with critique.overall>0 sorted desc top 20. Verified 200."
+  - task: "Program Delivery (coach uploads file -> buyer downloads)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Owner-only GET /api/custom-program/requests + POST /api/custom-program/requests/{id}/deliver (multipart file -> Object Storage). GET /api/custom-program returns program_media_id/program_file_name. Verified full flow with temp owner grant; file served via /api/chat/media/{id}."
+  - task: "Backer flag on chat + judge docs"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "post_message + judge submit/comment docs include founder_backer for ★ rendering."
+
+frontend:
+  - task: "Boss Quests tab (☠ BOSS) in Quests"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/quests.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Added ☠ BOSS scope chip + included in ALL. Smoke screenshot shows chip selected; boss quests render below personal goals."
+  - task: "Judge leaderboard toggle (THE LINEUP / TOP THIS WEEK) + backer star"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/judge.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Segmented toggle; board lists rank_pos medal + thumb + name + score. ★ shown for backer names in feed/comments/board."
+  - task: "Backer ★ on player card + chat name; Boss frame on player card"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/profile.tsx, frontend/src/components/ChatRoom.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "★ BACKER pill on player card when founder_backer; ★ next to chat names. Boss frame used on card if extra_unlocks has frame_boss and rank<Boss."
+  - task: "Program Delivery UI (coach inbox screen + buyer download button)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/coach-programs.tsx, frontend/app/custom-program.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Owner-only /coach-programs lists intakes + upload via expo-document-picker -> deliver. Buyer confirmation shows DOWNLOAD YOUR PROGRAM when delivered, else 'Coach is writing' note. COACH INBOX link on custom-program for owners (all_rooms_access)."
+
+agent_communication:
+    -agent: "main"
+    -message: "THIRD batch. Backend already verified by main via python (boss quests list, judge leaderboard, program deliver full flow with temp owner grant, backer flags). Please FRONTEND-test: (1) Quests -> ☠ BOSS tab shows 2 boss quests (SLAY THE GATEKEEPER, CLAIM THE THRONE) with big rewards; ALL tab also includes a BOSS section. (2) The Judge (login elite@test.com, skool_verified) -> toggle 'TOP THIS WEEK' renders leaderboard (may be empty if no scored subs in last 7 days — empty state text is OK; if you submit a real physique JPEG it should appear). (3) Player card (ME tab): to see ★ BACKER pill, set founder_backer=true on elite via mongo then reload. (4) Coach inbox: set all_rooms_access=true on elite via mongo, open /custom-program -> COACH INBOX button -> /coach-programs lists requests + upload a file (web file chooser) -> delivers; then buyer download button appears in custom-program confirmation. Revert temp mongo flags after. Do NOT attempt RevenueCat purchases. Do NOT retest prior batches."

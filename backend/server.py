@@ -1299,6 +1299,10 @@ QUEST_TEMPLATES = {
         {"id": "m_pr", "title": "Record Breaker", "flavor": "Rewrite your limits repeatedly.", "reward_type": "background", "reward_value": "bg_void", "reward_label": "The Void Background", "objectives": [{"key": "prs", "label": "New PRs this month", "target": 4}]},
         {"id": "m_ascend", "title": "Ascendant", "flavor": "Pure dedication. Earn the Prime card.", "reward_type": "card", "reward_value": "prime_card", "reward_label": "Prime Card Badge", "objectives": [{"key": "xp", "label": "XP earned this month", "target": 2000}]},
     ],
+    "boss": [
+        {"id": "boss_frame", "title": "SLAY THE GATEKEEPER", "flavor": "A rare Boss has appeared. Only the relentless claim its power. Unlock the coveted BOSS frame.", "reward_xp": 600, "reward_type": "frame", "reward_value": "boss", "reward_label": "BOSS Frame + 600 XP", "objectives": [{"key": "xp", "label": "XP earned this month", "target": 5000}, {"key": "workouts", "label": "Sessions this month", "target": 20}]},
+        {"id": "boss_bg", "title": "CLAIM THE THRONE", "flavor": "Dethrone the Boss. Seize the Boss Throne and rule the arena.", "reward_xp": 700, "reward_type": "background", "reward_value": "bg_boss", "reward_label": "Boss Throne BG + 700 XP", "objectives": [{"key": "prs", "label": "New PRs this month", "target": 6}, {"key": "volume", "label": "Move total lb this month", "target": 250000}]},
+    ],
 }
 
 
@@ -1379,7 +1383,7 @@ async def get_quests(scope: str = "daily", user=Depends(get_current_user)):
     now = datetime.now(timezone.utc)
     if scope == "all":
         data = {}
-        for sc in ("daily", "weekly", "monthly"):
+        for sc in ("daily", "weekly", "monthly", "boss"):
             data[sc] = await _build_quests(user, sc, now)
         return data
     if scope not in QUEST_TEMPLATES:
@@ -1410,16 +1414,22 @@ async def claim_quest(payload: dict, user=Depends(get_current_user)):
     await db.quest_claims.insert_one({"user_id": user["user_id"], "quest_key": quest_id, "claimed_at": now})
     reward_msg = ""
     rtype = tmpl.get("reward_type", "xp")
-    if rtype == "xp" or scope in ("daily", "weekly"):
-        gained = tmpl.get("reward_xp", 0)
+    parts_msg = []
+    # High-reward quests may grant XP alongside a typed reward
+    gained = tmpl.get("reward_xp", 0)
+    if gained and (rtype == "xp" or scope in ("daily", "weekly", "boss")):
         await award_xp(user["user_id"], gained)
-        reward_msg = f"+{gained} XP"
-    elif rtype == "badge" or rtype == "card":
+        parts_msg.append(f"+{gained} XP")
+    if rtype in ("badge", "card"):
         await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"badges": tmpl["reward_value"]}})
-        reward_msg = tmpl.get("reward_label", "New badge")
+        parts_msg.append(tmpl.get("reward_label", "New badge"))
     elif rtype == "background":
         await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"extra_unlocks": tmpl["reward_value"]}})
-        reward_msg = tmpl.get("reward_label", "New background")
+        parts_msg.append(tmpl.get("reward_label", "New background"))
+    elif rtype == "frame":
+        await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"extra_unlocks": f"frame_{tmpl['reward_value']}"}})
+        parts_msg.append(tmpl.get("reward_label", "New frame"))
+    reward_msg = " · ".join(parts_msg) if parts_msg else tmpl.get("reward_label", "Reward claimed")
 
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     fresh["rank"] = rank_from_xp(fresh["xp"])
@@ -1724,6 +1734,7 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         "avatar_id": user.get("avatar_id", "avatar_ronin"),
         "rank": rank_from_xp(user["xp"]),
         "skool_verified": user.get("skool_verified", False),
+        "founder_backer": user.get("founder_backer", False),
         "text": text[:500],
         "media_id": media["media_id"] if media else None,
         "media_type": media["media_type"] if media else None,
@@ -1938,6 +1949,55 @@ async def custom_program_status(user=Depends(get_current_user)):
         "intake": intake,
     }
 
+def _is_owner(user) -> bool:
+    return (user.get("email", "").lower() in [e.lower() for e in OWNER_EMAILS]) or bool(user.get("all_rooms_access"))
+
+@api_router.get("/custom-program/requests")
+async def custom_program_requests(user=Depends(get_current_user)):
+    """Coach-only: list every custom-program intake so Hutch can deliver files."""
+    if not _is_owner(user):
+        raise HTTPException(status_code=403, detail="Coach access only")
+    rows = await db.custom_program_requests.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for r in rows:
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+    return rows
+
+@api_router.post("/custom-program/requests/{request_id}/deliver")
+async def custom_program_deliver(request_id: str, file: UploadFile = File(...), user=Depends(get_current_user)):
+    """Coach-only: upload the finished program file for a buyer."""
+    if not _is_owner(user):
+        raise HTTPException(status_code=403, detail="Coach access only")
+    req = await db.custom_program_requests.find_one({"request_id": request_id}, {"_id": 0})
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    ct = (file.content_type or "application/octet-stream").lower().split(";")[0].strip()
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > 40 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 40MB)")
+    ext = (file.filename or "program.pdf").rsplit(".", 1)[-1][:5] if "." in (file.filename or "") else "bin"
+    path = f"{STORAGE_APP_NAME}/programs/{req['user_id']}/{uuid.uuid4().hex}.{ext}"
+    try:
+        await storage_put(path, data, ct)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 402:
+            raise HTTPException(status_code=402, detail="Storage credits exhausted — try again later")
+        raise HTTPException(status_code=502, detail="Upload failed — try again")
+    media_id = new_id("med")
+    await db.chat_media.insert_one({
+        "media_id": media_id, "user_id": req["user_id"], "storage_path": path,
+        "content_type": ct, "media_type": "file", "size": len(data),
+        "original_name": file.filename, "created_at": datetime.now(timezone.utc),
+    })
+    await db.custom_program_requests.update_one(
+        {"request_id": request_id},
+        {"$set": {"program_media_id": media_id, "program_file_name": file.filename or "program",
+                  "status": "delivered", "delivered_at": datetime.now(timezone.utc)}},
+    )
+    return {"ok": True, "media_id": media_id, "file_name": file.filename}
+
 
 # ---------- Founders (first 100 members + development backers) ----------
 FOUNDER_LIMIT = 100
@@ -2095,6 +2155,7 @@ async def judge_submit(file: UploadFile = File(...), caption: Optional[str] = Fo
         "caption": (caption or "")[:300],
         "critique": critique,
         "comment_count": 0,
+        "founder_backer": user.get("founder_backer", False),
         "created_at": datetime.now(timezone.utc),
     }
     await db.judge_submissions.insert_one(doc)
@@ -2109,6 +2170,29 @@ async def judge_feed(user=Depends(get_current_user)):
         if isinstance(r.get("created_at"), datetime):
             r["created_at"] = r["created_at"].isoformat()
     return rows
+
+@api_router.get("/judge/leaderboard")
+async def judge_leaderboard(user=Depends(get_current_user)):
+    """Top-scored physiques from the last 7 days."""
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    rows = await db.judge_submissions.find(
+        {"created_at": {"$gte": week_ago}, "critique.overall": {"$gt": 0}}, {"_id": 0}
+    ).to_list(500)
+    rows.sort(key=lambda r: (r.get("critique") or {}).get("overall", 0), reverse=True)
+    top = []
+    for i, r in enumerate(rows[:20]):
+        c = r.get("critique") or {}
+        top.append({
+            "rank_pos": i + 1,
+            "submission_id": r["submission_id"],
+            "display_name": r.get("display_name", "Athlete"),
+            "avatar_id": r.get("avatar_id", "avatar_ronin"),
+            "rank": r.get("rank", "Beginner"),
+            "media_id": r.get("media_id"),
+            "overall": c.get("overall", 0),
+            "founder_backer": r.get("founder_backer", False),
+        })
+    return top
 
 @api_router.get("/judge/{submission_id}/comments")
 async def judge_comments(submission_id: str, user=Depends(get_current_user)):
@@ -2134,6 +2218,7 @@ async def judge_comment_add(submission_id: str, inp: JudgeComment, user=Depends(
         "avatar_id": user.get("avatar_id", "avatar_ronin"),
         "rank": rank_from_xp(user["xp"]),
         "text": text[:500],
+        "founder_backer": user.get("founder_backer", False),
         "created_at": datetime.now(timezone.utc),
     }
     await db.judge_comments.insert_one(doc)

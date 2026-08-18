@@ -1,0 +1,55 @@
+{
+  "summary": "Iteration 12 (FRONTEND-ONLY per request) — 4 new features tested end-to-end on Expo web at 390x844 as elite@test.com. RESULTS: (1) BOSS QUESTS ✅ — tapping the '☠ BOSS' chip on /quests renders BOTH boss quests (SLAY THE GATEKEEPER + CLAIM THE THRONE) with reward labels 'BOSS Frame + 600 XP' and 'Boss Throne BG + 700 XP'; tapping 'ALL' also shows a 'BOSS QUESTS' section header with the same 2 quests below the daily/weekly/monthly sections. (2) JUDGE segmented toggle ✅ — /judge screen renders 'THE LINEUP' and '🏆 TOP THIS WEEK' toggle (testIDs judge-view-feed / judge-view-board); switching to TOP THIS WEEK shows the correct empty-state text 'No scored physiques this week yet. Submit one to top the board.' (backend GET /api/judge/leaderboard returns [] since no scored subs in last 7 days). (3) ★ BACKER pill ✅ — after temporarily setting founder_backer=true on elite in Mongo and reloading, ME tab player card renders a golden '★ BACKER' pill next to the '✓ SKOOL' pill (see line 117 in profile.tsx). (4) PROGRAM DELIVERY — partial: temporarily set all_rooms_access=true + custom_program_purchased=true on elite in Mongo, then created an intake via POST /api/custom-program/unlock + /intake. On /custom-program the 'COACH INBOX — DELIVER PROGRAMS' button (testID=cp-coach-inbox) appears; tapping opens /coach-programs which renders 'DELIVER PROGRAMS' with 1 coach-req-<id> card showing goals/schedule/contact + 'UPLOAD PROGRAM FILE' button. Playwright expect_file_chooser + set_files delivered a real .pdf; the card immediately flipped to status pill 'DELIVERED', '✓ Delivered: program.pdf', and the toast 'Delivered to Kaido.' rendered. Backend then correctly reflects intake.status='delivered', program_media_id + program_file_name populated on GET /api/custom-program. BUT the buyer-side confirm view in /custom-program does NOT render — the '⬇ DOWNLOAD YOUR PROGRAM' button (testID=cp-download) never appears because GET /api/custom-program returns 401 in-browser (root cause below). Restored temporary flags + deleted the test intake at the end. No red screens; only cosmetic textShadow*/shadow*/pointerEvents deprecation warnings carried over.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "custom-program.tsx (buyer confirm view)",
+        "issue": "GET /api/custom-program is called on mount with an undefined bearer token → 401 → catch clause forces setView('offer') → the '⬇ DOWNLOAD YOUR PROGRAM' button (cp-download) never renders even though the backend has program_media_id set. Verified in browser: response log shows '401 https://.../api/custom-program' immediately followed by BUY NOW rendering; the same curl succeeds server-side.",
+        "testID": "cp-download",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Program Delivery buyer-side",
+        "issue": "custom-program.tsx line 72-76 useEffect has deps=[] and eslint-disable-next-line — it fires loadStatus() before the auth token from useAuth() hydrates on web, so the first (and only) call to /api/custom-program 401s and the screen falls back to the OFFER view. Fix: either add `token` to the deps array so loadStatus re-runs once token arrives, OR guard `if (!token) return;` and re-fire when token becomes truthy.",
+        "affected_testIDs": ["cp-download", "cp-open-ac", "cp-goals", "cp-submit"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "textShadow* style props (carried over)", "issue": "Console warning: '\"textShadow*\" style props are deprecated. Use \"textShadow\".' Reference: legacy components."},
+      {"component": "shadow* style props (carried over)", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Reference: /app/frontend/app/(tabs)/profile.tsx cardGlow."},
+      {"component": "props.pointerEvents (carried over)", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/src/components/ScanlineOverlay.tsx."}
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_12.json"
+  ],
+  "action_items": [
+    "HIGH: Fix custom-program.tsx loadStatus token race — pass `token` in useEffect deps or add a `if (!token) return;` early exit so /api/custom-program is called with a real bearer. Without this, the buyer confirm/intake screens are effectively unreachable on fresh loads.",
+    "OPTIONAL: identical pattern exists in /app/frontend/app/coach-programs.tsx (useEffect deps=[]) — audit and apply same guard.",
+    "OPTIONAL (carried over): textShadow*/shadow*/pointerEvents deprecation warnings — cosmetic only."
+  ],
+  "critical_code_review_comments": [
+    "quests.tsx SCOPES array (line 10-16) correctly adds a `boss` chip (☠ BOSS) between monthly and all; the `scopes` derivation at line 84 correctly expands `all` to ['daily','weekly','monthly','boss'] so the BOSS section renders under ALL as well — verified in-browser.",
+    "judge.tsx segmented toggle at 212-219 uses two Pressables with testIDs judge-view-feed / judge-view-board and mutually-exclusive `viewBtnActive` styling. Board view has an appropriate empty-state string at line 223. Board rows also render the ★ BACKER star inline next to display_name when founder_backer is true (line 233).",
+    "profile.tsx line 117 renders the ★ BACKER pill conditionally on user.founder_backer using the warning color pill style — matches spec.",
+    "coach-programs.tsx correctly gates on user?.all_rooms_access (line 53), fetches /api/custom-program/requests, lists intakes with per-row testID coach-req-<id> and coach-deliver-<id>. File upload uses DocumentPicker.getDocumentAsync then multipart FormData POST to /api/custom-program/requests/{id}/deliver — verified end-to-end via Playwright file chooser; delivery succeeded and status flipped to DELIVERED.",
+    "custom-program.tsx has the token-race bug described above; separately, once the buyer state IS in the confirm view, the cp-download button at line 244-251 correctly opens the media URL with the bearer via Linking.openURL — code is correct, it just never gets rendered until the 401 issue is fixed."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "not tested (frontend-only run; sanity curls confirmed /api/quests?scope=boss returns 2 quests and /api/judge/leaderboard returns 200 [])",
+    "frontend": "3.5 / 4 features PASS. BOSS quests ✅, Judge segmented toggle ✅, ★ BACKER pill ✅, Coach Inbox delivery ✅. Buyer-side DOWNLOAD YOUR PROGRAM button ❌ blocked by token-race bug in custom-program.tsx useEffect."
+  },
+  "seed_data_creation": "Temporarily set founder_backer=true, all_rooms_access=true, custom_program_purchased=true, athletes_center_access=true on elite@test.com; created a custom_program_requests intake (cprog_af31ddbdb3e0) and delivered a real PDF via the UI (program_media_id=med_7192f3f20b0f). All temp flags UNSET and the test intake DELETED at end of run so state is clean.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login button is labeled 'ENTER'; auth response returns `session_token` (not `token`). elite@test.com is seeded with skool_verified=true so The Judge is reachable without extra flags. To exercise the buyer-side CUSTOM-PROGRAM confirm view + cp-download button you must: (a) mongo-set custom_program_purchased=true on the target user, (b) POST /api/custom-program/intake with a valid body, (c) POST /api/custom-program/requests/{id}/deliver as an all_rooms_access owner. On web the intake+download screens only render if custom-program.tsx's token-race is fixed (see action_items). To exercise Coach Inbox mongo-set all_rooms_access=true, then hit /custom-program → tap cp-coach-inbox. Delivery uses expo-document-picker via Playwright expect_file_chooser().",
+  "rca_of_issue": "Buyer-side cp-download button missing after successful delivery: /app/frontend/app/custom-program.tsx lines 72-76 → useEffect(()=>{ setContactValue(...); loadStatus(); }, []) with an ESLint override to suppress deps. loadStatus() awaits apiFetch(token, '/api/custom-program'), but on web the `token` from useAuth() hydrates from AsyncStorage asynchronously; on first mount `token` is still undefined so the fetch hits /api/custom-program with no Authorization header → 401 → catch clause forces setView('offer'). Because deps=[] the effect never re-runs when token arrives, so the offer view stays and the confirm/download view never renders. Fix: change deps to `[token]` (guarding with `if (!token) return;` at the top of loadStatus) OR keep the effect empty but await token via a second effect that fires when token becomes truthy. Reproduction: (1) mongo-set custom_program_purchased=true + create intake + deliver; (2) reload /custom-program in the web preview; (3) observe network 401 on /api/custom-program and offer view rendering with BUY NOW."
+}
