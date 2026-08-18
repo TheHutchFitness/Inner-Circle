@@ -150,3 +150,30 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - DELIVERY EMAIL: deliver endpoint now emails the buyer (Emergent Resend) "Your custom program is ready 💪" with the coach's note embedded (fire-and-forget; failures logged, never block delivery). Verified 202 Accepted.
 - PROGRAM HISTORY: each delivery is appended to a `deliveries` array [{media_id, file_name, note, delivered_at}] on the request (latest also stays as program_media_id). Buyer's custom-program screen shows a "📁 PROGRAM HISTORY" list (newest first, latest tagged) with re-download links for every past file. Verified (2 deliveries listed).
 - BUYER SEARCH: Coach Sales Recap Top Buyers list now has a search box (testID buyer-search) that filters buyers by name client-side. Frontend-only.
+
+## Implemented (2026-06 — Version Labels + Unread Download Dot + Intake Reminder)
+- VERSION LABELS: deliver endpoint accepts optional `label` (≤60 chars), stored on request (program_label) + per delivery entry. Coach Inbox has a "VERSION LABEL" input; buyer's download button + Program History show the label (e.g. "Phase 2 — Hypertrophy"). Verified.
+- UNREAD DOWNLOAD DOT: new POST /api/custom-program/downloaded {media_id} sets last_downloaded_media_id when the buyer taps a download (main or history). coach/buyers returns awaiting_download = delivered latest not yet downloaded; Coach Sales buyers list shows a red dot on those buyers. Verified true→false lifecycle.
+- INTAKE REMINDER: GET /api/custom-program/alert now returns intake_pending (purchased but no intake). Home shows an amber "COMPLETE INTAKE" badge + updated subtitle. Coach Sales buyers with no intake show a "REMIND" button → POST /api/coach/buyers/remind-intake emails the buyer to finish their intake. Verified (email 200 sent).
+
+## Implemented (2026-06 — Rank page background swap)
+- Replaced the rank (leaderboard) page background images. Now driven by the mode toggle + user's gender:
+  - STRENGTH mode -> cyberpunk deadlift athlete (rank-strength-male.png / rank-strength-female.png)
+  - CARDIO mode -> cyberpunk running athlete (rank-cardio-male.png / rank-cardio-female.png)
+  - Female variants shown when user.sex === "female" (generated from the uploaded male images via Nano Banana image-to-image, keeping pose/scene/composition). Generator: backend/gen_rank_female.py.
+- Old BOARD_BG (board-xp/strength/ratio) usage removed from leaderboard.tsx. Verified male + female for both modes via screenshots.
+
+## Implemented (2026-06 — Custom Profile Photos + Equippable Earned Items)
+- PHOTO UPLOAD: POST /api/profile/photo (multipart, jpg/png/webp, <=12MB) -> Emergent Object Storage + chat_media; served via /api/chat/media/{id}?token=. use_photo toggle replaces the anime avatar EVERYWHERE (profile, member sheet, leaderboard, chat).
+- COSMETICS: backend catalog COSMETICS {emblem, aura, title} unlocked by level (auto) + coach grants (granted_items). Endpoints: GET /api/cosmetics, POST /api/profile/loadout (emblem/aura/title/use_photo, ownership-validated), POST /api/coach/grant-item (owner). Frames reuse existing rank-based system.
+- Shared component src/components/PlayerAvatar.tsx renders photo-or-avatar with aura glow ring + frame border + emblem badge. Wired into profile card, MemberSheet, leaderboard (podium+rows), chat. Title ribbon shown under name on profile/member sheet/leaderboard.
+- New screen /app/loadout.tsx ("LOCKER") — photo upload, use-photo toggle, emblem/aura/title/frame pickers (locked items show 🔒Lxx). Linked from Profile (testID open-loadout). Loadout/photo fields added to /auth/me, /users/{id}/public, leaderboard, and chat message join.
+- Verified: backend curl (equip owned OK, locked 403, upload 200, use_photo) + screenshots (Locker + profile photo). 12/12 security pytest still green.
+
+## PENDING NEXT BUILD — "The Enhanced" room (requirements confirmed, NOT started)
+- New chat room "The Enhanced" gated by: (1) ACTIVE PAID SUBSCRIPTION (monthly/annual RevenueCat), (2) age 20+ (DOB entry, self-attested, stored) + "I am 20+" checkbox, (3) consent popup warning of a PERMANENT "ENHANCED" profile banner -> Accept/Deny.
+  - Accept: grant room access, apply permanent ENHANCED banner to profile, switch WHOLE APP color scheme to RED with a glitch transition.
+  - Deny: no changes, reroute to Home.
+- Room: red theme; no-medical-advice warning banner on entry; PED/enhancement tracker (manual input + dropdown from a CURATED list incl steroids + peptides, each with a short neutral educational description + disclaimer). ONE active regimen (dosage + timing); creating a new one archives the old to a History section.
+- Rank tab: toggle to compare Enhanced-only / Natural-only / All (Enhanced = accepted the banner).
+- NOTE: full app-wide red theming is a big refactor (StyleSheet snapshots) — plan a ThemeProvider/dynamic palette approach.

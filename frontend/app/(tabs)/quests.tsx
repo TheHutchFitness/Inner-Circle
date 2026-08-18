@@ -3,8 +3,10 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withSpring } from "react-native-reanimated";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius } from "@/src/lib/theme";
+import { colors, spacing, radius, bgImage } from "@/src/lib/theme";
 import { HudSectionHeader } from "@/src/components/Hud";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
@@ -62,7 +64,7 @@ const GOAL_CHIPS = ["Lose weight", "Build muscle", "Compete in a powerlifting me
 
 export default function Quests() {
   const insets = useSafeAreaInsets();
-  const { token, refresh } = useAuth();
+  const { token, user, refresh } = useAuth();
   const [scope, setScope] = useState("daily");
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -177,6 +179,12 @@ export default function Quests() {
   return (
     <SwipeTabs current="quests">
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
+      <Image source={bgImage(user?.active_background, user?.sex)} style={styles.questBg} contentFit="cover" />
+      <LinearGradient
+        colors={["rgba(5,5,8,0.55)", "rgba(5,5,8,0.82)", colors.surface]}
+        locations={[0, 0.5, 0.85]}
+        style={styles.questBgFade}
+      />
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
         <Text style={styles.eyebrow}>▚ QUEST LOG //</Text>
         <Text style={styles.h1}>QUESTS</Text>
@@ -294,6 +302,8 @@ export default function Quests() {
 
 const styles = StyleSheet.create({
   eyebrow: { color: colors.brandPrimary, letterSpacing: 4, fontSize: 11, fontWeight: "700", paddingHorizontal: spacing.lg },
+  questBg: { position: "absolute", top: 0, left: 0, right: 0, height: 360 },
+  questBgFade: { position: "absolute", top: 0, left: 0, right: 0, height: 360 },
   h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: spacing.md, paddingHorizontal: spacing.lg },
   chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm },
   chip: { paddingHorizontal: spacing.md, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, justifyContent: "center", backgroundColor: colors.surface2, flexShrink: 0 },

@@ -624,6 +624,9 @@ async def cardio_leaderboard(board: str = "overall", activity: str = "run", dist
             "avatar_id": u.get("avatar_id"),
             "rank": rank_from_xp(u.get("xp", 0)),
             "founder_backer": bool(u.get("founder_backer")),
+            "loadout": _clean_loadout(u),
+            "photo_media_id": u.get("photo_media_id"),
+            "use_photo": bool(u.get("use_photo")),
             "metric": round(metric, 2),
             "metric_label": label,
         })
@@ -1520,6 +1523,138 @@ async def set_frame(payload: dict, user=Depends(get_current_user)):
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     fresh["rank"] = rank_from_xp(fresh["xp"])
     return fresh
+
+# ---------- Cosmetics: emblems, auras, titles (equippable overlays) ----------
+# Each item unlocks at a level (and/or via coach grant). level=999 => coach-grant only.
+COSMETICS = {
+    "emblem": [
+        {"id": "em_none", "name": "None", "icon": "", "level": 1},
+        {"id": "em_flame", "name": "Flame", "icon": "🔥", "level": 3},
+        {"id": "em_bolt", "name": "Bolt", "icon": "⚡", "level": 6},
+        {"id": "em_skull", "name": "Skull", "icon": "💀", "level": 10},
+        {"id": "em_dragon", "name": "Dragon", "icon": "🐉", "level": 15},
+        {"id": "em_crown", "name": "Crown", "icon": "👑", "level": 20},
+        {"id": "em_star", "name": "Founder Star", "icon": "⭐", "level": 999},
+    ],
+    "aura": [
+        {"id": "au_none", "name": "None", "color": "", "level": 1},
+        {"id": "au_blue", "name": "Ion Blue", "color": "#00E5FF", "level": 2},
+        {"id": "au_green", "name": "Toxic", "color": "#00E5B4", "level": 8},
+        {"id": "au_gold", "name": "Champion Gold", "color": "#FFD700", "level": 12},
+        {"id": "au_violet", "name": "Void", "color": "#B14CFF", "level": 18},
+        {"id": "au_red", "name": "Freak Red", "color": "#FF3B5C", "level": 999},
+    ],
+    "title": [
+        {"id": "ti_none", "name": "None", "text": "", "level": 1},
+        {"id": "ti_iron", "name": "Iron Will", "text": "IRON WILL", "level": 4},
+        {"id": "ti_beast", "name": "Beast", "text": "BEAST MODE", "level": 9},
+        {"id": "ti_slayer", "name": "Boss Slayer", "text": "BOSS SLAYER", "level": 14},
+        {"id": "ti_legend", "name": "Legend", "text": "LIVING LEGEND", "level": 25},
+        {"id": "ti_founder", "name": "Founder", "text": "FOUNDER", "level": 999},
+    ],
+}
+_COSMETIC_BY_ID = {it["id"]: (slot, it) for slot, items in COSMETICS.items() for it in items}
+
+def _cosmetic_owned(user, item) -> bool:
+    if item["id"].endswith("_none"):
+        return True
+    if item.get("level", 999) <= int(user.get("level", 1)):
+        return True
+    return item["id"] in (user.get("granted_items") or [])
+
+def _clean_loadout(user):
+    lo = user.get("loadout") or {}
+    return {"emblem": lo.get("emblem") or "em_none", "aura": lo.get("aura") or "au_none", "title": lo.get("title") or "ti_none"}
+
+@api_router.get("/cosmetics")
+async def get_cosmetics(user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    out = {}
+    for slot, items in COSMETICS.items():
+        out[slot] = [{**it, "owned": _cosmetic_owned(fresh, it)} for it in items]
+    return {
+        "catalog": out,
+        "loadout": _clean_loadout(fresh),
+        "frames": {"unlocked": unlocked_frames_for(fresh), "active": fresh.get("active_frame")},
+        "photo_media_id": fresh.get("photo_media_id"),
+        "use_photo": bool(fresh.get("use_photo")),
+    }
+
+class LoadoutIn(BaseModel):
+    emblem: Optional[str] = None
+    aura: Optional[str] = None
+    title: Optional[str] = None
+    use_photo: Optional[bool] = None
+
+@api_router.post("/profile/loadout")
+async def set_loadout(inp: LoadoutIn, user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    updates = {}
+    lo = _clean_loadout(fresh)
+    for slot in ("emblem", "aura", "title"):
+        val = getattr(inp, slot)
+        if val is None:
+            continue
+        entry = _COSMETIC_BY_ID.get(val)
+        if not entry or entry[0] != slot:
+            raise HTTPException(status_code=400, detail="Invalid item for slot")
+        if not _cosmetic_owned(fresh, entry[1]):
+            raise HTTPException(status_code=403, detail="Item not unlocked")
+        lo[slot] = val
+    updates["loadout"] = lo
+    if inp.use_photo is not None:
+        if inp.use_photo and not fresh.get("photo_media_id"):
+            raise HTTPException(status_code=400, detail="Upload a photo first")
+        updates["use_photo"] = bool(inp.use_photo)
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+    result = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    result["rank"] = rank_from_xp(result["xp"])
+    return result
+
+@api_router.post("/profile/photo")
+async def upload_photo(file: UploadFile = File(...), user=Depends(get_current_user)):
+    ct = (file.content_type or "").lower().split(";")[0].strip()
+    if ct not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=400, detail="Use a JPG, PNG or WEBP image")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > 12 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 12MB)")
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[ct]
+    path = f"{STORAGE_APP_NAME}/pfp/{user['user_id']}/{uuid.uuid4().hex}.{ext}"
+    try:
+        await storage_put(path, data, ct)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 402:
+            raise HTTPException(status_code=402, detail="Storage credits exhausted — try again later")
+        raise HTTPException(status_code=502, detail="Upload failed — try again")
+    media_id = new_id("pfp")
+    await db.chat_media.insert_one({
+        "media_id": media_id, "user_id": user["user_id"], "storage_path": path,
+        "content_type": ct, "media_type": "image", "size": len(data),
+        "original_name": file.filename, "created_at": datetime.now(timezone.utc),
+    })
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"photo_media_id": media_id, "use_photo": True}})
+    result = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    result["rank"] = rank_from_xp(result["xp"])
+    return result
+
+class GrantItemIn(BaseModel):
+    user_id: str
+    item_id: str
+
+@api_router.post("/coach/grant-item")
+async def coach_grant_item(inp: GrantItemIn, user=Depends(get_current_user)):
+    if not _is_owner(user):
+        raise HTTPException(status_code=403, detail="Coach access only")
+    if inp.item_id not in _COSMETIC_BY_ID:
+        raise HTTPException(status_code=400, detail="Unknown item")
+    target = await db.users.find_one({"user_id": inp.user_id}, {"_id": 0, "user_id": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="Member not found")
+    await db.users.update_one({"user_id": inp.user_id}, {"$addToSet": {"granted_items": inp.item_id}})
+    return {"ok": True}
 @api_router.post("/workouts/log")
 async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
     workout_id = new_id("wk")
@@ -1767,6 +1902,10 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
         "total_lift": sum(prs.values()),
         "workouts_logged": u.get("workouts_logged", 0),
         "badges_count": len(u.get("badges", []) or []),
+        "loadout": _clean_loadout(u),
+        "photo_media_id": u.get("photo_media_id"),
+        "use_photo": bool(u.get("use_photo")),
+        "active_frame": u.get("active_frame"),
     }
 
 
@@ -1783,11 +1922,29 @@ async def get_messages(room: str, user=Depends(get_current_user)):
     # Backer status can change after a message is posted — reflect current status on read
     sender_ids = list({r.get("user_id") for r in rows if r.get("user_id")})
     backers = set()
+    profiles = {}
     if sender_ids:
-        async for u in db.users.find({"user_id": {"$in": sender_ids}, "founder_backer": True}, {"user_id": 1}):
-            backers.add(u["user_id"])
+        async for u in db.users.find(
+            {"user_id": {"$in": sender_ids}},
+            {"user_id": 1, "founder_backer": 1, "photo_media_id": 1, "use_photo": 1, "loadout": 1, "avatar_id": 1},
+        ):
+            if u.get("founder_backer"):
+                backers.add(u["user_id"])
+            profiles[u["user_id"]] = {
+                "photo_media_id": u.get("photo_media_id"),
+                "use_photo": bool(u.get("use_photo")),
+                "loadout": _clean_loadout(u),
+                "avatar_id": u.get("avatar_id"),
+            }
     for r in rows:
         r["founder_backer"] = r.get("user_id") in backers
+        p = profiles.get(r.get("user_id"))
+        if p:
+            r["photo_media_id"] = p["photo_media_id"]
+            r["use_photo"] = p["use_photo"]
+            r["loadout"] = p["loadout"]
+            if p.get("avatar_id"):
+                r["avatar_id"] = p["avatar_id"]
         if isinstance(r.get("created_at"), datetime):
             r["created_at"] = r["created_at"].isoformat()
     return rows
@@ -2233,18 +2390,25 @@ async def custom_program_status(user=Depends(get_current_user)):
 
 @api_router.get("/custom-program/alert")
 async def custom_program_alert(user=Depends(get_current_user)):
-    """Lightweight poll for the buyer: has Coach delivered their program, and is it unseen?"""
+    """Lightweight poll for the buyer: program delivery state + intake reminder."""
+    purchased = await has_verified_purchase(user["user_id"], CUSTOM_PROGRAM_ENTITLEMENT) or bool(user.get("custom_program_purchased"))
+    latest_intake = await db.custom_program_requests.find_one(
+        {"user_id": user["user_id"]}, {"_id": 0, "goals": 1}, sort=[("created_at", -1)]
+    )
+    intake_pending = bool(purchased) and not latest_intake
     req = await db.custom_program_requests.find_one(
         {"user_id": user["user_id"], "status": "delivered"},
-        {"_id": 0, "program_file_name": 1, "delivered_at": 1, "delivered_seen": 1},
+        {"_id": 0, "program_file_name": 1, "delivered_at": 1, "delivered_seen": 1, "program_label": 1},
         sort=[("delivered_at", -1)],
     )
     if not req:
-        return {"program_ready": False, "unseen": False}
+        return {"program_ready": False, "unseen": False, "intake_pending": intake_pending}
     return {
         "program_ready": True,
         "unseen": not bool(req.get("delivered_seen")),
+        "intake_pending": intake_pending,
         "file_name": req.get("program_file_name"),
+        "label": req.get("program_label"),
         "delivered_at": (req["delivered_at"].isoformat() if isinstance(req.get("delivered_at"), datetime) else req.get("delivered_at")),
     }
 
@@ -2253,6 +2417,18 @@ async def custom_program_alert_seen(user=Depends(get_current_user)):
     await db.custom_program_requests.update_many(
         {"user_id": user["user_id"], "status": "delivered"},
         {"$set": {"delivered_seen": True}},
+    )
+    return {"ok": True}
+
+class DownloadedIn(BaseModel):
+    media_id: str
+
+@api_router.post("/custom-program/downloaded")
+async def custom_program_downloaded(inp: DownloadedIn, user=Depends(get_current_user)):
+    """Buyer marks a delivered program file as downloaded (clears Coach's unread dot)."""
+    await db.custom_program_requests.update_many(
+        {"user_id": user["user_id"], "status": "delivered"},
+        {"$set": {"last_downloaded_media_id": inp.media_id}},
     )
     return {"ok": True}
 
@@ -2271,7 +2447,7 @@ async def custom_program_requests(user=Depends(get_current_user)):
     return rows
 
 @api_router.post("/custom-program/requests/{request_id}/deliver")
-async def custom_program_deliver(request_id: str, file: UploadFile = File(...), note: Optional[str] = Form(None), user=Depends(get_current_user)):
+async def custom_program_deliver(request_id: str, file: UploadFile = File(...), note: Optional[str] = Form(None), label: Optional[str] = Form(None), user=Depends(get_current_user)):
     """Coach-only: upload the finished program file for a buyer."""
     if not _is_owner(user):
         raise HTTPException(status_code=403, detail="Coach access only")
@@ -2299,15 +2475,16 @@ async def custom_program_deliver(request_id: str, file: UploadFile = File(...), 
         "original_name": file.filename, "created_at": datetime.now(timezone.utc),
     })
     note_clean = (note or "").strip()[:500]
+    label_clean = (label or "").strip()[:60]
     now = datetime.now(timezone.utc)
     delivery_entry = {
         "media_id": media_id, "file_name": file.filename or "program",
-        "note": note_clean, "delivered_at": now,
+        "note": note_clean, "label": label_clean, "delivered_at": now,
     }
     await db.custom_program_requests.update_one(
         {"request_id": request_id},
         {"$set": {"program_media_id": media_id, "program_file_name": file.filename or "program",
-                  "program_note": note_clean,
+                  "program_note": note_clean, "program_label": label_clean,
                   "status": "delivered", "delivered_at": now,
                   "delivered_seen": False},
          "$push": {"deliveries": delivery_entry}},
@@ -2522,8 +2699,39 @@ async def coach_buyers(user=Depends(get_current_user)):
             "has_intake": bool(intake),
             "intake_status": (intake.get("status") if intake else None),
             "request_id": (intake.get("request_id") if intake else None),
+            "awaiting_download": bool(
+                intake and intake.get("program_media_id")
+                and intake.get("last_downloaded_media_id") != intake.get("program_media_id")
+            ),
         })
     return {"buyers": out}
+
+
+class RemindIn(BaseModel):
+    user_id: str
+
+@api_router.post("/coach/buyers/remind-intake")
+async def coach_remind_intake(inp: RemindIn, user=Depends(get_current_user)):
+    """Owner-only: email a buyer who paid but hasn't submitted their intake form."""
+    if not _is_owner(user):
+        raise HTTPException(status_code=403, detail="Coach access only")
+    buyer = await db.users.find_one({"user_id": inp.user_id}, {"_id": 0, "email": 1, "display_name": 1})
+    if not buyer:
+        raise HTTPException(status_code=404, detail="Buyer not found")
+    to = (buyer.get("email") or "").strip()
+    if not to:
+        raise HTTPException(status_code=400, detail="Buyer has no email on file")
+    name = escape((buyer.get("display_name") or "Athlete").strip())
+    html = f"""
+    <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0b0b0e;">
+      <h2 style="letter-spacing:1px;">HUTCH'S INNER CIRCLE</h2>
+      <p>Hey {name},</p>
+      <p>Coach Hutch is ready to build your <strong>1-on-1 Custom Program</strong> — he just needs your intake form.</p>
+      <p>Open the app &rarr; Home &rarr; <strong>1-on-1 Custom Program</strong> and fill in your goals, schedule and injuries. It takes about 2 minutes, and then Coach gets to work.</p>
+      <p>— Team Hutch</p>
+    </div>"""
+    await send_email(to=to, subject="Finish your Custom Program intake 💪", html=html)
+    return {"ok": True, "sent_to": to}
 
 
 # ---------- The Judge (AI physique critique + member comments) ----------

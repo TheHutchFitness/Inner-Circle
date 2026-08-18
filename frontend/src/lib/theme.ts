@@ -190,3 +190,20 @@ export const BG_IMAGES_F: Record<string, any> = {
   bg_void: require("@/assets/images/bg_void_f.png"),
   bg_freak: require("@/assets/images/bg_freak_f.png"),
 };
+
+// ---------- Cosmetics display maps (mirror backend COSMETICS) ----------
+export const EMBLEM_ICONS: Record<string, string> = {
+  em_none: "", em_flame: "🔥", em_bolt: "⚡", em_skull: "💀",
+  em_dragon: "🐉", em_crown: "👑", em_star: "⭐",
+};
+export const AURA_COLORS: Record<string, string> = {
+  au_none: "", au_blue: "#00E5FF", au_green: "#00E5B4",
+  au_gold: "#FFD700", au_violet: "#B14CFF", au_red: "#FF3B5C",
+};
+export const TITLE_TEXT: Record<string, string> = {
+  ti_none: "", ti_iron: "IRON WILL", ti_beast: "BEAST MODE",
+  ti_slayer: "BOSS SLAYER", ti_legend: "LIVING LEGEND", ti_founder: "FOUNDER",
+};
+export function loadoutTitle(loadout?: any): string {
+  return TITLE_TEXT[loadout?.title || "ti_none"] || "";
+}

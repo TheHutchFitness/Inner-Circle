@@ -2,11 +2,33 @@ import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius, avatarFor, RANK_COLORS } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, RANK_COLORS, loadoutTitle } from "@/src/lib/theme";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { MemberSheet } from "@/src/components/MemberSheet";
+import { PlayerAvatar } from "@/src/components/PlayerAvatar";
+
+function HeroSweep() {
+  const x = useSharedValue(-0.4);
+  useEffect(() => {
+    x.value = withDelay(600, withRepeat(withTiming(1.4, { duration: 3200, easing: Easing.inOut(Easing.ease) }), -1, false));
+  }, []);
+  const st = useAnimatedStyle(() => ({
+    transform: [{ translateX: (x.value * 520) - 160 }, { skewX: "-18deg" }],
+    opacity: x.value < 0 || x.value > 1.2 ? 0 : 0.5,
+  }));
+  return (
+    <Animated.View pointerEvents="none" style={[styles.sweep, st]}>
+      <LinearGradient
+        colors={["transparent", "rgba(120,200,255,0.28)", "rgba(180,225,255,0.5)", "rgba(120,200,255,0.28)", "transparent"]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+        style={{ flex: 1 }}
+      />
+    </Animated.View>
+  );
+}
 
 const BOARDS = [
   { key: "xp", label: "LEVEL", desc: "Overall Level" },
@@ -14,10 +36,15 @@ const BOARDS = [
   { key: "ratio", label: "BW RATIO", desc: "Total / Bodyweight" },
 ];
 
-const BOARD_BG: Record<string, any> = {
-  xp: require("../../assets/images/board-xp.png"),
-  strength: require("../../assets/images/board-strength.png"),
-  ratio: require("../../assets/images/board-ratio.png"),
+const RANK_BG: Record<string, { male: any; female: any }> = {
+  strength: {
+    male: require("../../assets/images/rank-strength-male.png"),
+    female: require("../../assets/images/rank-strength-female.png"),
+  },
+  cardio: {
+    male: require("../../assets/images/rank-cardio-male.png"),
+    female: require("../../assets/images/rank-cardio-female.png"),
+  },
 };
 
 const PODIUM_COLORS = ["#FFD700", "#C0C0C0", "#CD7F32"];
@@ -65,7 +92,10 @@ export default function Leaderboards() {
   return (
     <SwipeTabs current="leaderboard">
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
-      <Image source={BOARD_BG[board]} style={styles.bgImage} contentFit="cover" />
+      <View style={styles.heroClip}>
+        <Image source={RANK_BG[mode][user?.sex === "female" ? "female" : "male"]} style={styles.bgImage} contentFit="cover" />
+        <HeroSweep />
+      </View>
       <LinearGradient
         colors={["rgba(5,5,8,0.55)", "rgba(5,5,8,0.8)", colors.surface]}
         locations={[0, 0.45, 0.8]}
@@ -136,8 +166,8 @@ export default function Leaderboards() {
               return (
                 <Pressable key={p.user_id || i} onPress={() => p.user_id && setMemberId(p.user_id)} style={[styles.podiumCard, { borderColor: PODIUM_COLORS[i] }]}>
                   <Text style={[styles.podiumRank, { color: PODIUM_COLORS[i] }]}>#{i + 1}</Text>
-                  <View style={[styles.podiumAvatar, { borderColor: PODIUM_COLORS[i] }]}>
-                    <Text style={styles.podiumEmoji}>{av.emoji}</Text>
+                  <View style={styles.podiumAvatar}>
+                    <PlayerAvatar person={p} token={token} size={52} />
                   </View>
                   <Text style={[styles.podiumName, p.founder_backer && { color: colors.warning }]} numberOfLines={1}>{p.display_name}</Text>
                   <View style={styles.podiumRankRow}>
@@ -158,13 +188,13 @@ export default function Leaderboards() {
               return (
                 <Pressable testID={`rank-row-${i+4}`} key={r.user_id} onPress={() => r.user_id && setMemberId(r.user_id)} style={[styles.row, isMe && styles.rowMe]}>
                   <Text style={styles.rowRank}>#{i + 4}</Text>
-                  <Text style={styles.rowEmoji}>{av.emoji}</Text>
+                  <View style={{ marginRight: 4 }}><PlayerAvatar person={r} token={token} size={34} /></View>
                   <View style={{ flex: 1 }}>
                     <View style={styles.rowNameRow}>
                       <Text style={[styles.rowName, r.founder_backer && { color: colors.warning }]}>{r.display_name}</Text>
                       {r.founder_backer && <View style={styles.backerPill}><Text style={styles.backerPillText}>★ BACKER</Text></View>}
                     </View>
-                    <Text style={[styles.rowSub, { color: RANK_COLORS[r.rank] }]}>{r.rank}</Text>
+                    <Text style={[styles.rowSub, { color: RANK_COLORS[r.rank] }]}>{r.rank}{loadoutTitle(r.loadout) ? ` · ${loadoutTitle(r.loadout)}` : ""}</Text>
                   </View>
                   <Text style={styles.rowMetric}>{r.metric}</Text>
                 </Pressable>
@@ -182,6 +212,8 @@ export default function Leaderboards() {
 
 const styles = StyleSheet.create({
   bgImage: { position: "absolute", top: 0, left: 0, right: 0, height: 420 },
+  heroClip: { position: "absolute", top: 0, left: 0, right: 0, height: 420, overflow: "hidden" },
+  sweep: { position: "absolute", top: 0, bottom: 0, left: 0, width: 120 },
   modeRow: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
   modeBtn: { flex: 1, paddingVertical: spacing.sm, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
   modeBtnActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },

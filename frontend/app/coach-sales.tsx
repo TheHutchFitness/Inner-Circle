@@ -20,6 +20,17 @@ export default function CoachSales() {
   const [data, setData] = useState<any>(null);
   const [buyers, setBuyers] = useState<any[]>([]);
   const [buyerQuery, setBuyerQuery] = useState("");
+  const [remindingId, setRemindingId] = useState<string | null>(null);
+  const [remindMsg, setRemindMsg] = useState<string | null>(null);
+
+  const remindIntake = async (userId: string) => {
+    setRemindingId(userId); setRemindMsg(null);
+    try {
+      await apiFetch(token, "/api/coach/buyers/remind-intake", { method: "POST", body: JSON.stringify({ user_id: userId }) });
+      setRemindMsg("Reminder sent ✓");
+    } catch (e: any) { setRemindMsg(e?.message || "Couldn't send reminder"); }
+    setRemindingId(null);
+  };
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -105,14 +116,28 @@ export default function CoachSales() {
                   if (filtered.length === 0) return <Text style={styles.empty}>No buyers match “{buyerQuery}”.</Text>;
                   return filtered.map((b, i) => (
                     <View key={b.order_number || i} testID={`buyer-${i}`} style={styles.buyerCard}>
-                      <Text style={styles.buyerEmoji}>{avatarFor(b.avatar_id).emoji}</Text>
+                      <View>
+                        <Text style={styles.buyerEmoji}>{avatarFor(b.avatar_id).emoji}</Text>
+                        {b.awaiting_download && <View testID={`buyer-dot-${i}`} style={styles.unreadDot} />}
+                      </View>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.buyerName}>{b.display_name}</Text>
                         <Text style={styles.buyerOrder}>{b.order_number} · {b.has_intake ? (b.intake_status || "submitted").toUpperCase() : "NO INTAKE YET"}</Text>
                       </View>
-                      {b.has_intake && (
+                      {b.has_intake ? (
                         <Pressable testID={`buyer-intake-${i}`} onPress={() => router.push("/coach-programs")} style={styles.intakeBtn}>
                           <Text style={styles.intakeBtnText}>VIEW INTAKE</Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          testID={`buyer-remind-${i}`}
+                          disabled={remindingId === b.user_id}
+                          onPress={() => remindIntake(b.user_id)}
+                          style={styles.remindBtn}
+                        >
+                          {remindingId === b.user_id
+                            ? <ActivityIndicator color="#221900" />
+                            : <Text style={styles.remindBtnText}>REMIND</Text>}
                         </Pressable>
                       )}
                     </View>
@@ -120,6 +145,7 @@ export default function CoachSales() {
                 })()}
               </>
             )}
+            {!!remindMsg && <Text testID="remind-msg" style={styles.remindMsg}>{remindMsg}</Text>}
           </>
         )}
       </ScrollView>
@@ -157,4 +183,8 @@ const styles = StyleSheet.create({
   buyerOrder: { color: colors.textDim, fontSize: 11, marginTop: 2, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   intakeBtn: { borderWidth: 1, borderColor: colors.warning, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 8 },
   intakeBtnText: { color: colors.warning, fontWeight: "900", fontSize: 10, letterSpacing: 1 },
+  remindBtn: { backgroundColor: colors.warning, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 8, minWidth: 74, alignItems: "center" },
+  remindBtnText: { color: "#221900", fontWeight: "900", fontSize: 10, letterSpacing: 1 },
+  remindMsg: { color: colors.success, textAlign: "center", marginTop: spacing.sm, letterSpacing: 1 },
+  unreadDot: { position: "absolute", top: -2, right: -2, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.error, borderWidth: 2, borderColor: colors.surface2 },
 });

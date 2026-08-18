@@ -73,6 +73,10 @@ export default function CustomProgram() {
   const pkg = findCustomPkg(offerings);
   const price = pkg?.product?.priceString || "$200.00";
 
+  const markDownloaded = (mediaId: string) => {
+    apiFetch(token, "/api/custom-program/downloaded", { method: "POST", body: JSON.stringify({ media_id: mediaId }) }).catch(() => {});
+  };
+
   const loadStatus = async () => {
     try {
       const s = await apiFetch(token, "/api/custom-program");
@@ -304,10 +308,10 @@ export default function CustomProgram() {
                 )}
                 <Pressable
                   testID="cp-download"
-                  onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${savedIntake.program_media_id}?token=${token}`)}
+                  onPress={() => { markDownloaded(savedIntake.program_media_id); Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${savedIntake.program_media_id}?token=${token}`); }}
                   style={styles.primary}
                 >
-                  <Text style={styles.primaryText}>⬇ DOWNLOAD YOUR PROGRAM</Text>
+                  <Text style={styles.primaryText}>⬇ DOWNLOAD YOUR PROGRAM{savedIntake?.program_label ? ` · ${savedIntake.program_label}` : ""}</Text>
                 </Pressable>
               </>
             ) : (
@@ -323,13 +327,14 @@ export default function CustomProgram() {
                   <Pressable
                     key={d.media_id || i}
                     testID={`cp-history-${i}`}
-                    onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${d.media_id}?token=${token}`)}
+                    onPress={() => { markDownloaded(d.media_id); Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${d.media_id}?token=${token}`); }}
                     style={styles.historyRow}
                   >
                     <Text style={styles.historyIcon}>⬇</Text>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.historyName} numberOfLines={1}>{d.file_name || "program"}</Text>
+                      <Text style={styles.historyName} numberOfLines={1}>{d.label ? d.label : (d.file_name || "program")}</Text>
                       <Text style={styles.historyDate}>
+                        {d.label ? `${d.file_name} · ` : ""}
                         {d.delivered_at ? new Date(d.delivered_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : ""}
                         {i === 0 ? "  · LATEST" : ""}
                       </Text>

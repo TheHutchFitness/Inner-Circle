@@ -208,10 +208,13 @@ export default function Dashboard() {
           <View style={styles.customProgTitleRow}>
             <Text style={styles.customProgTitle}>★ 1-ON-1 CUSTOM PROGRAM</Text>
             {programAlert?.unseen && <View style={styles.readyBadge}><Text style={styles.readyBadgeText}>PROGRAM READY</Text></View>}
+            {!programAlert?.unseen && programAlert?.intake_pending && <View style={styles.intakeBadge}><Text style={styles.intakeBadgeText}>COMPLETE INTAKE</Text></View>}
           </View>
           <Text style={styles.customProgSub}>
             {programAlert?.program_ready
               ? "Your program from Coach Hutch is ready — tap to download"
+              : programAlert?.intake_pending
+              ? "You're in! Tap to complete your intake so Coach can start"
               : "Human-written for your goals + instant Athlete's Center · $200"}
           </Text>
         </View>
@@ -281,6 +284,8 @@ const styles = StyleSheet.create({
   customProgTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
   readyBadge: { backgroundColor: colors.success, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
   readyBadgeText: { color: "#002200", fontWeight: "900", fontSize: 8, letterSpacing: 1 },
+  intakeBadge: { backgroundColor: colors.warning, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  intakeBadgeText: { color: "#221900", fontWeight: "900", fontSize: 8, letterSpacing: 1 },
   customProgSub: { color: colors.textMid, fontSize: 11, marginTop: 4, letterSpacing: 1, lineHeight: 16 },
   customProgArrow: { color: colors.warning, fontSize: 18, marginLeft: spacing.sm },
   premiumCta: { marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.md, alignItems: "center" },

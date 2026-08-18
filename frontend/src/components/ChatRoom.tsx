@@ -7,6 +7,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, avatarFor, RANK_COLORS } from "@/src/lib/theme";
 import { VerifyPanel } from "./VerifyPanel";
 import { MemberSheet } from "./MemberSheet";
+import { PlayerAvatar } from "./PlayerAvatar";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -146,7 +147,9 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
           return (
             <View key={m.message_id} style={[st.msg, { borderLeftColor: m.founder_backer ? colors.warning : accent }, m.founder_backer && st.msgBackerGlow, highlightMine && mine && st.msgMine]}>
               <View style={st.msgHead}>
-                <Text style={st.msgEmoji}>{av.emoji}</Text>
+                <Pressable onPress={() => m.user_id && setMemberId(m.user_id)}>
+                  <PlayerAvatar person={m} token={token} size={26} showEmblem={false} />
+                </Pressable>
                 <Pressable onPress={() => m.user_id && setMemberId(m.user_id)} hitSlop={6}>
                   <Text style={[st.msgName, m.founder_backer && st.msgNameBacker]}>{m.display_name}</Text>
                 </Pressable>

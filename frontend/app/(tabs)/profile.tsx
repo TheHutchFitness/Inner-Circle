@@ -9,7 +9,8 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle } from "@/src/lib/theme";
+import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { StrengthChart } from "@/src/components/StrengthChart";
 import { RadarChart } from "@/src/components/RadarChart";
 import { HudSectionHeader } from "@/src/components/Hud";
@@ -105,17 +106,22 @@ export default function Profile() {
               </View>
 
               <View style={[styles.portraitWrap, user.founder_backer && styles.portraitBacker]}>
-                {portrait ? (
+                {user.use_photo && user.photo_media_id ? (
+                  <Image source={{ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${user.photo_media_id}?token=${token}` }} style={styles.portrait} contentFit="cover" />
+                ) : portrait ? (
                   <Image source={portrait} style={styles.portrait} contentFit="cover" />
                 ) : (
                   <View style={styles.portraitFallback}><Text style={styles.portraitEmoji}>{av.emoji}</Text></View>
                 )}
-                <LinearGradient colors={["transparent", "transparent", "rgba(5,5,8,0.95)"]} style={StyleSheet.absoluteFill} />
-                <View style={styles.holoLine} />
+                <LinearGradient colors={["transparent", "transparent", "rgba(5,5,8,0.95)"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+                <View style={styles.holoLine} pointerEvents="none" />
                 {user.founder_backer && (
                   <View style={styles.backerRibbon}><Text style={styles.backerRibbonText}>★ FOUNDING BACKER</Text></View>
                 )}
               </View>
+              {!!loadoutTitle(user.loadout) && (
+                <Text style={styles.loadoutTitle}>❰ {loadoutTitle(user.loadout)} ❱</Text>
+              )}
 
               <View style={styles.namePlate}>
                 <Text style={styles.playerName}>{user.display_name?.toUpperCase()}</Text>
@@ -231,6 +237,9 @@ export default function Profile() {
         </>
       )}
 
+      <Pressable testID="open-loadout" onPress={() => router.push("/loadout")} style={styles.linkBtn}>
+        <Text style={styles.linkText}>◆ LOCKER — PHOTO, FRAMES & GEAR</Text>
+      </Pressable>
       <Pressable testID="open-paywall-profile" onPress={() => router.push("/paywall")} style={styles.linkBtn}>
         <Text style={styles.linkText}>MANAGE PREMIUM</Text>
       </Pressable>
@@ -325,6 +334,7 @@ const styles = StyleSheet.create({
   portraitBacker: { borderWidth: 2.5, borderColor: colors.warning, shadowColor: colors.warning, shadowOpacity: 0.7, shadowRadius: 16, shadowOffset: { width: 0, height: 0 } },
   backerRibbon: { position: "absolute", top: 8, right: 8, backgroundColor: colors.warning, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.sm },
   backerRibbonText: { color: "#221900", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  loadoutTitle: { color: colors.warning, fontSize: 11, letterSpacing: 3, fontWeight: "800", textAlign: "center", marginTop: spacing.sm },
   portrait: { width: "100%", height: "100%" },
   portraitFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
   portraitEmoji: { fontSize: 100 },

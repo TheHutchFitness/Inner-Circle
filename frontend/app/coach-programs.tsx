@@ -17,6 +17,7 @@ export default function CoachPrograms() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [labels, setLabels] = useState<Record<string, string>>({});
 
   const load = async () => {
     try { setRows(await apiFetch(token, "/api/custom-program/requests")); }
@@ -42,6 +43,7 @@ export default function CoachPrograms() {
         form.append("file", { uri: asset.uri, name, type } as any);
       }
       form.append("note", (notes[req.request_id] ?? req.program_note ?? "").trim());
+      form.append("label", (labels[req.request_id] ?? req.program_label ?? "").trim());
       const r = await fetch(`${API}/api/custom-program/requests/${req.request_id}/deliver`, {
         method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form,
       });
@@ -88,7 +90,17 @@ export default function CoachPrograms() {
               {!!r.schedule && (<><Text style={styles.label}>SCHEDULE</Text><Text style={styles.body}>{r.days_per_week ? `${r.days_per_week}x/wk · ` : ""}{r.schedule}</Text></>)}
               <Text style={styles.label}>CONTACT</Text>
               <Text style={styles.body}>{(r.contact_method || "email")}: {r.contact_value || r.email}</Text>
-              {r.program_file_name && <Text style={styles.delivered}>✓ Delivered: {r.program_file_name}</Text>}
+              {r.program_file_name && <Text style={styles.delivered}>✓ Delivered: {r.program_file_name}{r.program_label ? ` (${r.program_label})` : ""}</Text>}
+              <Text style={styles.label}>VERSION LABEL (optional)</Text>
+              <TextInput
+                testID={`coach-label-${r.request_id}`}
+                value={labels[r.request_id] ?? r.program_label ?? ""}
+                onChangeText={(t) => setLabels((n) => ({ ...n, [r.request_id]: t }))}
+                placeholder="e.g. Phase 2 — Hypertrophy Block"
+                placeholderTextColor={colors.textDim}
+                maxLength={60}
+                style={styles.labelInput}
+              />
               <Text style={styles.label}>PERSONAL NOTE (shown to buyer)</Text>
               <TextInput
                 testID={`coach-note-${r.request_id}`}
@@ -134,6 +146,7 @@ const styles = StyleSheet.create({
   body: { color: colors.text, marginTop: 2, lineHeight: 18 },
   delivered: { color: colors.success, marginTop: spacing.sm, fontWeight: "700", fontSize: 12 },
   noteInput: { color: colors.text, backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginTop: 4, minHeight: 60, textAlignVertical: "top" },
+  labelInput: { color: colors.text, backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: 4, minHeight: 44 },
   uploadBtn: { marginTop: spacing.md, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm },
   uploadText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },
   msg: { color: colors.brandPrimary, textAlign: "center", marginTop: spacing.md, letterSpacing: 1 },
