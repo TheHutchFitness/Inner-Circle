@@ -1753,7 +1753,14 @@ async def get_messages(room: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="The Room requires Elite rank")
     rows = await db.chat_messages.find({"room": room}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
     rows.reverse()
+    # Backer status can change after a message is posted — reflect current status on read
+    sender_ids = list({r.get("user_id") for r in rows if r.get("user_id")})
+    backers = set()
+    if sender_ids:
+        async for u in db.users.find({"user_id": {"$in": sender_ids}, "founder_backer": True}, {"user_id": 1}):
+            backers.add(u["user_id"])
     for r in rows:
+        r["founder_backer"] = r.get("user_id") in backers
         if isinstance(r.get("created_at"), datetime):
             r["created_at"] = r["created_at"].isoformat()
     return rows
@@ -1967,6 +1974,9 @@ async def _find_user_by_candidates(candidates):
         return None
     return await db.users.find_one({"user_id": {"$in": ids}}, {"_id": 0, "password_hash": 0})
 
+def _new_order_number() -> str:
+    return "HIC-" + secrets.token_hex(4).upper()
+
 async def has_verified_purchase(user_id: str, entitlement: str) -> bool:
     row = await db.verified_purchases.find_one(
         {"user_id": user_id, "entitlement": entitlement, "revoked": {"$ne": True}}
@@ -2069,7 +2079,8 @@ async def revenuecat_webhook(request: Request, authorization: Optional[str] = He
                     "environment": event.get("environment"), "event_id": event_id,
                     "event_type": etype, "revoked": False,
                     "verified_at": datetime.now(timezone.utc),
-                }},
+                },
+                 "$setOnInsert": {"order_number": _new_order_number()}},
                 upsert=True,
             )
             if user:
@@ -2143,10 +2154,23 @@ async def custom_program_status(user=Depends(get_current_user)):
     )
     if intake and isinstance(intake.get("created_at"), datetime):
         intake["created_at"] = intake["created_at"].isoformat()
+    vp = await db.verified_purchases.find_one(
+        {"user_id": user["user_id"], "entitlement": CUSTOM_PROGRAM_ENTITLEMENT, "revoked": {"$ne": True}},
+        {"_id": 0},
+    )
+    receipt = None
+    if vp:
+        receipt = {
+            "order_number": vp.get("order_number"),
+            "purchased_at": (vp["verified_at"].isoformat() if isinstance(vp.get("verified_at"), datetime) else vp.get("verified_at")),
+            "product": "1-on-1 Custom Program",
+            "amount": "$200.00",
+        }
     return {
         "purchased": bool(fresh.get("custom_program_purchased")),
         "athletes_center_access": bool(fresh.get("athletes_center_access")),
         "intake": intake,
+        "receipt": receipt,
     }
 
 def _is_owner(user) -> bool:
@@ -2236,6 +2260,20 @@ async def founders_list(user=Depends(get_current_user)):
         "rank": rank_from_xp(b.get("xp", 0)),
     } for b in backer_rows]
 
+    my_receipt = None
+    if user.get("founder_backer"):
+        vp = await db.verified_purchases.find_one(
+            {"user_id": user["user_id"], "entitlement": BACKER_ENTITLEMENT, "revoked": {"$ne": True}},
+            {"_id": 0},
+        )
+        if vp:
+            my_receipt = {
+                "order_number": vp.get("order_number"),
+                "purchased_at": (vp["verified_at"].isoformat() if isinstance(vp.get("verified_at"), datetime) else vp.get("verified_at")),
+                "product": "Founder Backer",
+                "amount": "$25.00",
+            }
+
     return {
         "founders": founders,
         "backers": backers,
@@ -2244,6 +2282,7 @@ async def founders_list(user=Depends(get_current_user)):
             "number": my_number,
             "is_founder": my_number is not None,
             "is_backer": bool(user.get("founder_backer")),
+            "receipt": my_receipt,
         },
     }
 

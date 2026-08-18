@@ -55,6 +55,7 @@ export default function CustomProgram() {
   const [contactValue, setContactValue] = useState("");
   const [notes, setNotes] = useState("");
   const [savedIntake, setSavedIntake] = useState<any>(null);
+  const [receipt, setReceipt] = useState<any>(null);
 
   const pkg = findCustomPkg(offerings);
   const price = pkg?.product?.priceString || "$200.00";
@@ -62,6 +63,7 @@ export default function CustomProgram() {
   const loadStatus = async () => {
     try {
       const s = await apiFetch(token, "/api/custom-program");
+      setReceipt(s.receipt || null);
       if (s.intake) { setSavedIntake(s.intake); setView("confirm"); }
       else if (s.purchased || hasCustomProgram) setView("intake");
       else setView("offer");
@@ -201,6 +203,7 @@ export default function CustomProgram() {
             <View style={styles.unlockedBanner}>
               <Text style={styles.unlockedText}>✓ PAYMENT CONFIRMED · ATHLETE&apos;S CENTER UNLOCKED</Text>
             </View>
+            {receipt && <ReceiptCard receipt={receipt} />}
             <Text style={styles.formIntro}>Tell Coach Hutch everything he needs to build your program.</Text>
 
             <Field label="YOUR GOALS *">
@@ -267,6 +270,8 @@ export default function CustomProgram() {
               )}
             </View>
 
+            {receipt && <ReceiptCard receipt={receipt} />}
+
             {savedIntake?.program_media_id ? (
               <Pressable
                 testID="cp-download"
@@ -301,6 +306,37 @@ function Field({ label, children }: any) {
     <View style={{ marginTop: spacing.md }}>
       <Text style={styles.label}>{label}</Text>
       {children}
+    </View>
+  );
+}
+
+export function ReceiptCard({ receipt }: { receipt: any }) {
+  const date = receipt?.purchased_at
+    ? new Date(receipt.purchased_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+    : "—";
+  return (
+    <View style={styles.receipt}>
+      <View style={styles.receiptTop}>
+        <Text style={styles.receiptBrand}>HUTCH&apos;S INNER CIRCLE</Text>
+        <Text style={styles.receiptPaid}>PAID</Text>
+      </View>
+      <Text style={styles.receiptTitle}>RECEIPT</Text>
+      <View style={styles.receiptDivider} />
+      <ReceiptRow k="ORDER #" v={receipt?.order_number || "—"} mono />
+      <ReceiptRow k="ITEM" v={receipt?.product || "—"} />
+      <ReceiptRow k="DATE" v={date} />
+      <View style={styles.receiptDivider} />
+      <ReceiptRow k="TOTAL" v={receipt?.amount || "—"} strong />
+      <Text style={styles.receiptFoot}>One-time payment · yours for life. Keep this order number for your records.</Text>
+    </View>
+  );
+}
+
+function ReceiptRow({ k, v, mono, strong }: { k: string; v: string; mono?: boolean; strong?: boolean }) {
+  return (
+    <View style={styles.receiptRow}>
+      <Text style={styles.receiptKey}>{k}</Text>
+      <Text style={[styles.receiptVal, mono && styles.receiptMono, strong && styles.receiptStrong]}>{v}</Text>
     </View>
   );
 }
@@ -346,4 +382,16 @@ const styles = StyleSheet.create({
   awaitText: { color: colors.textMid, lineHeight: 19 },
   coachBtn: { marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary, alignItems: "center" },
   coachBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  receipt: { marginTop: spacing.lg, padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.warning },
+  receiptTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  receiptBrand: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 2 },
+  receiptPaid: { color: "#002200", backgroundColor: colors.success, fontSize: 9, fontWeight: "900", letterSpacing: 2, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.sm, overflow: "hidden" },
+  receiptTitle: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 3, marginTop: 6 },
+  receiptDivider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md },
+  receiptRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
+  receiptKey: { color: colors.textDim, fontSize: 11, letterSpacing: 2, fontWeight: "800" },
+  receiptVal: { color: colors.text, fontSize: 13, fontWeight: "700", flexShrink: 1, textAlign: "right", marginLeft: spacing.md },
+  receiptMono: { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", letterSpacing: 1, color: colors.warning },
+  receiptStrong: { color: colors.warning, fontSize: 16, fontWeight: "900" },
+  receiptFoot: { color: colors.textDim, fontSize: 11, lineHeight: 16, marginTop: 4 },
 });

@@ -142,12 +142,16 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
           const av = avatarFor(m.avatar_id);
           const mine = m.user_id === user?.user_id;
           return (
-            <View key={m.message_id} style={[st.msg, { borderLeftColor: accent }, highlightMine && mine && st.msgMine]}>
+            <View key={m.message_id} style={[st.msg, { borderLeftColor: m.founder_backer ? colors.warning : accent }, m.founder_backer && st.msgBackerGlow, highlightMine && mine && st.msgMine]}>
               <View style={st.msgHead}>
                 <Text style={st.msgEmoji}>{av.emoji}</Text>
-                <Text style={st.msgName}>{m.display_name}</Text>
+                <Text style={[st.msgName, m.founder_backer && st.msgNameBacker]}>{m.display_name}</Text>
                 <Text style={[st.msgRank, { color: RANK_COLORS[m.rank] || accent }]}>{m.rank?.toUpperCase()}</Text>
-                {m.founder_backer && <Text style={st.msgBacker}>★</Text>}
+                {m.founder_backer && (
+                  <View style={st.backerPill}>
+                    <Text style={st.backerPillText}>★ BACKER</Text>
+                  </View>
+                )}
                 {m.skool_verified && <Text style={st.msgSkool}>✓</Text>}
               </View>
               {m.media_id && m.media_type === "image" && (
@@ -223,6 +227,10 @@ const st = StyleSheet.create({
   msgRank: { fontSize: 9, letterSpacing: 2, fontWeight: "800" },
   msgSkool: { color: colors.success, fontWeight: "900" },
   msgBacker: { color: colors.warning, fontWeight: "900" },
+  msgBackerGlow: { borderLeftWidth: 3, shadowColor: colors.warning, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
+  msgNameBacker: { color: colors.warning },
+  backerPill: { backgroundColor: "rgba(255,234,0,0.14)", borderWidth: 1, borderColor: colors.warning, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 1 },
+  backerPillText: { color: colors.warning, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   msgText: { color: colors.textMid, lineHeight: 19 },
   image: { width: "100%", height: 220, borderRadius: radius.sm, marginBottom: 6, backgroundColor: colors.surface3 },
   video: { width: "100%", height: 220, borderRadius: radius.sm, marginBottom: 6, backgroundColor: "#000" },

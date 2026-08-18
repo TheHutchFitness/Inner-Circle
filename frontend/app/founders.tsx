@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, Platform } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -198,6 +198,9 @@ export default function Founders() {
         {isBacker ? (
           <View style={styles.thanksCard}>
             <Text style={styles.thanksText}>✓ YOU&apos;RE A DEVELOPMENT BACKER — THANK YOU</Text>
+            {!!data?.me?.receipt?.order_number && (
+              <Text style={styles.thanksOrder}>ORDER {data.me.receipt.order_number} · {data.me.receipt.amount}</Text>
+            )}
           </View>
         ) : (
           <View style={styles.supportCard}>
@@ -227,6 +230,13 @@ export default function Founders() {
             <Text style={styles.celebrateStar}>★</Text>
             <Text style={styles.celebrateTitle}>YOU&apos;RE A BACKER</Text>
             <Text style={styles.celebrateBody}>Thank you for fueling the build. Your name is now etched into the Backers hall — forever.</Text>
+            {!!data?.me?.receipt?.order_number && (
+              <View style={styles.celebrateReceipt}>
+                <Text style={styles.celebrateReceiptRow}>ORDER #</Text>
+                <Text style={styles.celebrateReceiptNum}>{data.me.receipt.order_number}</Text>
+                <Text style={styles.celebrateReceiptAmt}>{data.me.receipt.amount} · PAID</Text>
+              </View>
+            )}
             <Pressable testID="celebrate-close" onPress={() => setCelebrate(false)} style={styles.celebrateBtn}>
               <Text style={styles.celebrateBtnText}>LET&apos;S GO</Text>
             </Pressable>
@@ -289,12 +299,17 @@ const styles = StyleSheet.create({
   simulated: { color: colors.textDim, textAlign: "center", marginTop: spacing.sm, fontSize: 11, letterSpacing: 1 },
   thanksCard: { marginTop: spacing.xl, padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.success, alignItems: "center" },
   thanksText: { color: "#002200", fontWeight: "900", letterSpacing: 1, fontSize: 12, textAlign: "center" },
+  thanksOrder: { color: "#003300", fontWeight: "800", letterSpacing: 1, fontSize: 10, textAlign: "center", marginTop: 4, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   msg: { color: colors.warning, textAlign: "center", marginTop: spacing.md, letterSpacing: 1 },
   celebrateWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
   celebrateCard: { width: "100%", backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.warning, padding: spacing.xl, alignItems: "center" },
   celebrateStar: { color: colors.warning, fontSize: 64, fontWeight: "900" },
   celebrateTitle: { color: colors.text, fontSize: 26, fontWeight: "900", letterSpacing: 3, marginTop: spacing.sm, textAlign: "center" },
   celebrateBody: { color: colors.textMid, textAlign: "center", marginTop: spacing.md, lineHeight: 21 },
+  celebrateReceipt: { marginTop: spacing.lg, alignItems: "center", borderWidth: 1, borderColor: colors.warning, borderRadius: radius.sm, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, backgroundColor: "rgba(255,234,0,0.06)", alignSelf: "stretch" },
+  celebrateReceiptRow: { color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "800" },
+  celebrateReceiptNum: { color: colors.warning, fontSize: 18, fontWeight: "900", letterSpacing: 2, marginTop: 2, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  celebrateReceiptAmt: { color: colors.text, fontSize: 11, letterSpacing: 1, fontWeight: "800", marginTop: 4 },
   celebrateBtn: { marginTop: spacing.xl, backgroundColor: colors.warning, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.sm },
   celebrateBtnText: { color: "#221900", fontWeight: "900", letterSpacing: 3 },
 });

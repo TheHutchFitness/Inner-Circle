@@ -104,7 +104,7 @@ export default function Profile() {
                 <Text style={styles.lvlStamp}>LV {user.level}</Text>
               </View>
 
-              <View style={styles.portraitWrap}>
+              <View style={[styles.portraitWrap, user.founder_backer && styles.portraitBacker]}>
                 {portrait ? (
                   <Image source={portrait} style={styles.portrait} contentFit="cover" />
                 ) : (
@@ -112,6 +112,9 @@ export default function Profile() {
                 )}
                 <LinearGradient colors={["transparent", "transparent", "rgba(5,5,8,0.95)"]} style={StyleSheet.absoluteFill} />
                 <View style={styles.holoLine} />
+                {user.founder_backer && (
+                  <View style={styles.backerRibbon}><Text style={styles.backerRibbonText}>★ FOUNDING BACKER</Text></View>
+                )}
               </View>
 
               <View style={styles.namePlate}>
@@ -126,7 +129,7 @@ export default function Profile() {
                 <View style={styles.pillRow}>
                   {isSubscribed && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ PREMIUM</Text></View>}
                   {user.skool_verified && <View style={[styles.pill, { backgroundColor: colors.success }]}><Text style={styles.pillText}>✓ SKOOL</Text></View>}
-                  {user.founder_backer && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ BACKER</Text></View>}
+                  {user.founder_backer && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ FOUNDING BACKER</Text></View>}
                 </View>
                 {/* mini stat bars */}
                 <View style={styles.barsRow}>
@@ -316,6 +319,9 @@ const styles = StyleSheet.create({
   rankStamp: { fontSize: 12, fontWeight: "900", letterSpacing: 3, borderWidth: 1, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm },
   lvlStamp: { color: colors.text, fontSize: 14, fontWeight: "900", letterSpacing: 1, fontVariant: ["tabular-nums"] },
   portraitWrap: { width: "100%", aspectRatio: 0.92, borderRadius: radius.sm, overflow: "hidden", backgroundColor: "#05070C", borderWidth: 1, borderColor: "rgba(0,229,255,0.25)" },
+  portraitBacker: { borderWidth: 2.5, borderColor: colors.warning, shadowColor: colors.warning, shadowOpacity: 0.7, shadowRadius: 16, shadowOffset: { width: 0, height: 0 } },
+  backerRibbon: { position: "absolute", top: 8, right: 8, backgroundColor: colors.warning, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.sm },
+  backerRibbonText: { color: "#221900", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   portrait: { width: "100%", height: "100%" },
   portraitFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
   portraitEmoji: { fontSize: 100 },
