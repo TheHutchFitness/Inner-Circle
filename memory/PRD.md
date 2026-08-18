@@ -177,3 +177,15 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Room: red theme; no-medical-advice warning banner on entry; PED/enhancement tracker (manual input + dropdown from a CURATED list incl steroids + peptides, each with a short neutral educational description + disclaimer). ONE active regimen (dosage + timing); creating a new one archives the old to a History section.
 - Rank tab: toggle to compare Enhanced-only / Natural-only / All (Enhanced = accepted the banner).
 - NOTE: full app-wide red theming is a big refactor (StyleSheet snapshots) — plan a ThemeProvider/dynamic palette approach.
+
+## Implemented (2026-06 — Train inputs + App-wide Red Theme + Owner reset)
+- TRAIN TAB INPUTS: reps & weight are now typeable numeric TextInputs (reps=numeric keypad, weight=decimal-pad) instead of +/- steppers; RPE kept as a +/- Stepper. `Add Set` still copies the previous set's reps/weight/rpe (editable). New `NumInput` component in workout.tsx (commits on change, reformats on blur, focus-guarded to avoid cursor jumps). Verified via testing_agent (iteration_16).
+- APP-WIDE RED THEME ("The Enhanced" crossover): solved the StyleSheet-snapshot problem via a persisted-flag + boot-order approach (no giant ThemeProvider refactor):
+  - `src/lib/theme.ts`: added `ENHANCED_OVERRIDES` (crimson palette; warning stays gold for backer semantics) + `applyEnhancedPalette()` (mutates the shared `colors` object in place) + `isEnhancedPalette()`. Web-only sync bootstrap reads `localStorage['hic_enhanced_theme']` at module load.
+  - `src/lib/enhancedTheme.ts`: `persistEnhancedFlag`, `loadEnhancedFlag`, `bootstrapEnhancedPalette`, `reloadApp` (web location.reload / native DevSettings/Updates).
+  - NEW custom entry `/app/frontend/index.js` (package.json main → `index.js`): calls `bootstrapEnhancedPalette()` BEFORE `require('expo-router/entry')` so route StyleSheets create with the red palette already applied.
+  - `enhanced.tsx` accept(): dramatic glitch → `applyEnhancedPalette()` + persist flag + refresh → `reloadApp()` after ~1.3s so the whole app boots red.
+  - `_layout.tsx`: `EnhancedSync` (persists flag / reloads once when logged-in user's `enhanced` status mismatches runtime palette — self-heals on login/logout across devices) + `EnhancedTint` (subtle app-wide crimson wash). StatusBar/Stack bg now use `colors.surface`.
+  - Known limitation: a few hardcoded cyan rgba/hex literals in some screens don't swap (dynamic per-user), and AI background images stay as-is; the crimson palette + tint dominate. Verified app-wide red for enhanced athlete (testing_agent iteration_16).
+- PED TRACKER ("Monthly Protocol"): confirmed fully built + gated (client subscriber gate + backend `enhanced` gate; POST regimen 403 for non-enhanced). 15-compound curated PED_LIBRARY with neutral educational descriptions + PED_DISCLAIMER. Active/History archiving verified.
+- OWNER RESET (the9hutch@gmail.com): zeroed xp/level/prs/badges/workouts_logged/streak, deleted workout logs + quest_claims, reset active_background; KEPT all_rooms_access (elite chat + Athlete's Center + The Room), skool_verified, and enhanced access + paid flags.

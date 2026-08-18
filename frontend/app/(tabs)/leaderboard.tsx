@@ -61,6 +61,7 @@ export default function Leaderboards() {
   const [dist, setDist] = useState(5);
   const [active, setActive] = useState<number | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [popFilter, setPopFilter] = useState<"all" | "enhanced" | "natural">("all");
 
   useEffect(() => {
     let alive = true;
@@ -77,14 +78,14 @@ export default function Leaderboards() {
       setLoading(true);
       try {
         if (mode === "strength") {
-          setRows(await apiFetch(token, `/api/leaderboard/${board}`));
+          setRows(await apiFetch(token, `/api/leaderboard/${board}?filter=${popFilter}`));
         } else {
           setRows(await apiFetch(token, `/api/cardio/leaderboard?board=${cardioBoard}&activity=${activity}&dist=${dist}`));
         }
       } catch { setRows([]); }
       setLoading(false);
     })();
-  }, [board, token, mode, activity, cardioBoard, dist]);
+  }, [board, token, mode, activity, cardioBoard, dist, popFilter]);
 
   const podium = rows.slice(0, 3);
   const rest = rows.slice(3);
@@ -121,6 +122,17 @@ export default function Leaderboards() {
       </View>
 
       {mode === "strength" ? (
+        <>
+        <View style={styles.popRow}>
+          {(["all", "natural", "enhanced"] as const).map((f) => (
+            <Pressable key={f} testID={`pop-${f}`} onPress={() => setPopFilter(f)}
+              style={[styles.popBtn, popFilter === f && (f === "enhanced" ? styles.popEnhanced : styles.popActive)]}>
+              <Text style={[styles.popText, popFilter === f && { color: f === "enhanced" ? "#FF2A3C" : colors.brandPrimary }]}>
+                {f === "all" ? "ALL" : f === "natural" ? "🌿 NATURAL" : "☣ ENHANCED"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {BOARDS.map((b) => (
             <Pressable testID={`board-${b.key}`} key={b.key} onPress={() => setBoard(b.key)} style={[styles.chip, board === b.key && styles.chipActive]}>
@@ -128,6 +140,7 @@ export default function Leaderboards() {
             </Pressable>
           ))}
         </ScrollView>
+        </>
       ) : (
         <>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -227,6 +240,11 @@ const styles = StyleSheet.create({
   activeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
   activeText: { color: colors.success, fontSize: 10, fontWeight: "900", letterSpacing: 1, fontVariant: ["tabular-nums"] },
   chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm },
+  popRow: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
+  popBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingVertical: 7, alignItems: "center", backgroundColor: colors.surface2 },
+  popActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  popEnhanced: { borderColor: "#FF2A3C", backgroundColor: "rgba(255,42,60,0.1)" },
+  popText: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   chip: { paddingHorizontal: spacing.md, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, justifyContent: "center", backgroundColor: colors.surface2, flexShrink: 0 },
   chipActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
   chipText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2, fontSize: 12 },

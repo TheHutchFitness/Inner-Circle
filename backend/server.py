@@ -1548,8 +1548,11 @@ COSMETICS = {
         {"id": "ti_none", "name": "None", "text": "", "level": 1},
         {"id": "ti_iron", "name": "Iron Will", "text": "IRON WILL", "level": 4},
         {"id": "ti_beast", "name": "Beast", "text": "BEAST MODE", "level": 9},
+        {"id": "ti_quest", "name": "Quest Master", "text": "QUEST MASTER", "level": 11},
         {"id": "ti_slayer", "name": "Boss Slayer", "text": "BOSS SLAYER", "level": 14},
+        {"id": "ti_boss", "name": "Boss Killer", "text": "BOSS KILLER", "level": 22},
         {"id": "ti_legend", "name": "Legend", "text": "LIVING LEGEND", "level": 25},
+        {"id": "ti_enhanced", "name": "Enhanced", "text": "ENHANCED", "level": 999},
         {"id": "ti_founder", "name": "Founder", "text": "FOUNDER", "level": 999},
     ],
 }
@@ -1557,6 +1560,8 @@ _COSMETIC_BY_ID = {it["id"]: (slot, it) for slot, items in COSMETICS.items() for
 
 def _cosmetic_owned(user, item) -> bool:
     if item["id"].endswith("_none"):
+        return True
+    if item["id"] == "ti_enhanced" and user.get("enhanced"):
         return True
     if item.get("level", 999) <= int(user.get("level", 1)):
         return True
@@ -1655,6 +1660,112 @@ async def coach_grant_item(inp: GrantItemIn, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Member not found")
     await db.users.update_one({"user_id": inp.user_id}, {"$addToSet": {"granted_items": inp.item_id}})
     return {"ok": True}
+
+# ---------- The Enhanced (age-gated PED discussion room) ----------
+PED_LIBRARY = [
+    {"name": "Testosterone", "class": "Anabolic steroid", "desc": "The base of most cycles; androgen used to raise training volume and recovery. Commonly run as a base with other compounds."},
+    {"name": "Trenbolone", "class": "Anabolic steroid", "desc": "Potent 19-nor known for strength and conditioning effects. Frequently discussed for aggressive body recomposition."},
+    {"name": "Nandrolone (Deca)", "class": "Anabolic steroid", "desc": "Long-ester 19-nor often discussed for joint comfort and mass during bulking phases."},
+    {"name": "Boldenone (EQ)", "class": "Anabolic steroid", "desc": "Slow-acting compound often used for lean mass and appetite/endurance over long blocks."},
+    {"name": "Oxandrolone (Anavar)", "class": "Oral steroid", "desc": "Mild oral often discussed for strength and dryness with lower water retention."},
+    {"name": "Methandrostenolone (Dbol)", "class": "Oral steroid", "desc": "Fast-acting oral discussed for rapid size/strength kick-starts."},
+    {"name": "Stanozolol (Winstrol)", "class": "Oral/injectable steroid", "desc": "Discussed for a hard, dry look in the lead-up to peak conditioning."},
+    {"name": "Human Growth Hormone (HGH)", "class": "Peptide hormone", "desc": "Discussed for recovery, body composition and connective-tissue support over long durations."},
+    {"name": "IGF-1 LR3", "class": "Peptide", "desc": "Insulin-like growth factor analog discussed around localized growth and recovery."},
+    {"name": "BPC-157", "class": "Peptide", "desc": "Research peptide widely discussed for soft-tissue and tendon recovery."},
+    {"name": "TB-500", "class": "Peptide", "desc": "Research peptide discussed alongside BPC-157 for recovery and mobility."},
+    {"name": "Ipamorelin", "class": "Peptide (GH secretagogue)", "desc": "GH-releasing peptide discussed for sleep, recovery and gradual GH support."},
+    {"name": "CJC-1295", "class": "Peptide (GHRH)", "desc": "Often paired with Ipamorelin in discussions of GH pulse support."},
+    {"name": "Clenbuterol", "class": "Beta-2 agonist", "desc": "Non-steroid stimulant discussed for fat loss and its cardiovascular considerations."},
+    {"name": "Semaglutide", "class": "GLP-1 peptide", "desc": "GLP-1 agonist discussed for appetite regulation and body-fat management."},
+]
+PED_DISCLAIMER = "This is not medical advice. The Enhanced is a discussion space only. Nothing here recommends, prescribes or endorses using any substance. Consult a licensed physician."
+
+class AgeIn(BaseModel):
+    dob: str  # ISO yyyy-mm-dd
+
+def _age_from_dob(dob: str) -> int:
+    try:
+        y, m, d = [int(x) for x in dob.split("-")]
+        today = datetime.now(timezone.utc).date()
+        from datetime import date
+        b = date(y, m, d)
+        return today.year - b.year - ((today.month, today.day) < (b.month, b.day))
+    except Exception:
+        return -1
+
+@api_router.get("/enhanced/status")
+async def enhanced_status(user=Depends(get_current_user)):
+    return {
+        "age_verified": bool(user.get("age_verified")),
+        "enhanced": bool(user.get("enhanced")),
+        "disclaimer": PED_DISCLAIMER,
+    }
+
+@api_router.post("/enhanced/verify-age")
+async def enhanced_verify_age(inp: AgeIn, user=Depends(get_current_user)):
+    age = _age_from_dob(inp.dob)
+    if age < 20:
+        raise HTTPException(status_code=403, detail="You must be 20 or older to access The Enhanced.")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"dob": inp.dob, "age_verified": True}})
+    return {"ok": True, "age": age}
+
+class ConsentIn(BaseModel):
+    accept: bool
+
+@api_router.post("/enhanced/consent")
+async def enhanced_consent(inp: ConsentIn, user=Depends(get_current_user)):
+    if not user.get("age_verified"):
+        raise HTTPException(status_code=403, detail="Verify your age first.")
+    if inp.accept:
+        await db.users.update_one({"user_id": user["user_id"]},
+            {"$set": {"enhanced": True, "enhanced_since": datetime.now(timezone.utc)}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return fresh
+
+@api_router.get("/enhanced/peds")
+async def enhanced_peds(user=Depends(get_current_user)):
+    return {"peds": PED_LIBRARY, "disclaimer": PED_DISCLAIMER}
+
+class RegimenItem(BaseModel):
+    name: str
+    dosage: str
+    schedule: str
+
+class RegimenIn(BaseModel):
+    items: list[RegimenItem]
+
+@api_router.get("/enhanced/regimen")
+async def get_regimen(user=Depends(get_current_user)):
+    active = await db.ped_regimens.find_one({"user_id": user["user_id"], "active": True}, {"_id": 0}, sort=[("created_at", -1)])
+    history = await db.ped_regimens.find({"user_id": user["user_id"], "active": False}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    for r in [active, *history]:
+        if r and isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+        if r and isinstance(r.get("archived_at"), datetime):
+            r["archived_at"] = r["archived_at"].isoformat()
+    return {"active": active, "history": history}
+
+@api_router.post("/enhanced/regimen")
+async def set_regimen(inp: RegimenIn, user=Depends(get_current_user)):
+    if not user.get("enhanced"):
+        raise HTTPException(status_code=403, detail="Enhanced access required.")
+    if not inp.items:
+        raise HTTPException(status_code=400, detail="Add at least one item.")
+    now = datetime.now(timezone.utc)
+    await db.ped_regimens.update_many(
+        {"user_id": user["user_id"], "active": True},
+        {"$set": {"active": False, "archived_at": now}},
+    )
+    doc = {
+        "regimen_id": new_id("reg"), "user_id": user["user_id"], "active": True,
+        "items": [i.model_dump() for i in inp.items], "created_at": now,
+    }
+    await db.ped_regimens.insert_one(doc)
+    doc.pop("_id", None)
+    doc["created_at"] = now.isoformat()
+    return doc
 @api_router.post("/workouts/log")
 async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
     workout_id = new_id("wk")
@@ -1857,8 +1968,13 @@ async def progress_chart(user=Depends(get_current_user)):
 
 # ---------- Leaderboards ----------
 @api_router.get("/leaderboard/{board_type}")
-async def leaderboard(board_type: str, user=Depends(get_current_user)):
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+async def leaderboard(board_type: str, filter: str = "all", user=Depends(get_current_user)):
+    q = {}
+    if filter == "enhanced":
+        q = {"enhanced": True}
+    elif filter == "natural":
+        q = {"enhanced": {"$ne": True}}
+    users = await db.users.find(q, {"_id": 0, "password_hash": 0}).to_list(1000)
     for u in users:
         u["rank"] = rank_from_xp(u.get("xp", 0))
         u["total_lift"] = sum(u.get("prs", {}).values())

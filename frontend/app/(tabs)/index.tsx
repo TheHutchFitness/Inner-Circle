@@ -203,6 +203,14 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
 
+      <Pressable testID="open-enhanced" onPress={() => router.push("/enhanced")} style={styles.enhancedCta}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.enhancedTitle}>☣ THE ENHANCED {user?.enhanced ? "· ENTER" : "· 20+ · MEMBERS"}</Text>
+          <Text style={styles.enhancedSub}>PED/peptide protocol tracker + discussion · Not medical advice</Text>
+        </View>
+        <Text style={styles.enhancedArrow}>▶</Text>
+      </Pressable>
+
       <Pressable testID="open-custom-program" onPress={() => router.push("/custom-program")} style={styles.customProgCta}>
         <View style={{ flex: 1 }}>
           <View style={styles.customProgTitleRow}>
@@ -286,6 +294,10 @@ const styles = StyleSheet.create({
   readyBadgeText: { color: "#002200", fontWeight: "900", fontSize: 8, letterSpacing: 1 },
   intakeBadge: { backgroundColor: colors.warning, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
   intakeBadgeText: { color: "#221900", fontWeight: "900", fontSize: 8, letterSpacing: 1 },
+  enhancedCta: { flexDirection: "row", alignItems: "center", marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: "#FF2A3C", backgroundColor: "rgba(255,42,60,0.07)" },
+  enhancedTitle: { color: "#FF2A3C", fontWeight: "900", letterSpacing: 1, fontSize: 15 },
+  enhancedSub: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  enhancedArrow: { color: "#FF2A3C", fontSize: 14 },
   customProgSub: { color: colors.textMid, fontSize: 11, marginTop: 4, letterSpacing: 1, lineHeight: 16 },
   customProgArrow: { color: colors.warning, fontSize: 18, marginLeft: spacing.sm },
   premiumCta: { marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.md, alignItems: "center" },

@@ -63,6 +63,7 @@ export default function TabsLayout() {
     if (!loading && !user) router.replace("/");
   }, [user, loading]);
   return (
+    <View style={{ flex: 1 }}>
     <Tabs screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.surface } }} tabBar={(p) => <CustomTabBar {...p} />}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="workout" />
@@ -71,6 +72,10 @@ export default function TabsLayout() {
       <Tabs.Screen name="community" />
       <Tabs.Screen name="profile" />
     </Tabs>
+    {user?.enhanced && (
+      <View pointerEvents="none" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,0,40,0.10)", borderWidth: 2, borderColor: "rgba(255,40,60,0.35)" }} />
+    )}
+    </View>
   );
 }
 

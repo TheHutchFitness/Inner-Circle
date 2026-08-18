@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -294,8 +294,8 @@ export default function WorkoutScreen() {
               {ex.sets.map((s, si) => (
                 <View key={si} style={styles.setRow}>
                   <Text style={styles.setNum}>{si + 1}</Text>
-                  <Stepper testID={`set-${ei}-${si}-reps`} value={s.reps} step={1} onChange={(v) => editSet(ei, si, "reps", v)} />
-                  <Stepper testID={`set-${ei}-${si}-weight`} value={Math.round(units.toDisplay(s.weight_lb) * 10) / 10} step={units.step} decimal={units.unit === "kg"} onChange={(v) => editWeight(ei, si, v)} />
+                  <NumInput testID={`set-${ei}-${si}-reps`} value={s.reps} onChange={(v) => editSet(ei, si, "reps", Math.round(v))} />
+                  <NumInput testID={`set-${ei}-${si}-weight`} value={Math.round(units.toDisplay(s.weight_lb) * 10) / 10} decimal onChange={(v) => editWeight(ei, si, v)} />
                   <Stepper testID={`set-${ei}-${si}-rpe`} value={s.rpe} step={0.5} decimal onChange={(v) => editSet(ei, si, "rpe", v)} />
                   <Pressable testID={`remove-set-${ei}-${si}`} onPress={() => removeSet(ei, si)} style={styles.rm}><Text style={styles.rmX}>✕</Text></Pressable>
                 </View>
@@ -518,7 +518,49 @@ const sstyles = StyleSheet.create({
   btn: { width: 22, height: 22, backgroundColor: colors.surface3, borderRadius: 3, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
   txt: { color: colors.brandPrimary, fontWeight: "900" },
   value: { color: colors.text, marginHorizontal: 4, fontWeight: "700", minWidth: 30, textAlign: "center", fontVariant: ["tabular-nums"] },
+  inputWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+  input: {
+    color: colors.text, fontWeight: "800", fontSize: 16, textAlign: "center",
+    minWidth: 52, paddingVertical: 6, paddingHorizontal: 4,
+    backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border,
+    fontVariant: ["tabular-nums"],
+  },
 });
+
+function fmtNum(value: number, decimal?: boolean) {
+  if (decimal) return (Math.round(value * 10) / 10).toString();
+  return String(Math.round(value || 0));
+}
+
+// Free-entry numeric field (phone keypad) for reps/weight; commits on change, reformats on blur.
+function NumInput({ value, onChange, decimal, testID }: { value: number; onChange: (v: number) => void; decimal?: boolean; testID?: string }) {
+  const [text, setText] = useState(fmtNum(value, decimal));
+  const focused = useRef(false);
+  useEffect(() => {
+    if (!focused.current) setText(fmtNum(value, decimal));
+  }, [value, decimal]);
+  const onText = (t: string) => {
+    const cleaned = decimal ? t.replace(/[^0-9.]/g, "") : t.replace(/[^0-9]/g, "");
+    setText(cleaned);
+    const n = parseFloat(cleaned);
+    onChange(isFinite(n) ? n : 0);
+  };
+  return (
+    <View style={sstyles.inputWrap}>
+      <TextInput
+        testID={testID}
+        value={text}
+        onChangeText={onText}
+        onFocus={() => { focused.current = true; }}
+        onBlur={() => { focused.current = false; setText(fmtNum(value, decimal)); }}
+        keyboardType={decimal ? "decimal-pad" : "number-pad"}
+        selectTextOnFocus
+        maxLength={decimal ? 6 : 4}
+        style={sstyles.input}
+      />
+    </View>
+  );
+}
 
 const styles = StyleSheet.create({
   eyebrow: { color: colors.brandPrimary, letterSpacing: 4, fontSize: 11, fontWeight: "700" },

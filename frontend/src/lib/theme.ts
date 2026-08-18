@@ -13,7 +13,38 @@ export const colors = {
   error: "#FF003C",
   border: "#1A1D26",
   borderStrong: "#0055FF",
+  enhanced: false,
 };
+
+// ---------- "The Enhanced" red-takeover palette ----------
+// Applied app-wide (in place) once an athlete crosses over. warning (gold) is
+// intentionally preserved for Founding-Backer semantics (crimson + gold look).
+export const ENHANCED_OVERRIDES = {
+  surface: "#0A0203",
+  surface2: "#170709",
+  surface3: "#241014",
+  text: "#FFFFFF",
+  textDim: "#C98A90",
+  textMid: "#E4AEB4",
+  brand: "#B00020",
+  brandPrimary: "#FF2A3C",
+  brandTertiary: "#3A0009",
+  success: "#FF6A3D",
+  warning: "#FFEA00",
+  error: "#FF003C",
+  border: "#2A1015",
+  borderStrong: "#FF2A3C",
+  enhanced: true,
+};
+
+// Mutate the live palette in place so already-imported modules pick up red on
+// the next full app boot (paired with a persisted flag + reload).
+export function applyEnhancedPalette() {
+  Object.assign(colors, ENHANCED_OVERRIDES);
+}
+export function isEnhancedPalette() {
+  return colors.enhanced === true;
+}
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
 export const radius = { sm: 4, md: 8, lg: 12, pill: 999 };
@@ -201,9 +232,19 @@ export const AURA_COLORS: Record<string, string> = {
   au_gold: "#FFD700", au_violet: "#B14CFF", au_red: "#FF3B5C",
 };
 export const TITLE_TEXT: Record<string, string> = {
-  ti_none: "", ti_iron: "IRON WILL", ti_beast: "BEAST MODE",
-  ti_slayer: "BOSS SLAYER", ti_legend: "LIVING LEGEND", ti_founder: "FOUNDER",
+  ti_none: "", ti_iron: "IRON WILL", ti_beast: "BEAST MODE", ti_quest: "QUEST MASTER",
+  ti_slayer: "BOSS SLAYER", ti_boss: "BOSS KILLER", ti_legend: "LIVING LEGEND",
+  ti_enhanced: "ENHANCED", ti_founder: "FOUNDER",
 };
 export function loadoutTitle(loadout?: any): string {
   return TITLE_TEXT[loadout?.title || "ti_none"] || "";
 }
+
+// Web only: apply the persisted red palette synchronously at module load so the
+// react-native-web preview renders red before any StyleSheet is created.
+try {
+  // @ts-ignore - window/localStorage only exist on web
+  if (typeof window !== "undefined" && window.localStorage && window.localStorage.getItem("hic_enhanced_theme") === "1") {
+    applyEnhancedPalette();
+  }
+} catch {}

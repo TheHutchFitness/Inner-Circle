@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 16 — verified all 5 requested flows for the Train inputs + Enhanced room + PED tracker + custom /app/frontend/index.js entry. Backend: 6/6 pytest cases pass (peds list non-empty w/ name/class/desc + disclaimer, /enhanced/status, /enhanced/regimen shape {active,history}, POST regimen as enhanced athlete activates + previous archives to history, POST regimen as fresh non-enhanced user -> 403). Frontend (390x844, expo web preview): (a) reps input (set-0-0-reps) is a typeable TextInput inputmode=numeric, weight (set-0-0-weight) is typeable TextInput inputmode=decimal, both accept fill('12') / fill('225.5') and values commit to state on blur. (b) RPE is still a +/- stepper (set-0-0-rpe with -up/-down buttons); 2x up then 1x down yields 7 -> 8 -> 7.5. (c) add-set-0 copies the previous set (12 / 225.5 / 8.0 -> new set 12 / 225.5 / 8.0). (d) Red palette is applied APP-WIDE for the seeded-enhanced athlete@test.com: Home computed-style scan = 52 red vs 4 cyan; Train tab = 109 red vs 4 cyan (screenshots show crimson theme on Home, Train templates, and active session). (e) Fresh registered user (no subscription) navigating to /enhanced gets the paid gate: [data-testid=enhanced-subscribe] is present, [data-testid=verify-age] is NOT present — age form is correctly gated behind subscription. Fresh user palette = 4 red vs 30 cyan (cyan default preserved). Owner reset skipped per instructions (the9hutch@gmail.com is Google-auth; other seeded accounts still log in normally). No regressions from the custom index.js entry.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_enhanced_ped.py",
+    "/app/test_reports/pytest/iter16_enhanced.xml",
+    "/app/test_reports/iteration_16.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "enhanced.tsx applies red palette by mutating shared `colors` at runtime and then calling reloadApp() so route StyleSheets re-run on next boot with the mutated palette. Works, but any hot-reload/dev-refresh during testing that doesn't re-execute index.js will drop the red until AsyncStorage bootstrap runs again. Fine for prod (native reload always runs index.js), just noting for tester context.",
+    "enhanced.tsx :57 accept() does not revert the local `enhanced=false` state if apiFetch fails partway (persistEnhancedFlag is called AFTER the POST /consent succeeds — that's correct)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (5/5 requested flows)"},
+  "seed_data_creation": "Registered one throwaway user TEST_enh_<ts>@example.com via ENLIST for the paid-gate verification. Also posted two PED regimens to athlete@test.com (Test_250mg -> archived, Test_500mg -> active) as part of the archive-to-history verification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "athlete@test.com is enhanced=true (server-side) AND the red palette is applied via boot-time AsyncStorage flag written on consent. On a fresh browser the flag is empty, so the LOGIN screen renders in the default cyan palette; the red palette only shows AFTER login (route StyleSheets on Home/Train reference the mutated `colors` object). This is expected. To verify red app-wide, log in first and screenshot Home + Train tab (not the login screen). To test the fresh-user Enhanced paywall, register via ENLIST — Home shows the ENHANCED entry below The Judge; tapping it should land on the [data-testid=enhanced-subscribe] gate, NOT the age form. Do NOT accept the Enhanced consent on athlete@test.com (already enhanced) and do not run RevenueCat purchase flows on web.",
+  "rca_of_issue": "n/a — all requested flows work as designed."
+}
