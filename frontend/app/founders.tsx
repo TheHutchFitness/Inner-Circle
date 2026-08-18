@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal } from "react-native";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -36,10 +37,40 @@ function Avatar({ id, sex, size = 34 }: { id: string; sex?: string; size?: numbe
   );
 }
 
+function BackerCard({ b, index, isMe }: { b: any; index: number; isMe?: boolean }) {
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    glow.value = withDelay(
+      index * 60,
+      withRepeat(withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }), -1, true),
+    );
+  }, [index]);
+  const starStyle = useAnimatedStyle(() => ({
+    opacity: 0.55 + glow.value * 0.45,
+    transform: [{ scale: 1 + glow.value * 0.18 }],
+  }));
+  const rc = RANK_COLORS[b.rank] || colors.warning;
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(index * 50).springify()}
+      testID={`backer-${index}`}
+      style={[styles.backerCard, isMe && styles.backerCardMe]}
+    >
+      <Animated.Text style={[styles.backerCardStar, starStyle]}>★</Animated.Text>
+      <Avatar id={b.avatar_id} sex={b.sex} size={40} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.backerCardName} numberOfLines={1}>{b.display_name}</Text>
+        <Text style={[styles.backerCardRank, { color: rc }]}>{(b.rank || "").toUpperCase()}</Text>
+      </View>
+      {isMe && <Text style={styles.backerYouTag}>YOU</Text>}
+    </Animated.View>
+  );
+}
+
 export default function Founders() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { token, refresh } = useAuth();
+  const { token, user, refresh } = useAuth();
   const { offerings, hasBackerEntitlement, purchase, isPurchasing, identityReady } = useSubscription();
 
   const [data, setData] = useState<any>(null);
@@ -141,18 +172,26 @@ export default function Founders() {
         ) : (
           <>
             <Text style={styles.sectionNote}>Athletes who chipped in toward future development. Respect.</Text>
-            {data?.backers?.length ? (
-              <View style={styles.backerWrap}>
-                {data.backers.map((b: any, i: number) => (
-                  <View key={i} testID={`backer-${i}`} style={styles.backerChip}>
-                    <Avatar id={b.avatar_id} sex={b.sex} size={26} />
-                    <Text style={styles.backerName}>{b.display_name}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.empty}>No backers yet. Be the first to fuel the build.</Text>
-            )}
+            {(() => {
+              const raw = data?.backers ?? [];
+              // Pin the current user's own backer card to the very top with a highlight
+              const meCard = isBacker && user
+                ? { display_name: user.display_name || "You", avatar_id: user.avatar_id, sex: user.sex, rank: user.rank }
+                : null;
+              const others = meCard
+                ? raw.filter((b: any) => b.display_name !== meCard.display_name)
+                : raw;
+              const list = meCard ? [meCard, ...others] : others;
+              return list.length ? (
+                <View style={styles.backerList}>
+                  {list.map((b: any, i: number) => (
+                    <BackerCard key={i} b={b} index={i} isMe={!!meCard && i === 0} />
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.empty}>No backers yet. Be the first to fuel the build.</Text>
+              );
+            })()}
           </>
         )}
 
@@ -222,6 +261,25 @@ const styles = StyleSheet.create({
   backerWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   backerChip: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.06)" },
   backerName: { color: colors.text, fontWeight: "800", letterSpacing: 1, fontSize: 12 },
+  backerList: { gap: spacing.sm },
+  backerCard: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    padding: spacing.md, borderRadius: radius.md,
+    borderWidth: 1.5, borderColor: "rgba(255,234,0,0.35)",
+    backgroundColor: "rgba(255,234,0,0.05)",
+  },
+  backerCardMe: {
+    borderColor: colors.warning, borderWidth: 2,
+    backgroundColor: "rgba(255,234,0,0.12)",
+    shadowColor: colors.warning, shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 0 },
+  },
+  backerCardStar: { color: colors.warning, fontSize: 22, width: 26, textAlign: "center" },
+  backerCardName: { color: colors.text, fontWeight: "900", letterSpacing: 1, fontSize: 14 },
+  backerCardRank: { fontSize: 10, letterSpacing: 2, fontWeight: "800", marginTop: 2 },
+  backerYouTag: {
+    color: "#221900", backgroundColor: colors.warning, fontWeight: "900", fontSize: 10,
+    letterSpacing: 2, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.sm, overflow: "hidden",
+  },
   empty: { color: colors.textDim, textAlign: "center", marginTop: spacing.xl },
   supportCard: { marginTop: spacing.xl, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.05)" },
   supportTitle: { color: colors.warning, letterSpacing: 3, fontWeight: "900", fontSize: 14 },

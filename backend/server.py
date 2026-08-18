@@ -46,7 +46,9 @@ RC_GRANT_EVENTS = {
     "PRODUCT_CHANGE", "UNCANCELLATION", "TRANSFER", "SUBSCRIPTION_EXTENDED",
 }
 # Event types that revoke access (refund / chargeback)
-RC_REVOKE_EVENTS = {"REFUND", "REFUND_REVERSED"}
+RC_REVOKE_EVENTS = {"REFUND"}
+# Only the actual "money changed hands" moments trigger a thank-you receipt email
+RC_RECEIPT_EVENTS = {"INITIAL_PURCHASE", "NON_RENEWING_PURCHASE"}
 
 # ---------- Emergent Object Storage (chat media) ----------
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
@@ -1971,6 +1973,53 @@ async def has_verified_purchase(user_id: str, entitlement: str) -> bool:
     )
     return bool(row)
 
+def _receipt_email_for(user: dict, ent: str):
+    """Returns (subject, html) for the purchase thank-you/receipt, or None."""
+    name = escape((user.get("display_name") or "Athlete").strip())
+    if ent == CUSTOM_PROGRAM_ENTITLEMENT:
+        subject = "Your 1-on-1 Custom Program is confirmed — welcome to the Inner Circle"
+        html = f"""
+        <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0b0b0e;">
+          <h2 style="letter-spacing:1px;">HUTCH'S INNER CIRCLE</h2>
+          <p>Hey {name},</p>
+          <p><strong>Your 1-on-1 Custom Program purchase is confirmed.</strong> Thank you for going all in.</p>
+          <p>Here's what happens next:</p>
+          <ul>
+            <li>Coach Hutch will personally build your program around your goals, injuries and schedule.</li>
+            <li>Open the app and complete your <strong>intake form</strong> (Home &rarr; 1-on-1 Custom Program) so Coach has everything he needs.</li>
+            <li>Your <strong>Athlete's Center</strong> is unlocked and yours for life.</li>
+          </ul>
+          <p>This is a one-time payment — no subscription, no renewals.</p>
+          <p>Let's get to work.<br/>— Coach Hutch</p>
+        </div>"""
+        return subject, html
+    if ent == BACKER_ENTITLEMENT:
+        subject = "Thank you for backing Hutch's Inner Circle"
+        html = f"""
+        <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0b0b0e;">
+          <h2 style="letter-spacing:1px;">HUTCH'S INNER CIRCLE</h2>
+          <p>Hey {name},</p>
+          <p><strong>You're officially a Development Backer.</strong> Thank you for helping fuel the build.</p>
+          <p>Your name is now etched into the Backers hall inside the app — forever. Every feature we ship, you helped make happen.</p>
+          <p>Respect.<br/>— Coach Hutch</p>
+        </div>"""
+        return subject, html
+    return None
+
+async def _send_purchase_receipt(user: dict, ent: str):
+    """Fire-and-forget thank-you email. Never let an email failure break the webhook."""
+    to = (user.get("email") or "").strip()
+    if not to:
+        return
+    built = _receipt_email_for(user, ent)
+    if not built:
+        return
+    subject, html = built
+    try:
+        await send_email(to=to, subject=subject, html=html)
+    except Exception as e:
+        logger.warning(f"Purchase receipt email failed for {to} ({ent}): {e}")
+
 @api_router.post("/revenuecat/webhook")
 async def revenuecat_webhook(request: Request, authorization: Optional[str] = Header(None)):
     """Server-side proof of purchase. RevenueCat POSTs a signed purchase event here,
@@ -2011,6 +2060,7 @@ async def revenuecat_webhook(request: Request, authorization: Optional[str] = He
         if not uid:
             continue
         if etype in RC_GRANT_EVENTS:
+            existing = await db.verified_purchases.find_one({"user_id": uid, "entitlement": ent})
             await db.verified_purchases.update_one(
                 {"user_id": uid, "entitlement": ent},
                 {"$set": {
@@ -2026,6 +2076,12 @@ async def revenuecat_webhook(request: Request, authorization: Optional[str] = He
                 grant = _grant_set_for_entitlement(ent)
                 if grant:
                     await db.users.update_one({"user_id": user["user_id"]}, {"$set": grant})
+                # Thank-you receipt — only on a real purchase moment, and only once
+                if etype in RC_RECEIPT_EVENTS and not (existing or {}).get("receipt_sent"):
+                    await _send_purchase_receipt(user, ent)
+                    await db.verified_purchases.update_one(
+                        {"user_id": uid, "entitlement": ent}, {"$set": {"receipt_sent": True}}
+                    )
             processed.append({"entitlement": ent, "action": "granted"})
         elif etype in RC_REVOKE_EVENTS:
             await db.verified_purchases.update_one(
