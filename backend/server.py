@@ -2313,7 +2313,25 @@ async def coach_send(inp: CoachMessageIn, user=Depends(get_current_user)):
     prior = list(reversed(prior))[:-1]  # drop the just-added user msg
     transcript = "\n".join(f"{'Athlete' if m['role']=='user' else 'Coach'}: {m['text']}" for m in prior[-16:])
     profile = f"Athlete profile — display name: {user.get('display_name','Athlete')}, rank: {rank_from_xp(user['xp'])}, level: {level_from_xp(user['xp'])}."
-    sys = COACH_SYSTEM + "\n\n" + profile + ("\n\nRecent conversation:\n" + transcript if transcript else "")
+
+    # Coach Memory: real PRs + recent training so advice is tailored
+    prs = user.get("prs", {}) or {}
+    pr_str = ", ".join(f"{k} {v}lb" for k, v in prs.items() if v) or "none logged yet"
+    recent = await db.workouts.find({"user_id": user["user_id"]}, {"_id": 0}).sort("logged_at", -1).limit(5).to_list(5)
+    lines = []
+    for w in recent:
+        exs = []
+        for ex in (w.get("exercises") or [])[:6]:
+            sets = ex.get("sets") or []
+            top = max((s.get("weight_lb", 0) for s in sets), default=0)
+            exs.append(f"{ex.get('name','?')} {len(sets)}x@{top}lb" if top else ex.get("name", "?"))
+        when = w.get("logged_at")
+        when_s = when.date().isoformat() if isinstance(when, datetime) else ""
+        lines.append(f"  • {when_s} {w.get('template_name','Session')}: {', '.join(exs)}")
+    memory = f"Current PRs: {pr_str}.\nLast {len(recent)} sessions:\n" + ("\n".join(lines) if lines else "  • none logged yet")
+    memory += "\nUse these real numbers to tailor prescriptions (loads, progressions) to THIS athlete."
+
+    sys = COACH_SYSTEM + "\n\n" + profile + "\n\n" + memory + ("\n\nRecent conversation:\n" + transcript if transcript else "")
 
     reply_text = ""
     try:
@@ -2340,6 +2358,71 @@ async def coach_send(inp: CoachMessageIn, user=Depends(get_current_user)):
 async def coach_clear(user=Depends(get_current_user)):
     await db.coach_messages.delete_many({"user_id": user["user_id"]})
     return {"ok": True}
+
+
+# ---------- Save Plan (store a coach-generated plan, show in Train) ----------
+class CoachPlanIn(BaseModel):
+    title: Optional[str] = None
+    text: str
+
+@api_router.get("/coach/plans")
+async def coach_plans_list(user=Depends(get_current_user)):
+    rows = await db.coach_plans.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for r in rows:
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+    return rows
+
+@api_router.post("/coach/plans")
+async def coach_plan_save(inp: CoachPlanIn, user=Depends(get_current_user)):
+    text = (inp.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Nothing to save")
+    title = (inp.title or "").strip()
+    if not title:
+        first = text.split("\n", 1)[0].strip()
+        title = (first[:48] + "…") if len(first) > 48 else (first or "Coach Plan")
+    doc = {
+        "plan_id": new_id("plan"), "user_id": user["user_id"],
+        "title": title, "text": text[:6000], "created_at": datetime.now(timezone.utc),
+    }
+    await db.coach_plans.insert_one(dict(doc))
+    doc["created_at"] = doc["created_at"].isoformat()
+    return doc
+
+@api_router.delete("/coach/plans/{plan_id}")
+async def coach_plan_delete(plan_id: str, user=Depends(get_current_user)):
+    await db.coach_plans.delete_one({"plan_id": plan_id, "user_id": user["user_id"]})
+    return {"ok": True}
+
+
+# ---------- Voice Ask (Whisper STT) ----------
+_STT = None
+@api_router.post("/voice/transcribe")
+async def voice_transcribe(file: UploadFile = File(...), user=Depends(get_current_user)):
+    global _STT
+    fname = (file.filename or "voice.webm")
+    suffix = fname.rsplit(".", 1)[-1].lower() if "." in fname else "webm"
+    if suffix not in ("m4a", "wav", "webm", "mp4", "mp3", "mpeg", "mpga", "ogg"):
+        raise HTTPException(status_code=400, detail="Unsupported audio format")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty recording")
+    if len(data) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Recording too long")
+    try:
+        from emergentintegrations.llm.openai import OpenAISpeechToText
+        if _STT is None:
+            _STT = OpenAISpeechToText(api_key=EMERGENT_LLM_KEY)
+        result = await _STT.transcribe(data, filename=fname, model="whisper-1", response_format="text")
+        text = result if isinstance(result, str) else (result.get("text") if isinstance(result, dict) else getattr(result, "text", str(result)))
+        text = (text or "").strip()
+    except Exception:
+        logger.exception("Whisper transcription failed")
+        raise HTTPException(status_code=502, detail="Couldn't transcribe that — try again.")
+    if not text:
+        raise HTTPException(status_code=422, detail="No speech detected")
+    return {"text": text}
 
 
 # ---------- Seed ----------

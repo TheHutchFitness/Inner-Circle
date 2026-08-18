@@ -6,6 +6,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
+import { VoiceButton } from "@/src/components/VoiceButton";
 import { colors, spacing, radius } from "@/src/lib/theme";
 
 const SUGGESTIONS = [
@@ -23,7 +24,15 @@ export default function Coach() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [savedIds, setSavedIds] = useState<string[]>([]);
   const scrollRef = useRef<ScrollView>(null);
+
+  const savePlan = async (m: any) => {
+    try {
+      await apiFetch(token, "/api/coach/plans", { method: "POST", body: JSON.stringify({ text: m.text }) });
+      setSavedIds((s) => [...s, m.msg_id]);
+    } catch {}
+  };
 
   const scrollEnd = () => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
 
@@ -84,6 +93,11 @@ export default function Coach() {
             <View style={[styles.bubble, m.role === "user" ? styles.userBubble : styles.coachBubble]}>
               {m.role === "assistant" && <Text style={styles.coachTag}>COACH</Text>}
               <Text style={m.role === "user" ? styles.userText : styles.coachText}>{m.text}</Text>
+              {m.role === "assistant" && !String(m.msg_id).startsWith("err") && (
+                <Pressable testID={`coach-save-${m.msg_id}`} onPress={() => savePlan(m)} disabled={savedIds.includes(m.msg_id)} style={styles.saveBtn}>
+                  <Text style={styles.saveText}>{savedIds.includes(m.msg_id) ? "✓ SAVED TO TRAIN" : "⤓ SAVE TO TRAIN"}</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         ))}
@@ -99,6 +113,7 @@ export default function Coach() {
       </ScrollView>
 
       <View style={[styles.inputRow, { paddingBottom: spacing.md + insets.bottom }]}>
+        <VoiceButton onTranscript={(t: string) => setText((prev) => (prev ? prev + " " : "") + t)} onError={() => {}} />
         <TextInput
           testID="coach-input"
           style={styles.input}
@@ -138,6 +153,8 @@ const styles = StyleSheet.create({
   coachTag: { color: colors.brandPrimary, fontSize: 9, letterSpacing: 2, fontWeight: "900", marginBottom: 4 },
   userText: { color: "#001122", fontWeight: "600", lineHeight: 21 },
   coachText: { color: colors.text, lineHeight: 22 },
+  saveBtn: { marginTop: spacing.sm, alignSelf: "flex-start", paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.brandPrimary },
+  saveText: { color: colors.brandPrimary, fontWeight: "800", fontSize: 11, letterSpacing: 1 },
   typing: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   typingText: { color: colors.textDim, letterSpacing: 1 },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.brandPrimary, backgroundColor: colors.surface2 },

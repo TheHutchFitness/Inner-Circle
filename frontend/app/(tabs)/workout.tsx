@@ -45,6 +45,7 @@ export default function WorkoutScreen() {
   const [restRemaining, setRestRemaining] = useState(0);
   const [restDuration, setRestDuration] = useState(120);
   const [monthly, setMonthly] = useState<any>(null);
+  const [coachPlans, setCoachPlans] = useState<any[]>([]);
   const [splitChoice, setSplitChoice] = useState("ppl");
   const [calOpen, setCalOpen] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
@@ -63,12 +64,14 @@ export default function WorkoutScreen() {
 
   const loadHistory = async () => { try { setHistory(await apiFetch(token, "/api/workouts/history")); } catch {} };
   const loadMonthly = async () => { try { setMonthly(await apiFetch(token, "/api/programs/monthly/current")); } catch {} };
+  const loadCoachPlans = async () => { try { setCoachPlans(await apiFetch(token, "/api/coach/plans")); } catch {} };
 
   useEffect(() => {
     (async () => {
       try { setTemplates(await apiFetch(token, "/api/workout/templates")); } catch {}
       loadHistory();
       loadMonthly();
+      loadCoachPlans();
     })();
   }, [token]);
 
@@ -81,6 +84,7 @@ export default function WorkoutScreen() {
     } else {
       loadHistory();
       loadMonthly();
+      loadCoachPlans();
     }
   }, []));
 
@@ -351,6 +355,23 @@ export default function WorkoutScreen() {
         ))}
       </View>
 
+      {coachPlans.length > 0 && (
+        <>
+          <Text style={[styles.h2, { paddingHorizontal: spacing.lg }]}>COACH PLANS</Text>
+          {coachPlans.map((p) => (
+            <View key={p.plan_id} testID={`coach-plan-${p.plan_id}`} style={styles.coachPlanCard}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={styles.coachPlanTitle}>{p.title}</Text>
+                <Pressable testID={`coach-plan-del-${p.plan_id}`} onPress={async () => { await apiFetch(token, `/api/coach/plans/${p.plan_id}`, { method: "DELETE" }); loadCoachPlans(); }} hitSlop={10}>
+                  <Text style={styles.coachPlanDel}>✕</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.coachPlanText}>{p.text}</Text>
+            </View>
+          ))}
+        </>
+      )}
+
       <Text style={[styles.h2, { paddingHorizontal: spacing.lg }]}>MONTHLY PROTOCOL</Text>
       {!monthly?.active ? (
         <View style={styles.monthlyCard}>
@@ -503,6 +524,10 @@ const styles = StyleSheet.create({
   srcChip: { borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   srcChipText: { color: colors.brandPrimary, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   monthlyCard: { marginHorizontal: spacing.lg, marginBottom: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md },
+  coachPlanCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.brandPrimary, padding: spacing.md },
+  coachPlanTitle: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, flex: 1 },
+  coachPlanDel: { color: colors.textDim, fontSize: 16, fontWeight: "900", paddingLeft: spacing.md },
+  coachPlanText: { color: colors.textMid, marginTop: spacing.sm, lineHeight: 20 },
   monthlyTitle: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 13 },
   monthlySub: { color: colors.textDim, marginTop: 4, lineHeight: 18, fontSize: 12 },
   monthlyProgress: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 1, fontWeight: "800", marginTop: 4 },

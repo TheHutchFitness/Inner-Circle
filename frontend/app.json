@@ -63,7 +63,8 @@
           "cameraPermission": "Snap photos and videos to share in chat",
           "microphonePermission": "Record audio for videos you share in chat"
         }
-      ]
+      ],
+      ["expo-audio", { "microphonePermission": "Ask your coach a question with your voice" }]
     ],
     "experiments": {
       "typedRoutes": true

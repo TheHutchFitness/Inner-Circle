@@ -592,3 +592,99 @@ frontend:
 agent_communication:
     -agent: "main"
     -message: "FOURTH batch. Backend verified by main (frames/set-frame/my-history). FRONTEND-test the two testable ones: (1) Frame Vault: login freak@test.com (all frames unlocked), ME tab, tap the frame name under the player card (testID open-frame-vault) -> modal lists frames -> tap testID frame-Cobalt -> modal closes and player card frame border/name update; reload and confirm it persisted. (2) Judge History: login elite@test.com (skool_verified), open THE JUDGE, submit a real physique JPEG (per /app/image_testing.md), then tap 'MY SCORES' (testID judge-view-mine) -> a trend line + a history row with the score appears. For Boss Alert: just confirm the bottom tab bar renders fine (no crash) — the warning dot only appears when a boss quest is claimable (huge grind, skip). For Backer Thank-You: purchase can't complete on web, skip E2E. Do NOT retest prior batches."
+
+#==================== SESSION: Verify Nudge + Score Share + Boss Countdown + Coach Memory + Save Plan + Voice Ask ====================
+backend:
+  - task: "Coach Memory (inject PRs + recent workouts into coach prompt)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "coach_send now prepends athlete PRs + last 5 workout summaries. Verified: asked working weight, coach cited real 315lb bench PR and computed loads."
+  - task: "Save Plan endpoints (coach_plans CRUD)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "GET/POST/DELETE /api/coach/plans verified (save auto-titles from first line)."
+  - task: "Voice Ask transcription (Whisper whisper-1)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "POST /api/voice/transcribe (multipart audio) -> OpenAISpeechToText.transcribe whisper-1. Rejects bad formats (400 verified). Real audio transcription needs a device mic; web/native record via VoiceButton."
+frontend:
+  - task: "Verify Nudge banner on Judge for unverified members"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/judge.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Banner shows when member can access Judge (skool/premium) but is NOT email/phone verified; tap opens Verify modal."
+  - task: "Score Share button on Judge submissions"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/judge.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "↗ SHARE button next to CRITIQUES on scored submissions -> RN Share.share with score breakdown text."
+  - task: "Boss Countdown on boss quest cards"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/quests.tsx"
+    stuck_count: 0
+    priority: "low"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Boss quest cards show '⏳ Nd left' (days to end of month) instead of global stat when unclaimed."
+  - task: "Save Plan button (coach) + COACH PLANS section (Train)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/coach.tsx, frontend/app/(tabs)/workout.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Each coach reply has 'SAVE TO TRAIN'; saved plans appear as COACH PLANS cards on Train (with delete)."
+  - task: "Voice Ask mic button on coach input"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/VoiceButton.tsx, frontend/app/coach.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "🎤 button records (expo-audio native / MediaRecorder web) -> /api/voice/transcribe -> fills composer. Real mic needed; headless web may lack mic."
+
+agent_communication:
+    -agent: "main"
+    -message: "SIXTH batch. Coach Memory + Save Plan backend verified by main. FRONTEND-test: (1) Save Plan: login elite@test.com, open AI COACH, send any question, on the coach reply tap 'SAVE TO TRAIN' (testID coach-save-<id>), go to Train tab -> a 'COACH PLANS' section shows the saved plan (testID coach-plan-<id>); delete works. (2) Boss Countdown: Quests -> ☠ BOSS tab -> boss quest cards show '⏳ Nd left'. (3) Score Share: on The Judge, submit a real physique JPEG then confirm a '↗ SHARE' button appears next to CRITIQUES (clicking may open native share sheet / no-op on web — just verify present). (4) Verify Nudge: temporarily set phone_verified=false AND email_verified=false on elite@test.com in mongo (elite is skool_verified so still gets Judge access), reload, open The Judge -> a 'Verify to unlock uploads' banner (testID judge-verify-nudge) shows and tapping opens the verify modal; restore phone_verified=true after. (5) Voice Ask: just confirm the 🎤 button (testID coach-voice) renders on the coach input and does not crash when tapped (real transcription needs a mic; skip if headless has none). Coach Memory needs no UI test. Do NOT retest prior batches. Do NOT attempt RevenueCat purchases."

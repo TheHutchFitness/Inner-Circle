@@ -15,6 +15,12 @@ const SCOPES = [
   { key: "all", label: "ALL" },
 ];
 
+function daysLeftInMonth() {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  return Math.max(1, Math.ceil((end.getTime() - now.getTime()) / 86400000));
+}
+
 const GOAL_CHIPS = ["Lose weight", "Build muscle", "Compete in a powerlifting meet", "Bigger total", "Run faster", "Get shredded"];
 
 export default function Quests() {
@@ -190,7 +196,9 @@ export default function Quests() {
                     <View style={styles.track}><View style={[styles.fill, { width: `${Math.min(100, prog * 100)}%`, backgroundColor: q.claimed ? colors.textDim : q.complete ? colors.success : colors.brandPrimary }]} /></View>
                     <View style={styles.cardFoot}>
                       <Text style={styles.reward}>◈ {q.reward_label}</Text>
-                      <Text style={styles.globalStat}>{q.global_completions} cleared · {q.global_percent}%</Text>
+                      {sc === "boss" && !q.claimed
+                        ? <Text style={styles.bossTimer}>⏳ {daysLeftInMonth()}d left</Text>
+                        : <Text style={styles.globalStat}>{q.global_completions} cleared · {q.global_percent}%</Text>}
                     </View>
                   </Pressable>
                 );
@@ -261,6 +269,7 @@ const styles = StyleSheet.create({
   cardFoot: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.sm },
   reward: { color: colors.warning, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   globalStat: { color: colors.textDim, fontSize: 10, letterSpacing: 1 },
+  bossTimer: { color: colors.warning, fontSize: 10, letterSpacing: 1, fontWeight: "800" },
   toast: { position: "absolute", left: spacing.lg, right: spacing.lg, backgroundColor: colors.brandPrimary, padding: spacing.md, borderRadius: radius.sm, alignItems: "center" },
   toastText: { color: "#001122", fontWeight: "900", letterSpacing: 1 },
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", alignItems: "center", justifyContent: "center", padding: spacing.lg },

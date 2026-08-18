@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, Platform,
-  Alert, Linking, ActivityIndicator, KeyboardAvoidingView,
+  Alert, Linking, ActivityIndicator, KeyboardAvoidingView, Share,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -235,6 +235,13 @@ export default function Judge() {
         <Text style={st.h1}>THE JUDGE</Text>
         <Text style={st.helper}>Submit your physique. Get scored by the AI head judge. Members critique too.</Text>
 
+        {!isVerified && (
+          <Pressable testID="judge-verify-nudge" onPress={() => setVerifyOpen(true)} style={st.nudge}>
+            <Text style={st.nudgeText}>🔒 Verify your email or phone to unlock uploads</Text>
+            <Text style={st.nudgeCta}>VERIFY ›</Text>
+          </Pressable>
+        )}
+
         <View style={st.submitCard}>
           <Text style={st.submitTitle}>STEP ON STAGE</Text>
           {pending ? (
@@ -316,9 +323,24 @@ export default function Judge() {
                 <Image source={{ uri: mediaUrl(s.media_id) }} style={st.subImage} contentFit="cover" transition={150} />
                 {!!s.caption && <Text style={st.caption}>{s.caption}</Text>}
                 <Critique c={s.critique} />
-                <Pressable testID={`judge-comments-${s.submission_id}`} onPress={() => openComments(s)} style={st.commentBtn}>
-                  <Text style={st.commentBtnText}>💬 CRITIQUES ({s.comment_count || 0})</Text>
-                </Pressable>
+                <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                  <Pressable testID={`judge-comments-${s.submission_id}`} onPress={() => openComments(s)} style={[st.commentBtn, { flex: 1 }]}>
+                    <Text style={st.commentBtnText}>💬 CRITIQUES ({s.comment_count || 0})</Text>
+                  </Pressable>
+                  {s.critique && s.critique.overall > 0 && (
+                    <Pressable
+                      testID={`judge-share-${s.submission_id}`}
+                      onPress={() => Share.share({
+                        message: `${s.display_name} scored ${s.critique.overall.toFixed(1)}/10 on The Judge 🏆\n` +
+                          `Symmetry ${s.critique.symmetry} · Conditioning ${s.critique.conditioning} · Size ${s.critique.size} · Posing ${s.critique.posing}\n` +
+                          `— Hutch's Inner Circle`,
+                      }).catch(() => {})}
+                      style={[st.commentBtn, { paddingHorizontal: spacing.lg }]}
+                    >
+                      <Text style={st.commentBtnText}>↗ SHARE</Text>
+                    </Pressable>
+                  )}
+                </View>
               </View>
             );
           })
@@ -386,6 +408,9 @@ const st = StyleSheet.create({
   back: { color: colors.brandPrimary, letterSpacing: 2, fontWeight: "800", marginBottom: spacing.md },
   h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
   helper: { color: colors.textMid, marginTop: 4, lineHeight: 18 },
+  nudge: { marginTop: spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.06)" },
+  nudgeText: { color: colors.warning, fontWeight: "700", fontSize: 12, flex: 1, letterSpacing: 0.5 },
+  nudgeCta: { color: colors.warning, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   submitCard: { marginTop: spacing.lg, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
   submitTitle: { color: colors.brandPrimary, letterSpacing: 3, fontWeight: "800", fontSize: 12, marginBottom: spacing.md },
   preview: { width: "100%", height: 260, borderRadius: radius.sm, backgroundColor: colors.surface3, marginBottom: spacing.md },
