@@ -7,8 +7,16 @@ const SRC: Record<string, any> = {
   victory: require("../../assets/sfx/victory.wav"),
 };
 
+const MUSIC = [
+  require("../../assets/sfx/amb1.wav"),
+  require("../../assets/sfx/amb2.wav"),
+  require("../../assets/sfx/amb3.wav"),
+];
+
 let enabled = true;
 const players: Record<string, any> = {};
+let music: any = null;
+let musicIdx = -1;
 
 export async function initSfx() {
   try { const v = await AsyncStorage.getItem("hic_sfx"); enabled = v !== "0"; } catch {}
@@ -18,6 +26,7 @@ export async function initSfx() {
 export async function setSfxEnabled(on: boolean) {
   enabled = on;
   try { await AsyncStorage.setItem("hic_sfx", on ? "1" : "0"); } catch {}
+  if (!on) stopMusic();
 }
 
 export function isSfxEnabled() { return enabled; }
@@ -30,4 +39,24 @@ export function playSfx(name: "slash" | "hit" | "victory") {
     p.seekTo(0);
     p.play();
   } catch {}
+}
+
+// Looping ambient music, one track per zone-tier band (0-1 / 2-3 / 4-5).
+export function startZoneMusic(zoneIndex: number) {
+  if (!enabled) return;
+  const idx = Math.min(2, Math.floor((zoneIndex || 0) / 2));
+  try {
+    if (music && musicIdx === idx) { music.play(); return; }
+    stopMusic();
+    music = createAudioPlayer(MUSIC[idx]);
+    music.loop = true;
+    music.volume = 0.5;
+    musicIdx = idx;
+    music.play();
+  } catch {}
+}
+
+export function stopMusic() {
+  try { if (music) { music.pause(); music.remove?.(); } } catch {}
+  music = null; musicIdx = -1;
 }

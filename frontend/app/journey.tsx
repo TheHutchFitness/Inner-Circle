@@ -9,7 +9,7 @@ import * as Haptics from "expo-haptics";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { HeroSprite } from "@/src/components/HeroSprite";
-import { initSfx, playSfx, isSfxEnabled, setSfxEnabled } from "@/src/lib/sfx";
+import { initSfx, playSfx, isSfxEnabled, setSfxEnabled, startZoneMusic, stopMusic } from "@/src/lib/sfx";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -162,16 +162,38 @@ function Combat({ node, stats, accent, onWin, onClose }: { node: any; stats: any
   );
 }
 
-function Reward({ label, accent, onClose }: { label: string; accent: string; onClose: () => void }) {
+function Reward({ label, boss, accent, onClose }: { label: string; boss: boolean; accent: string; onClose: () => void }) {
   const s = useSharedValue(0);
-  useEffect(() => { s.value = withSequence(withTiming(1.15, { duration: 260 }), withTiming(1, { duration: 160 })); }, []);
+  const dropY = useSharedValue(-260);
+  const spin = useSharedValue(0);
+  const glow = useSharedValue(0);
+  const isLoot = boss || /frame|aura|title|emblem|badge/i.test(label);
+  useEffect(() => {
+    s.value = withSequence(withTiming(1.15, { duration: 260 }), withTiming(1, { duration: 160 }));
+    if (isLoot) {
+      playSfx("victory");
+      dropY.value = withSequence(withTiming(10, { duration: 520, easing: Easing.bounce }), withTiming(0, { duration: 160 }));
+      spin.value = withTiming(1, { duration: 700 });
+      glow.value = withRepeat(withSequence(withTiming(1, { duration: 700 }), withTiming(0.3, { duration: 700 })), -1, false);
+    }
+  }, []);
   const st = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  const lootSt = useAnimatedStyle(() => ({ transform: [{ translateY: dropY.value }, { rotate: `${spin.value * 360}deg` }] }));
+  const glowSt = useAnimatedStyle(() => ({ opacity: glow.value, transform: [{ scale: 1 + glow.value * 0.5 }] }));
   return (
     <View style={styles.combatWrap}>
       <Animated.View style={[styles.rewardCard, { borderColor: accent }, st]}>
-        <Text style={styles.rewardBurst}>✦</Text>
-        <Text style={[styles.rewardTitle, { color: accent }]}>REWARD UNLOCKED</Text>
+        {isLoot ? (
+          <View style={styles.lootHolder}>
+            <Animated.Text style={[styles.lootGlow, { color: accent }, glowSt]}>✦</Animated.Text>
+            <Animated.Text style={[styles.lootItem, lootSt]}>{boss ? "🎖️" : "🌀"}</Animated.Text>
+          </View>
+        ) : (
+          <Text style={styles.rewardBurst}>✦</Text>
+        )}
+        <Text style={[styles.rewardTitle, { color: accent }]}>{isLoot ? "★ LOOT DROP ★" : "REWARD UNLOCKED"}</Text>
         <Text style={styles.rewardLabel}>{label}</Text>
+        {isLoot && <Text style={styles.lootSub}>Equip it in your Locker / Loadout</Text>}
         <Pressable testID="reward-continue" onPress={onClose} style={[styles.primaryBtn, { backgroundColor: accent }]}>
           <Text style={styles.primaryBtnText}>CONTINUE THE JOURNEY</Text>
         </Pressable>
@@ -251,11 +273,12 @@ export default function Journey() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [combatNode, setCombatNode] = useState<any>(null);
-  const [reward, setReward] = useState<string | null>(null);
+  const [reward, setReward] = useState<{ label: string; boss: boolean } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [milestone, setMilestone] = useState<{ lift: string; value: number } | null>(null);
   const [zoneReveal, setZoneReveal] = useState<any>(null);
   const [sfxOn, setSfxOn] = useState(true);
+  const [taunt, setTaunt] = useState<{ id: string; text: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -272,9 +295,28 @@ export default function Journey() {
     setLoading(false);
   }, [token]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { initSfx().then(() => setSfxOn(isSfxEnabled())); }, []);
+  useEffect(() => { initSfx().then(() => setSfxOn(isSfxEnabled())); return () => stopMusic(); }, []);
 
-  const toggleSfx = async () => { const n = !sfxOn; setSfxOn(n); await setSfxEnabled(n); if (n) playSfx("slash"); };
+  useEffect(() => {
+    if (!data) return;
+    if (isSfxEnabled()) startZoneMusic(data?.zone?.index ?? 0);
+    const behind = (data.neighbors || []).filter((n: any) => !n.is_me && !n.ahead);
+    if (behind.length) {
+      const passed = behind.reduce((a: any, b: any) => (b.xp > a.xp ? b : a));
+      const t = setTimeout(() => showTaunt(passed.user_id, true), 900);
+      return () => clearTimeout(t);
+    }
+  }, [data?.zone?.index, data?.me?.xp]);
+
+  const TAUNTS_PASSED = ["You're leaving me behind…", "How?! Get back here!", "Tch. I'll catch up.", "This isn't over, warrior."];
+  const TAUNTS_TAP = ["Respect. Keep climbing.", "Catch me if you can.", "Grind harder.", "See you at the top."];
+  const showTaunt = (id: string, passed = false) => {
+    const pool = passed ? TAUNTS_PASSED : TAUNTS_TAP;
+    setTaunt({ id, text: pool[Math.floor(Math.random() * pool.length)] });
+    setTimeout(() => setTaunt((cur) => (cur?.id === id ? null : cur)), 2600);
+  };
+
+  const toggleSfx = async () => { const n = !sfxOn; setSfxOn(n); await setSfxEnabled(n); if (n) { playSfx("slash"); startZoneMusic(data?.zone?.index ?? 0); } };
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 1600); };
 
@@ -293,7 +335,7 @@ export default function Journey() {
       const res = await apiFetch(token, "/api/quests/claim", { method: "POST", body: JSON.stringify({ quest_id: combatNode.id }) });
       const label = res?.reward_label || combatNode.reward_label || `${combatNode.reward_xp} XP`;
       setCombatNode(null);
-      setReward(label);
+      setReward({ label, boss: !!combatNode.boss });
     } catch (e: any) { setCombatNode(null); flash(e?.message || "Couldn't claim"); }
   };
 
@@ -380,13 +422,18 @@ export default function Journey() {
 
           {/* neighbors lane */}
           {neighbors.filter((nb) => !nb.is_me).map((nb) => (
-            <View key={nb.user_id} style={[styles.neighbor, { left: neighborX(nb.xp) - 18, top: 24 }]}>
+            <Pressable key={nb.user_id} testID={`rival-${nb.user_id}`} onPress={() => showTaunt(nb.user_id)} style={[styles.neighbor, { left: neighborX(nb.xp) - 18, top: 24 }]}>
+              {taunt?.id === nb.user_id && (
+                <View style={[styles.taunt, { borderColor: accent }]}>
+                  <Text style={styles.tauntText}>{taunt?.text}</Text>
+                </View>
+              )}
               <View style={[styles.neighborDot, nb.founder && { borderColor: colors.warning }]}>
                 <Text style={styles.neighborInit}>{(nb.name || "A")[0].toUpperCase()}</Text>
               </View>
               <Text style={styles.neighborName} numberOfLines={1}>{nb.enhanced ? "☣" : ""}{nb.name}</Text>
               <Text style={styles.neighborLv}>Lv{nb.level}</Text>
-            </View>
+            </Pressable>
           ))}
 
           {/* hero */}
@@ -405,7 +452,7 @@ export default function Journey() {
       {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
 
       {combatNode && <Combat node={combatNode} stats={data?.me?.stats} accent={accent} onWin={claim} onClose={() => setCombatNode(null)} />}
-      {reward && <Reward label={reward} accent={accent} onClose={finishReward} />}
+      {reward && <Reward label={reward.label} boss={reward.boss} accent={accent} onClose={finishReward} />}
       {milestone && <MilestoneOverlay lift={milestone.lift} value={milestone.value} accent={accent} token={token} onClose={() => setMilestone(null)} />}
       {zoneReveal && <ZoneReveal zone={zoneReveal} onClose={() => setZoneReveal(null)} />}
     </View>
@@ -429,6 +476,8 @@ const styles = StyleSheet.create({
   nodeIcon: { color: colors.text, fontWeight: "900", fontSize: 16, marginBottom: 24 },
   nodeLabel: { color: colors.textMid, fontSize: 9, textAlign: "center", width: 92, fontWeight: "700" },
   neighbor: { position: "absolute", width: 44, alignItems: "center" },
+  taunt: { position: "absolute", bottom: 44, width: 108, marginLeft: -32, backgroundColor: "rgba(5,5,8,0.95)", borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 4, zIndex: 20 },
+  tauntText: { color: colors.text, fontSize: 9, fontWeight: "700", textAlign: "center" },
   neighborDot: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surface3, borderWidth: 2, borderColor: colors.textDim, alignItems: "center", justifyContent: "center" },
   neighborInit: { color: colors.text, fontWeight: "900", fontSize: 12 },
   neighborName: { color: colors.textMid, fontSize: 8, marginTop: 2, maxWidth: 52, textAlign: "center" },
@@ -471,6 +520,10 @@ const styles = StyleSheet.create({
   // reward
   rewardCard: { width: "88%", alignItems: "center", backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 2, padding: spacing.xl },
   rewardBurst: { fontSize: 46, color: colors.warning },
+  lootHolder: { width: 120, height: 120, alignItems: "center", justifyContent: "center" },
+  lootGlow: { position: "absolute", fontSize: 100 },
+  lootItem: { fontSize: 62 },
+  lootSub: { color: colors.textDim, fontSize: 11, marginBottom: spacing.md, letterSpacing: 1 },
   rewardTitle: { fontWeight: "900", letterSpacing: 3, fontSize: 15, marginTop: spacing.sm },
   rewardLabel: { color: colors.text, fontWeight: "800", fontSize: 18, marginVertical: spacing.lg, textAlign: "center" },
   // milestone
