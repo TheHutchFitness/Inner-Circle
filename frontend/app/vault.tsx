@@ -9,7 +9,7 @@ import { colors, spacing, radius, bgImage } from "@/src/lib/theme";
 
 export default function Vault() {
   const insets = useSafeAreaInsets();
-  const { token, refresh } = useAuth();
+  const { token, refresh, user } = useAuth();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -45,7 +45,7 @@ export default function Vault() {
             {data.backgrounds.map((bg: any) => (
               <Pressable testID={`bg-${bg.id}`} key={bg.id} onPress={() => apply(bg)} style={[styles.bgCard, bg.active && styles.bgActive, !bg.unlocked && styles.bgLocked]}>
                 <View style={styles.bgPreview}>
-                  <Image source={bgImage(bg.id)} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  <Image source={bgImage(bg.id, user?.sex)} style={StyleSheet.absoluteFill} contentFit="cover" />
                   <LinearGradient colors={["transparent", "rgba(5,5,8,0.5)"]} style={StyleSheet.absoluteFill} />
                   {!bg.unlocked && <Text style={styles.lock}>🔒</Text>}
                   {bg.active && <View style={styles.activeTag}><Text style={styles.activeTagText}>ACTIVE</Text></View>}

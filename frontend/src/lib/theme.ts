@@ -69,9 +69,33 @@ export const AVATAR_IMAGES: Record<string, any> = {
   avatar_oni: require("@/assets/images/av_oni.png"),
 };
 
-export function avatarImage(id?: string) {
+export function avatarImage(id?: string, sex?: string) {
+  if (sex === "female") return AVATAR_IMAGES_F[id || ""] || AVATAR_IMAGES[id || ""] || null;
   return AVATAR_IMAGES[id || ""] || null;
 }
+
+// Female character-select portraits (shown when account sex is female)
+export const AVATAR_IMAGES_F: Record<string, any> = {
+  avatar_ronin: require("@/assets/images/av_ronin_f.png"),
+  avatar_kaido: require("@/assets/images/av_kaido_f.png"),
+  avatar_titan: require("@/assets/images/av_titan_f.png"),
+  avatar_saiyan: require("@/assets/images/av_saiyan_f.png"),
+  avatar_demon: require("@/assets/images/av_demon_f.png"),
+  avatar_shinobi: require("@/assets/images/av_shinobi_f.png"),
+  avatar_phoenix: require("@/assets/images/av_phoenix_f.png"),
+  avatar_reaper: require("@/assets/images/av_reaper_f.png"),
+  avatar_wolf: require("@/assets/images/av_wolf_f.png"),
+  avatar_ghost: require("@/assets/images/av_ghost_f.png"),
+  avatar_dragon: require("@/assets/images/av_dragon_f.png"),
+  avatar_berserker: require("@/assets/images/av_berserker_f.png"),
+  avatar_samurai: require("@/assets/images/av_samurai_f.png"),
+  avatar_mecha: require("@/assets/images/av_mecha_f.png"),
+  avatar_thunder: require("@/assets/images/av_thunder_f.png"),
+  avatar_kraken: require("@/assets/images/av_kraken_f.png"),
+  avatar_ace: require("@/assets/images/av_ace_f.png"),
+  avatar_star: require("@/assets/images/av_star_f.png"),
+  avatar_oni: require("@/assets/images/av_oni_f.png"),
+};
 
 export function hasAvatarArt(id?: string) {
   return !!AVATAR_IMAGES[id || ""];
@@ -149,6 +173,20 @@ export const BG_IMAGES: Record<string, any> = {
   bg_freak: require("@/assets/images/bg_freak.png"),
 };
 
-export function bgImage(id?: string) {
+export function bgImage(id?: string, sex?: string) {
+  if (sex === "female") return BG_IMAGES_F[id || "bg_default"] || BG_IMAGES[id || "bg_default"] || BG_IMAGES.bg_default;
   return BG_IMAGES[id || "bg_default"] || BG_IMAGES.bg_default;
 }
+
+// Female tier backgrounds (shown when account sex is female)
+export const BG_IMAGES_F: Record<string, any> = {
+  bg_default: require("@/assets/images/bg_default_f.png"),
+  bg_cyber: require("@/assets/images/bg_cyber_f.png"),
+  bg_toxic: require("@/assets/images/bg_toxic_f.png"),
+  bg_inferno: require("@/assets/images/bg_inferno_f.png"),
+  bg_vanguard: require("@/assets/images/bg_vanguard_f.png"),
+  bg_warrior: require("@/assets/images/bg_warrior_f.png"),
+  bg_boss: require("@/assets/images/bg_boss_f.png"),
+  bg_void: require("@/assets/images/bg_void_f.png"),
+  bg_freak: require("@/assets/images/bg_freak_f.png"),
+};

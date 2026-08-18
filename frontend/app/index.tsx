@@ -15,6 +15,7 @@ export default function Index() {
   const { user, loading, loginEmail, registerEmail, setSession, showIntro } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const [sex, setSex] = useState<"male" | "female" | "other">("male");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -63,7 +64,7 @@ export default function Index() {
     setSubmitting(true);
     try {
       if (mode === "login") await loginEmail(email.trim(), password);
-      else await registerEmail(email.trim(), password, name.trim() || email.split("@")[0]);
+      else await registerEmail(email.trim(), password, name.trim() || email.split("@")[0], sex);
     } catch (e: any) {
       setErr(e.message || "Auth failed");
     } finally {
@@ -145,6 +146,15 @@ export default function Index() {
               autoCapitalize="words"
             />
           )}
+          {mode === "signup" && (
+            <View style={styles.sexRow}>
+              {([["male", "MALE"], ["female", "FEMALE"], ["other", "PREFER NOT"]] as const).map(([v, lbl]) => (
+                <Pressable key={v} testID={`sex-${v}`} onPress={() => setSex(v)} style={[styles.sexBtn, sex === v && styles.sexBtnActive]}>
+                  <Text style={[styles.sexText, sex === v && styles.sexTextActive]}>{lbl}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
           <TextInput
             testID="input-email"
             value={email}
@@ -206,6 +216,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.border, fontSize: 15,
   },
   err: { color: colors.error, marginBottom: spacing.sm, textAlign: "center" },
+  sexRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  sexBtn: { flex: 1, paddingVertical: 12, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
+  sexBtnActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  sexText: { color: colors.textDim, fontWeight: "800", fontSize: 11, letterSpacing: 1 },
+  sexTextActive: { color: colors.brandPrimary },
   primaryBtn: {
     backgroundColor: colors.brandPrimary, paddingVertical: 16, alignItems: "center",
     borderRadius: radius.sm, marginTop: spacing.sm,

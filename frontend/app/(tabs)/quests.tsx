@@ -2,10 +2,47 @@ import { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withSpring } from "react-native-reanimated";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { HudSectionHeader } from "@/src/components/Hud";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
+
+function BossReveal({ data, onClose }: { data: { label: string; title: string }; onClose: () => void }) {
+  const scale = useSharedValue(0.4);
+  const glow = useSharedValue(0.4);
+  useEffect(() => {
+    scale.value = withSpring(1, { damping: 7, stiffness: 120 });
+    glow.value = withRepeat(withSequence(withTiming(1, { duration: 700 }), withTiming(0.45, { duration: 700 })), -1);
+  }, []);
+  const cardSt = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const glowSt = useAnimatedStyle(() => ({ opacity: glow.value }));
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable onPress={onClose} style={rv.wrap}>
+        <Animated.View style={[rv.glow, glowSt]} />
+        <Animated.View style={[rv.card, cardSt]}>
+          <Text style={rv.skull}>☠</Text>
+          <Text style={rv.tag}>BOSS DEFEATED</Text>
+          <Text style={rv.title}>{data.title}</Text>
+          <View style={rv.rewardBox}><Text style={rv.reward}>◈ {data.label}</Text></View>
+          <Text style={rv.hint}>UNLOCKED · tap to continue</Text>
+        </Animated.View>
+      </Pressable>
+    </Modal>
+  );
+}
+const rv = StyleSheet.create({
+  wrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  glow: { position: "absolute", width: 320, height: 320, borderRadius: 160, backgroundColor: "#12B886", opacity: 0.4 },
+  card: { alignItems: "center", padding: spacing.xl, borderRadius: radius.lg, borderWidth: 2, borderColor: "#12B886", backgroundColor: "rgba(4,20,12,0.96)", width: "100%" },
+  skull: { fontSize: 66 },
+  tag: { color: "#12B886", letterSpacing: 6, fontWeight: "900", fontSize: 13, marginTop: spacing.sm },
+  title: { color: colors.text, fontSize: 20, fontWeight: "900", letterSpacing: 1, marginTop: spacing.sm, textAlign: "center" },
+  rewardBox: { marginTop: spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: "#12B886", backgroundColor: "rgba(18,184,134,0.12)" },
+  reward: { color: "#5CF0B4", fontWeight: "900", letterSpacing: 1, fontSize: 15, textAlign: "center" },
+  hint: { color: colors.textDim, letterSpacing: 2, fontSize: 11, marginTop: spacing.lg },
+});
 
 const SCOPES = [
   { key: "daily", label: "DAILY" },
@@ -31,6 +68,7 @@ export default function Quests() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any>(null);
   const [claiming, setClaiming] = useState(false);
+  const [bossReveal, setBossReveal] = useState<{ label: string; title: string } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [personal, setPersonal] = useState<any>(null);
   const [goalText, setGoalText] = useState("");
@@ -78,13 +116,17 @@ export default function Quests() {
     setClaiming(true);
     try {
       const res = await apiFetch(token, "/api/quests/claim", { method: "POST", body: JSON.stringify({ quest_id: q.id }) });
-      setToast(`REWARD CLAIMED · ${res.reward}`);
       await refresh();
       await load();
       setSelected(null);
-    } catch (e: any) { setToast(e.message); }
+      if (String(q.id).startsWith("boss")) {
+        setBossReveal({ label: res.reward || q.reward_label, title: q.title });
+      } else {
+        setToast(`REWARD CLAIMED · ${res.reward}`);
+        setTimeout(() => setToast(null), 2600);
+      }
+    } catch (e: any) { setToast(e.message); setTimeout(() => setToast(null), 2600); }
     setClaiming(false);
-    setTimeout(() => setToast(null), 2600);
   };
 
   const scopes = scope === "all" ? ["daily", "weekly", "monthly", "boss"] : [scope];
@@ -243,6 +285,8 @@ export default function Quests() {
           </View>
         </View>
       </Modal>
+
+      {bossReveal && <BossReveal data={bossReveal} onClose={() => setBossReveal(null)} />}
     </View>
     </SwipeTabs>
   );

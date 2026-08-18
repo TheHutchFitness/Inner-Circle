@@ -1,0 +1,30 @@
+{
+  "summary": "Frontend UI verified for three flows on mobile viewport (390x844) with elite@test.com. (1) Plan-to-Workout: coach reply arrived, SAVE TO TRAIN toggled to '✓ SAVED TO TRAIN', TRAIN tab showed coach-plan-start-<id> button, tapping it opened an active editable session (finish-workout + add-exercise present) — WORKS. (2) Female visuals: profile-sex-female flipped the background image src from bg_default.png → bg_default_f.png and the avatar picker rendered female art variants; revert to profile-sex-male returned the src to bg_default.png exactly (byte-for-byte match) — WORKS. (3) Boss quest tab: '☠ BOSS' chip renders 2 boss quests (boss_frame, boss_bg), modal opens without crash, CLAIM REWARD button is disabled (aria-disabled=true, opacity 0.5) showing 'OBJECTIVES INCOMPLETE' — WORKS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "coach.tsx startCoachPlan parser", "issue": "Parser produced 56 'exercises' when starting the saved 3-day PPL plan. It appears to be picking up narrative / description lines from the LLM response (only filters lines starting with day/week/phase/warm/cool/rest/note/superset/circuit and length<3 or >44). Real exercise-only lines for a 3-day PPL should be ~18. The session is still editable so the user can delete extras, but the UX is noisy.", "testID": "coach-plan-start-<plan_id>", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "React Native Web deprecations", "issue": "Console warnings: 'textShadow*' style props deprecated (use textShadow), 'shadow*' style props deprecated (use boxShadow), 'props.pointerEvents is deprecated (use style.pointerEvents)'. Non-blocking but should be addressed for RN 0.75+ / web parity."}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_15.json"],
+  "action_items": [
+    "Consider tightening the coach-plan text→exercise parser in workout.tsx::startCoachPlan so it doesn't emit 50+ items from a normal PPL plan (e.g., require a NxM sets/reps pattern OR match against a known exercise-name list; drop items >32 chars; skip lines with prose punctuation).",
+    "(Optional cleanup) Migrate textShadow*/shadow*/pointerEvents style props to the non-deprecated forms to silence RN 0.75 web warnings."
+  ],
+  "critical_code_review_comments": [
+    "coach.tsx auth token is not persisted across a full page reload on web — direct URL navigation to /coach, /workout, /profile after login lands the user back on the login screen. Not blocking (in-app tab navigation works), but persisting the token (AsyncStorage/web localStorage in useAuth) would make deep-linking + refresh survive.",
+    "startCoachPlan (workout.tsx:114) — parser is loose; see action item #1."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100% (3/3 requested flows)"},
+  "seed_data_creation": "None. Reused elite@test.com. A new coach plan (plan_3d0247c6f48e) was saved during the test; safe to keep or delete.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use in-app tab navigation (tap TRAIN/ME/QUESTS text at the bottom tab bar) after login — do NOT use page.goto() between screens, as the auth token in useAuth is in-memory only and a hard nav drops the user back to the login screen. Home entry to AI COACH is via text 'AI COACH' on the Home landing.",
+  "rca_of_issue": "n/a — all requested flows work."
+}

@@ -7,7 +7,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { VoiceButton } from "@/src/components/VoiceButton";
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { colors, spacing, radius } from "@/src/lib/theme";
+
+const API = process.env.EXPO_PUBLIC_BACKEND_URL;
+let coachPlayer: any = null;
+async function speakCoach(url: string) {
+  try {
+    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+    if (coachPlayer) { try { coachPlayer.remove(); } catch {} }
+    coachPlayer = createAudioPlayer({ uri: `${API}${url}` });
+    coachPlayer.play();
+  } catch {}
+}
 
 const SUGGESTIONS = [
   "Build me a 4-day push/pull/legs split",
@@ -26,6 +38,7 @@ export default function Coach() {
   const [loaded, setLoaded] = useState(false);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const scrollRef = useRef<ScrollView>(null);
+  const voiceRef = useRef(false);
 
   const savePlan = async (m: any) => {
     try {
@@ -56,6 +69,10 @@ export default function Coach() {
     try {
       const reply = await apiFetch(token, "/api/coach/messages", { method: "POST", body: JSON.stringify({ text: body }) });
       setMessages((m) => [...m, reply]);
+      if (voiceRef.current) {
+        voiceRef.current = false;
+        try { const t = await apiFetch(token, "/api/coach/tts", { method: "POST", body: JSON.stringify({ text: reply.text }) }); speakCoach(t.url); } catch {}
+      }
     } catch (e: any) {
       setMessages((m) => [...m, { msg_id: `err_${Date.now()}`, role: "assistant", text: "⚠️ " + (e?.message || "Coach is unavailable right now — try again.") }]);
     }
@@ -113,7 +130,7 @@ export default function Coach() {
       </ScrollView>
 
       <View style={[styles.inputRow, { paddingBottom: spacing.md + insets.bottom }]}>
-        <VoiceButton onTranscript={(t: string) => setText((prev) => (prev ? prev + " " : "") + t)} onError={() => {}} />
+        <VoiceButton onTranscript={(t: string) => { voiceRef.current = true; setText((prev) => (prev ? prev + " " : "") + t); }} onError={() => {}} />
         <TextInput
           testID="coach-input"
           style={styles.input}

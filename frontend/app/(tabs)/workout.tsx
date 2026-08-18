@@ -99,8 +99,7 @@ export default function WorkoutScreen() {
   };
 
   // Re-use a past workout: preload its exercises + sets, all still editable
-  const repeatWorkout = (w: any) => {
-    setActive({
+  const repeatWorkout = (w: any) => {    setActive({
       templateName: w.workout_name || "Workout",
       splitKey: w.split_type || "custom",
       exercises: (w.exercises || []).map((ex: any) => ({
@@ -108,6 +107,26 @@ export default function WorkoutScreen() {
         sets: (ex.sets || []).map((s: any) => ({ reps: s.reps ?? 8, weight_lb: s.weight_lb ?? 0, rpe: s.rpe ?? 7 })),
       })),
     });
+    setSummary(null); setRating(0); setCritique(""); setNotice(null);
+  };
+
+  // Turn a saved Coach Plan into a tap-to-start logged workout
+  const startCoachPlan = (plan: any) => {
+    const lines = (plan.text || "").split("\n").map((l: string) => l.trim()).filter(Boolean);
+    const exercises: any[] = [];
+    for (const raw of lines) {
+      const l = raw.replace(/^[-•*\d.)\s]+/, "").trim();
+      if (l.length < 3 || /^(day|week|phase|warm|cool|rest|note|superset|circuit)/i.test(l)) continue;
+      const m = l.match(/(\d+)\s*[xX]\s*(\d+)/);
+      if (!m) continue; // only include real prescribed exercise lines (Name SxR)
+      const S = Math.min(8, Math.max(1, parseInt(m[1]))); const R = parseInt(m[2]);
+      const name = (l.slice(0, m.index).replace(/[:\-–]\s*$/, "").trim() || l).slice(0, 44);
+      const sets: SetT[] = [];
+      for (let i = 0; i < S; i++) sets.push({ reps: R, weight_lb: 0, rpe: 7 });
+      exercises.push({ name, sets });
+    }
+    if (exercises.length === 0) exercises.push({ name: plan.title, sets: [] as SetT[] });
+    setActive({ templateName: plan.title, splitKey: "coach", exercises });
     setSummary(null); setRating(0); setCritique(""); setNotice(null);
   };
 
@@ -367,6 +386,9 @@ export default function WorkoutScreen() {
                 </Pressable>
               </View>
               <Text style={styles.coachPlanText}>{p.text}</Text>
+              <Pressable testID={`coach-plan-start-${p.plan_id}`} onPress={() => startCoachPlan(p)} style={styles.coachPlanStart}>
+                <Text style={styles.coachPlanStartText}>▶ START WORKOUT</Text>
+              </Pressable>
             </View>
           ))}
         </>
@@ -528,6 +550,8 @@ const styles = StyleSheet.create({
   coachPlanTitle: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, flex: 1 },
   coachPlanDel: { color: colors.textDim, fontSize: 16, fontWeight: "900", paddingLeft: spacing.md },
   coachPlanText: { color: colors.textMid, marginTop: spacing.sm, lineHeight: 20 },
+  coachPlanStart: { marginTop: spacing.md, backgroundColor: colors.brandPrimary, paddingVertical: 12, alignItems: "center", borderRadius: radius.sm },
+  coachPlanStartText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },
   monthlyTitle: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 13 },
   monthlySub: { color: colors.textDim, marginTop: 4, lineHeight: 18, fontSize: 12 },
   monthlyProgress: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 1, fontWeight: "800", marginTop: 4 },

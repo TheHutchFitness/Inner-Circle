@@ -52,6 +52,7 @@ class RegisterInput(BaseModel):
     email: EmailStr
     password: str
     display_name: str
+    sex: Optional[Literal["male", "female", "other"]] = None
 
 class LoginInput(BaseModel):
     email: EmailStr
@@ -377,6 +378,8 @@ async def register(inp: RegisterInput):
         raise HTTPException(status_code=400, detail="Email already registered")
     doc = default_user_doc(inp.email, inp.display_name)
     doc["password_hash"] = hash_password(inp.password)
+    if inp.sex:
+        doc["sex"] = inp.sex
     await db.users.insert_one(doc)
     token = await create_session(doc["user_id"])
     doc.pop("password_hash", None)
@@ -2358,6 +2361,33 @@ async def coach_send(inp: CoachMessageIn, user=Depends(get_current_user)):
 async def coach_clear(user=Depends(get_current_user)):
     await db.coach_messages.delete_many({"user_id": user["user_id"]})
     return {"ok": True}
+
+@api_router.post("/coach/tts")
+async def coach_tts(inp: CoachMessageIn, user=Depends(get_current_user)):
+    import re as _re
+    text = _re.sub(r"https?://\S+", "", inp.text or "")
+    text = _re.sub(r"[*_#>~|`]", "", text)
+    text = _re.sub(r"\s+", " ", text).strip()[:4000]
+    if not text:
+        raise HTTPException(status_code=400, detail="Nothing to speak")
+    try:
+        from emergentintegrations.llm.openai import OpenAITextToSpeech
+        tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
+        audio = await tts.generate_speech(text=text, model="tts-1", voice="onyx")
+    except Exception:
+        logger.exception("Coach TTS failed")
+        raise HTTPException(status_code=502, detail="Voice unavailable")
+    tid = new_id("tts")
+    await db.coach_tts.insert_one({"tts_id": tid, "audio": audio, "created_at": datetime.now(timezone.utc)})
+    return {"url": f"/api/coach/tts/{tid}.mp3"}
+
+@api_router.get("/coach/tts/{tid}.mp3")
+async def coach_tts_get(tid: str):
+    from fastapi import Response
+    row = await db.coach_tts.find_one({"tts_id": tid})
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    return Response(content=row["audio"], media_type="audio/mpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
 # ---------- Save Plan (store a coach-generated plan, show in Train) ----------

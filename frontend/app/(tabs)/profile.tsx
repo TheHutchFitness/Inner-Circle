@@ -48,7 +48,7 @@ export default function Profile() {
   const av = avatarFor(user.avatar_id);
   const rank = user.rank || "Beginner";
   const rankColor = RANK_COLORS[rank];
-  const portrait = avatarImage(user.avatar_id);
+  const portrait = avatarImage(user.avatar_id, user.sex);
   const bossFrameUnlocked = (user.extra_unlocks || []).includes("frame_boss");
   const frame = CARD_FRAMES[user.active_frame]
     || ((bossFrameUnlocked && rankIndex(rank) < 5) ? CARD_FRAMES.Boss : frameFor(rank));
@@ -178,6 +178,20 @@ export default function Profile() {
             <View style={styles.info}><Text style={styles.infoL}>STREAK</Text><Text style={styles.infoV}>{user.streak_days}d</Text></View>
           </View>
 
+          <Text style={styles.genderLabel}>GENDER · CHANGES YOUR AVATARS & BACKGROUNDS</Text>
+          <View style={styles.genderRow}>
+            {([["male", "MALE"], ["female", "FEMALE"], ["other", "PREFER NOT"]] as const).map(([v, lbl]) => (
+              <Pressable
+                key={v}
+                testID={`profile-sex-${v}`}
+                onPress={async () => { try { await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ sex: v }) }); await refresh(); } catch {} }}
+                style={[styles.genderBtn, (user.sex || "male") === v && styles.genderBtnActive]}
+              >
+                <Text style={[styles.genderText, (user.sex || "male") === v && styles.genderTextActive]}>{lbl}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           <HudSectionHeader label="PR VAULT" />
           <View style={styles.grid}>
             {[["BENCH", "bench"], ["SQUAT", "squat"], ["DEADLIFT", "deadlift"], ["OHP", "ohp"]].map(([label, key]) => (
@@ -227,7 +241,7 @@ export default function Profile() {
             <Text style={styles.modalTitle}>SELECT CLASS</Text>
             <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={styles.avatarGrid}>
               {AVATARS.map((a) => {
-                const img = avatarImage(a.id);
+                const img = avatarImage(a.id, user.sex);
                 return (
                   <Pressable testID={`avatar-${a.id}`} key={a.id} onPress={() => pickAvatar(a.id)} style={[styles.avOpt, user.avatar_id === a.id && styles.avOptSel]}>
                     {img ? <Image source={img} style={styles.avImg} contentFit="cover" /> : <View style={styles.avEmojiWrap}><Text style={{ fontSize: 30 }}>{a.emoji}</Text></View>}
@@ -371,4 +385,10 @@ const styles = StyleSheet.create({
   frameSwatch: { width: 42, height: 56, borderRadius: radius.sm, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   frameOptName: { color: colors.text, fontWeight: "900", letterSpacing: 1 },
   frameOptRank: { color: colors.textDim, fontSize: 10, letterSpacing: 2, marginTop: 2, fontWeight: "700" },
+  genderLabel: { color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "800", marginTop: spacing.md, marginBottom: spacing.sm, paddingHorizontal: spacing.lg },
+  genderRow: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  genderBtn: { flex: 1, paddingVertical: 12, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  genderBtnActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  genderText: { color: colors.textDim, fontWeight: "800", fontSize: 11, letterSpacing: 1 },
+  genderTextActive: { color: colors.brandPrimary },
 });

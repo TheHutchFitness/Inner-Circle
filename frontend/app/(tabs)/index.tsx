@@ -52,7 +52,7 @@ export default function Dashboard() {
   return (
     <SwipeTabs current="index">
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
-      <Image source={bgImage(user.active_background)} style={styles.bgArt} contentFit="cover" />
+      <Image source={bgImage(user.active_background, user.sex)} style={styles.bgArt} contentFit="cover" />
       <LinearGradient
         colors={["rgba(5,5,8,0.35)", "rgba(5,5,8,0.85)", colors.surface]}
         locations={[0, 0.5, 0.82]}
@@ -78,8 +78,8 @@ export default function Dashboard() {
       <LinearGradient colors={[colors.brandTertiary, colors.surface2]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.heroCard}>
         <View style={styles.heroRow}>
           <View style={[styles.avatarBox, { borderColor: rankColor }]}>
-            {avatarImage(user.avatar_id) ? (
-              <Image source={avatarImage(user.avatar_id)} style={styles.avatarImg} contentFit="cover" />
+            {avatarImage(user.avatar_id, user.sex) ? (
+              <Image source={avatarImage(user.avatar_id, user.sex)} style={styles.avatarImg} contentFit="cover" />
             ) : (
               <Text style={styles.avatarEmoji}>{avatar.emoji}</Text>
             )}

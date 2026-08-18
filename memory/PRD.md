@@ -101,3 +101,9 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - AI COACH chat (Home CTA -> /coach): multi-turn training & nutrition assistant on OpenAI GPT-5.4 via emergentintegrations (EMERGENT_LLM_KEY). History persisted per user in `coach_messages`; recent transcript replayed for context. Backend: GET/POST/DELETE /api/coach/messages. Replies constrained to plain text (no markdown) for clean chat bubbles.
 - The Judge upload now requires email/phone verification (same gate as chat media).
 - Login cover: glitch removed; kept TV static + Pip-Boy scan-line sweep.
+
+## Implemented (2026-06 — Boss Reveal / Plan-to-Workout / Coach Voice / Female visuals)
+- Boss Reward Reveal: claiming a Boss quest plays an animated "BOSS DEFEATED" unlock reveal (reanimated pop + pulsing glow) showing the earned frame/background.
+- Plan to Workout: saved Coach Plans on Train have a "START WORKOUT" button that parses the plan text (Name SxR) into a live, editable logged workout.
+- Coach Voice Reply: when a question is asked via the mic, the coach's answer is read aloud (OpenAI TTS tts-1 voice 'onyx'; backend /api/coach/tts + /api/coach/tts/{id}.mp3, played via expo-audio).
+- Female visuals: `sex` set at sign-up (Male/Female/Prefer-not) and in ME/Profile. Female accounts get female versions of ALL avatars + ALL tier backgrounds (28 Nano-Banana images, *_f.png). Male/default keeps existing art. Gender-aware avatarImage(id,sex)/bgImage(id,sex) applied to current-user render spots (Home, Profile card + avatar picker, Vault, Progression, HeroIntro).

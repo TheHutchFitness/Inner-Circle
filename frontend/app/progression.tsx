@@ -95,7 +95,7 @@ export default function Progression() {
             <View style={styles.bgGrid}>
               {data.backgrounds.map((bg: any) => (
                 <View key={bg.id} testID={`bg-${bg.id}`} style={[styles.bgCard, !bg.unlocked && styles.dim]}>
-                  <Image source={bgImage(bg.id)} style={styles.bgThumb} contentFit="cover" />
+                  <Image source={bgImage(bg.id, user?.sex)} style={styles.bgThumb} contentFit="cover" />
                   <View style={styles.bgOverlay}>
                     <Text style={styles.bgName}>{bg.name}</Text>
                     {bg.perk_rank && <Text style={styles.bgPerk}>{bg.perk_rank.toUpperCase()} PERK</Text>}

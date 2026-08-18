@@ -15,7 +15,7 @@ export function HeroIntro({ user, mode, onDone }: { user: any; mode: "signup" | 
   const total = isSignup ? 4600 : 1600;
   const rank = user?.rank || "Beginner";
   const rankColor = RANK_COLORS[rank] || "#00E5FF";
-  const portrait = avatarImage(user?.avatar_id);
+  const portrait = avatarImage(user?.avatar_id, user?.sex);
   const av = avatarFor(user?.avatar_id);
 
   const [done, setDone] = useState(false);

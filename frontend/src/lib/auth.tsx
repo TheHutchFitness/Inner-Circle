@@ -18,7 +18,7 @@ interface AuthCtx {
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
   loginEmail: (email: string, password: string) => Promise<void>;
-  registerEmail: (email: string, password: string, name: string) => Promise<void>;
+  registerEmail: (email: string, password: string, name: string, sex?: string) => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -89,11 +89,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIntro({ mode: "login" });
   }, [setSession]);
 
-  const registerEmail = useCallback(async (email: string, password: string, name: string) => {
+  const registerEmail = useCallback(async (email: string, password: string, name: string, sex?: string) => {
     const r = await fetch(`${API}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, display_name: name }),
+      body: JSON.stringify({ email, password, display_name: name, sex }),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
