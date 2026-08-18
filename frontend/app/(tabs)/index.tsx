@@ -31,6 +31,7 @@ export default function Dashboard() {
   const router = useRouter();
   const [suggestion, setSuggestion] = useState<any>(null);
   const [programAlert, setProgramAlert] = useState<any>(null);
+  const [nextDose, setNextDose] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -43,6 +44,13 @@ export default function Dashboard() {
       try { setProgramAlert(await apiFetch(token, "/api/custom-program/alert")); } catch {}
     })();
   }, [token]);
+
+  useEffect(() => {
+    if (!user?.enhanced) { setNextDose(null); return; }
+    (async () => {
+      try { setNextDose(await apiFetch(token, "/api/enhanced/next-dose")); } catch {}
+    })();
+  }, [token, user?.enhanced]);
 
   if (!user) return null;
   const avatar = avatarFor(user.avatar_id);
@@ -157,7 +165,7 @@ export default function Dashboard() {
       <HudSectionHeader label="ROOMS" />
       <Pressable testID="open-athletes-center" onPress={() => router.push("/athletes-center")} style={[styles.ctaCard, !canAthletesCenter && styles.locked]}>
         <View>
-          <Text style={styles.ctaTitle}>ATHLETE'S CENTER {canAthletesCenter ? "" : "🔒"}</Text>
+          <Text style={styles.ctaTitle}>{`ATHLETE'S CENTER ${canAthletesCenter ? "" : "🔒"}`}</Text>
           <Text style={styles.ctaSub}>AI-built custom programs · Advanced+</Text>
         </View>
         <Text style={styles.ctaArrow}>▶</Text>
@@ -210,6 +218,23 @@ export default function Dashboard() {
         </View>
         <Text style={styles.enhancedArrow}>▶</Text>
       </Pressable>
+
+      {user?.enhanced && nextDose?.active && (
+        <Pressable testID="protocol-reminder" onPress={() => router.push("/enhanced")} style={styles.doseCard}>
+          <View style={styles.doseHead}>
+            <Text style={styles.doseTitle}>{`⏱ TODAY'S PROTOCOL · ${nextDose.today}`}</Text>
+            {nextDose.due_count > 0 && <View style={styles.doseBadge}><Text style={styles.doseBadgeText}>{nextDose.due_count} DUE</Text></View>}
+          </View>
+          {(nextDose.items || []).slice(0, 5).map((it: any, i: number) => (
+            <View key={i} style={styles.doseRow}>
+              <View style={[styles.doseDot, it.due_today ? styles.doseDotOn : styles.doseDotOff]} />
+              <Text style={[styles.doseName, !it.due_today && styles.doseNameDim]} numberOfLines={1}>{it.name}</Text>
+              <Text style={styles.doseMeta} numberOfLines={1}>{it.due_today ? `${it.dosage} · today` : it.schedule || "—"}</Text>
+            </View>
+          ))}
+          {nextDose.due_count === 0 && <Text style={styles.doseRest}>No doses scheduled today — recovery day.</Text>}
+        </Pressable>
+      )}
 
       <Pressable testID="open-custom-program" onPress={() => router.push("/custom-program")} style={styles.customProgCta}>
         <View style={{ flex: 1 }}>
@@ -298,6 +323,19 @@ const styles = StyleSheet.create({
   enhancedTitle: { color: "#FF2A3C", fontWeight: "900", letterSpacing: 1, fontSize: 15 },
   enhancedSub: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   enhancedArrow: { color: "#FF2A3C", fontSize: 14 },
+  doseCard: { marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: "#FF2A3C", backgroundColor: "rgba(255,42,60,0.06)" },
+  doseHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  doseTitle: { color: "#FF2A3C", fontWeight: "900", letterSpacing: 1, fontSize: 11 },
+  doseBadge: { backgroundColor: "#FF2A3C", borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  doseBadgeText: { color: "#fff", fontWeight: "900", fontSize: 9, letterSpacing: 1 },
+  doseRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  doseDot: { width: 8, height: 8, borderRadius: 4 },
+  doseDotOn: { backgroundColor: "#FF2A3C" },
+  doseDotOff: { backgroundColor: colors.border },
+  doseName: { color: colors.text, fontWeight: "800", fontSize: 12, flex: 1 },
+  doseNameDim: { color: colors.textDim, fontWeight: "600" },
+  doseMeta: { color: colors.textDim, fontSize: 10, maxWidth: 130, textAlign: "right" },
+  doseRest: { color: colors.textDim, fontSize: 11, marginTop: 4, fontStyle: "italic" },
   customProgSub: { color: colors.textMid, fontSize: 11, marginTop: 4, letterSpacing: 1, lineHeight: 16 },
   customProgArrow: { color: colors.warning, fontSize: 18, marginLeft: spacing.sm },
   premiumCta: { marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.md, alignItems: "center" },

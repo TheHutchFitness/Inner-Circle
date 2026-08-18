@@ -64,7 +64,7 @@ export default function Settings() {
         </Pressable>
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>SKOOL VERIFICATION</Text>
-        <Text style={styles.helper}>Get your access code from the Hutch's Inner Circle Skool community. Members enter the code below to unlock chatrooms + AI.</Text>
+        <Text style={styles.helper}>{"Get your access code from the Hutch's Inner Circle Skool community. Members enter the code below to unlock chatrooms + AI."}</Text>
         <TextInput testID="s-skool-code" value={code} onChangeText={setCode} placeholder="Enter 4-digit code" placeholderTextColor={colors.textDim} style={styles.input} keyboardType="number-pad" maxLength={4} />
         <Pressable testID="verify-skool" onPress={verifySkool} style={styles.primary}>
           <Text style={styles.primaryText}>VERIFY MEMBERSHIP</Text>

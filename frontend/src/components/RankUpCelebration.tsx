@@ -34,7 +34,7 @@ export function RankUpCelebration({ visible, fromRank, toRank, background, onClo
               <Text style={[styles.arrow, { color: rankColor }]}>⟶</Text>
               <Text style={[styles.toRank, { color: rankColor }]}>{toRank?.toUpperCase()}</Text>
             </View>
-            <Text style={styles.sub}>You've crossed the threshold. New protocols and rewards await.</Text>
+            <Text style={styles.sub}>{"You've crossed the threshold. New protocols and rewards await."}</Text>
             {background && (
               <View style={styles.perkWrap}>
                 <Image source={bgImage(background.id)} style={styles.perkImg} contentFit="cover" />
@@ -46,7 +46,7 @@ export function RankUpCelebration({ visible, fromRank, toRank, background, onClo
                 </View>
               </View>
             )}
-            <Text style={styles.brand}>HUTCH'S INNER CIRCLE</Text>
+            <Text style={styles.brand}>{"HUTCH'S INNER CIRCLE"}</Text>
           </LinearGradient>
         </Animated.View>
         <Pressable testID="rankup-close" onPress={onClose} style={styles.closeBtn}>

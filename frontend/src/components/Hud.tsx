@@ -27,7 +27,7 @@ export function HudSectionHeader({ label, accent = colors.brandPrimary }: { labe
       <Text style={[styles.sectionChevron, { color: accent }]}>▚</Text>
       <Text style={styles.sectionLabel}>{label}</Text>
       <View style={[styles.sectionLine, { backgroundColor: accent }]} />
-      <Text style={[styles.sectionSlash, { color: accent }]}>//</Text>
+      <Text style={[styles.sectionSlash, { color: accent }]}>{"//"}</Text>
     </View>
   );
 }

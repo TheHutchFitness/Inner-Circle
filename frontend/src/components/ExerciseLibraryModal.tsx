@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Modal, ScrollView, Pressable, TextInput, Activi
 import { apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 
-type Ex = { name: string; category: string };
+type Ex = { name: string; category: string; desc?: string };
 
 export function ExerciseLibraryModal({
   visible, onClose, onAdd, token,
@@ -95,7 +95,10 @@ export function ExerciseLibraryModal({
                     const on = sel.includes(e.name);
                     return (
                       <Pressable testID={`lib-ex-${e.name}`} key={e.name} onPress={() => toggle(e.name)} style={[styles.row, on && styles.rowOn]}>
-                        <Text style={[styles.rowName, on && styles.rowNameOn]}>{e.name}</Text>
+                        <View style={{ flex: 1, paddingRight: spacing.sm }}>
+                          <Text style={[styles.rowName, on && styles.rowNameOn]}>{e.name}</Text>
+                          {!!e.desc && <Text style={styles.rowDesc}>{e.desc}</Text>}
+                        </View>
                         <View style={[styles.check, on && styles.checkOn]}>{on && <Text style={styles.checkMark}>✓</Text>}</View>
                       </Pressable>
                     );
@@ -129,8 +132,9 @@ const styles = StyleSheet.create({
   cat: { color: colors.textDim, letterSpacing: 3, fontWeight: "800", fontSize: 11, marginTop: spacing.md, marginBottom: 6 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, paddingHorizontal: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginBottom: 6 },
   rowOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
-  rowName: { color: colors.text, fontWeight: "600", flex: 1 },
+  rowName: { color: colors.text, fontWeight: "600" },
   rowNameOn: { color: colors.brandPrimary, fontWeight: "800" },
+  rowDesc: { color: colors.textDim, fontSize: 11, lineHeight: 15, marginTop: 3 },
   check: { width: 24, height: 24, borderRadius: 6, borderWidth: 1, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
   checkOn: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
   checkMark: { color: "#001122", fontWeight: "900" },

@@ -863,86 +863,126 @@ async def list_programs(user=Depends(get_current_user)):
 # ---------- Exercise Library + Split Templates ----------
 EXERCISE_LIBRARY = [
     # Chest
-    {"name": "Barbell Bench Press", "category": "Chest"},
-    {"name": "Incline Barbell Bench Press", "category": "Chest"},
-    {"name": "Decline Barbell Bench Press", "category": "Chest"},
-    {"name": "Dumbbell Bench Press", "category": "Chest"},
-    {"name": "Incline Dumbbell Press", "category": "Chest"},
-    {"name": "Machine Chest Press", "category": "Chest"},
-    {"name": "Cable Fly", "category": "Chest"},
-    {"name": "Pec Deck", "category": "Chest"},
-    {"name": "Dumbbell Fly", "category": "Chest"},
-    {"name": "Push-Up", "category": "Chest"},
-    {"name": "Weighted Dip", "category": "Chest"},
+    {"name": "Barbell Bench Press", "category": "Chest", "desc": "The primary flat-bench press. Retract your shoulder blades and drive the bar over mid-chest for max pec and triceps power."},
+    {"name": "Incline Barbell Bench Press", "category": "Chest", "desc": "Bench set to 30-45 degrees to emphasize the upper chest and front delts."},
+    {"name": "Decline Barbell Bench Press", "category": "Chest", "desc": "Bench angled downward to bias the lower-chest fibers."},
+    {"name": "Dumbbell Bench Press", "category": "Chest", "desc": "Flat press with dumbbells for a deeper stretch and even left/right development."},
+    {"name": "Incline Dumbbell Press", "category": "Chest", "desc": "Inclined dumbbell press that hits the upper chest with a bigger range of motion."},
+    {"name": "Machine Chest Press", "category": "Chest", "desc": "Fixed-path press, great for controlled volume and chasing a safe pump."},
+    {"name": "Cable Fly", "category": "Chest", "desc": "Standing cable flyes that keep constant tension across the chest through the full arc."},
+    {"name": "Pec Deck", "category": "Chest", "desc": "Seated machine flye that isolates the chest on a joint-friendly path."},
+    {"name": "Dumbbell Fly", "category": "Chest", "desc": "Flat-bench flye with a wide arc for a strong pec stretch and squeeze."},
+    {"name": "Push-Up", "category": "Chest", "desc": "Bodyweight press. Keep a tight plank and lower your chest to the floor."},
+    {"name": "Weighted Dip", "category": "Chest", "desc": "Dip leaning forward with added load to build the lower chest and triceps."},
+    {"name": "Incline Machine Press", "category": "Chest", "desc": "Machine incline press for stable, high-volume upper-chest work."},
+    {"name": "Cable Crossover", "category": "Chest", "desc": "Cables pulled down and together to target the lower and inner chest."},
+    {"name": "Landmine Press", "category": "Chest", "desc": "One-arm press with a barbell in a landmine, a shoulder-friendly upper-chest builder."},
+    {"name": "Smith Machine Bench Press", "category": "Chest", "desc": "Guided-bar bench for controlled pressing and safe overload."},
     # Back
-    {"name": "Deadlift", "category": "Back"},
-    {"name": "Barbell Row", "category": "Back"},
-    {"name": "Pendlay Row", "category": "Back"},
-    {"name": "T-Bar Row", "category": "Back"},
-    {"name": "Chest-Supported Row", "category": "Back"},
-    {"name": "Seated Cable Row", "category": "Back"},
-    {"name": "Lat Pulldown", "category": "Back"},
-    {"name": "Pulldowns", "category": "Back"},
-    {"name": "Pull-Up", "category": "Back"},
-    {"name": "Chin-Up", "category": "Back"},
-    {"name": "Dumbbell Row", "category": "Back"},
-    {"name": "Face Pull", "category": "Back"},
-    {"name": "Straight-Arm Pulldown", "category": "Back"},
-    {"name": "Rack Pull", "category": "Back"},
+    {"name": "Deadlift", "category": "Back", "desc": "The king of pulls. Hinge and drive the floor away to build the entire posterior chain."},
+    {"name": "Barbell Row", "category": "Back", "desc": "Bent-over row pulling to the lower ribs for mid-back thickness."},
+    {"name": "Pendlay Row", "category": "Back", "desc": "Explosive row from a dead stop on the floor every rep. Strict and powerful."},
+    {"name": "T-Bar Row", "category": "Back", "desc": "Chest-supported or landmine row for heavy mid-back loading."},
+    {"name": "Chest-Supported Row", "category": "Back", "desc": "Row with your torso braced on a pad to remove momentum and isolate the back."},
+    {"name": "Seated Cable Row", "category": "Back", "desc": "Seated row with a neutral grip. Squeeze the shoulder blades together at the back."},
+    {"name": "Lat Pulldown", "category": "Back", "desc": "Vertical pull to the collarbone that builds lat width."},
+    {"name": "Pulldowns", "category": "Back", "desc": "General cable pulldown variation for lat width and control."},
+    {"name": "Pull-Up", "category": "Back", "desc": "Bodyweight vertical pull. Dead-hang to chin-over-bar for lats and grip."},
+    {"name": "Chin-Up", "category": "Back", "desc": "Underhand pull-up that biases the lats and biceps."},
+    {"name": "Dumbbell Row", "category": "Back", "desc": "Single-arm braced row for a big stretch and balanced unilateral work."},
+    {"name": "Face Pull", "category": "Back", "desc": "Rope pull to the face for rear delts and healthier shoulders."},
+    {"name": "Straight-Arm Pulldown", "category": "Back", "desc": "Lat isolation with straight arms sweeping the bar toward your thighs."},
+    {"name": "Rack Pull", "category": "Back", "desc": "Partial deadlift from pins to overload the top-end pull and traps."},
+    {"name": "Meadows Row", "category": "Back", "desc": "Landmine single-arm row with a big stretch across the lats."},
+    {"name": "Inverted Row", "category": "Back", "desc": "Bodyweight horizontal row under a fixed bar, scalable for any level."},
+    {"name": "Machine Row", "category": "Back", "desc": "Plate- or pin-loaded row on a fixed path for easy progressive overload."},
+    {"name": "Snatch-Grip Deadlift", "category": "Back", "desc": "Wide-grip deadlift that increases range of motion and upper-back demand."},
+    {"name": "Reverse Pec Deck", "category": "Back", "desc": "Machine rear-delt flye for the upper back and posture."},
     # Shoulders
-    {"name": "Overhead Press", "category": "Shoulders"},
-    {"name": "Seated Dumbbell Press", "category": "Shoulders"},
-    {"name": "Arnold Press", "category": "Shoulders"},
-    {"name": "Lateral Raise", "category": "Shoulders"},
-    {"name": "Cable Lateral Raise", "category": "Shoulders"},
-    {"name": "Rear Delt Fly", "category": "Shoulders"},
-    {"name": "Front Raise", "category": "Shoulders"},
-    {"name": "Upright Row", "category": "Shoulders"},
-    {"name": "Shrug", "category": "Shoulders"},
+    {"name": "Overhead Press", "category": "Shoulders", "desc": "Standing barbell press overhead. Brace hard and press to full lockout."},
+    {"name": "Seated Dumbbell Press", "category": "Shoulders", "desc": "Seated overhead press with dumbbells for even delt development."},
+    {"name": "Arnold Press", "category": "Shoulders", "desc": "Rotating dumbbell press that hits all three delt heads."},
+    {"name": "Lateral Raise", "category": "Shoulders", "desc": "Raise dumbbells out to the sides to build lateral-delt width."},
+    {"name": "Cable Lateral Raise", "category": "Shoulders", "desc": "Cable side raise for constant tension on the side delts."},
+    {"name": "Rear Delt Fly", "category": "Shoulders", "desc": "Bent-over reverse flye targeting the rear delts."},
+    {"name": "Front Raise", "category": "Shoulders", "desc": "Raise the weight to shoulder height in front to hit the front delts."},
+    {"name": "Upright Row", "category": "Shoulders", "desc": "Pull the bar up along the body to the chest for delts and traps."},
+    {"name": "Shrug", "category": "Shoulders", "desc": "Elevate the shoulders straight up to build the traps."},
+    {"name": "Machine Shoulder Press", "category": "Shoulders", "desc": "Fixed-path overhead press for safe, high delt volume."},
+    {"name": "Landmine Shoulder Press", "category": "Shoulders", "desc": "Angled one-arm press that is easy on the shoulder joint."},
+    {"name": "Cable Rear Delt Fly", "category": "Shoulders", "desc": "Cross-cable reverse flye keeping tension on the rear delts."},
+    {"name": "Y-Raise", "category": "Shoulders", "desc": "Incline raise in a Y path for the lower traps and rear delts."},
     # Legs
-    {"name": "Back Squat", "category": "Legs"},
-    {"name": "Front Squat", "category": "Legs"},
-    {"name": "Hack Squat", "category": "Legs"},
-    {"name": "Leg Press", "category": "Legs"},
-    {"name": "Romanian Deadlift", "category": "Legs"},
-    {"name": "Bulgarian Split Squat", "category": "Legs"},
-    {"name": "Walking Lunge", "category": "Legs"},
-    {"name": "Leg Extension", "category": "Legs"},
-    {"name": "Leg Curl", "category": "Legs"},
-    {"name": "Seated Leg Curl", "category": "Legs"},
-    {"name": "Standing Calf Raise", "category": "Legs"},
-    {"name": "Seated Calf Raise", "category": "Legs"},
-    {"name": "Hip Thrust", "category": "Legs"},
-    {"name": "Goblet Squat", "category": "Legs"},
+    {"name": "Back Squat", "category": "Legs", "desc": "Barbell on the back. Squat to depth to build total-leg strength."},
+    {"name": "Front Squat", "category": "Legs", "desc": "Bar racked on the front delts with an upright torso that hammers the quads."},
+    {"name": "Hack Squat", "category": "Legs", "desc": "Machine squat on a fixed sled to overload the quads safely."},
+    {"name": "Leg Press", "category": "Legs", "desc": "Seated sled press for heavy quad and glute volume."},
+    {"name": "Romanian Deadlift", "category": "Legs", "desc": "Stiff-leg hinge with a big hamstring stretch. Keep the bar close."},
+    {"name": "Bulgarian Split Squat", "category": "Legs", "desc": "Rear-foot-elevated split squat for single-leg strength and balance."},
+    {"name": "Walking Lunge", "category": "Legs", "desc": "Alternating forward lunges for quads, glutes, and conditioning."},
+    {"name": "Leg Extension", "category": "Legs", "desc": "Seated machine knee extension that isolates the quads."},
+    {"name": "Leg Curl", "category": "Legs", "desc": "Lying machine curl that isolates the hamstrings."},
+    {"name": "Seated Leg Curl", "category": "Legs", "desc": "Seated hamstring curl with a strong stretch under load."},
+    {"name": "Standing Calf Raise", "category": "Legs", "desc": "Rise onto the toes standing to build the gastrocnemius."},
+    {"name": "Seated Calf Raise", "category": "Legs", "desc": "Seated toe raise that targets the soleus of the calf."},
+    {"name": "Hip Thrust", "category": "Legs", "desc": "Bench-supported barbell bridge for powerful glute development."},
+    {"name": "Goblet Squat", "category": "Legs", "desc": "Hold a dumbbell at the chest and squat. Great for depth and form."},
+    {"name": "Sumo Deadlift", "category": "Legs", "desc": "Wide-stance deadlift with more quad and adductor involvement."},
+    {"name": "Belt Squat", "category": "Legs", "desc": "Load hung from the hips to squat hard without loading the spine."},
+    {"name": "Step-Up", "category": "Legs", "desc": "Drive up onto a box one leg at a time for quads and glutes."},
+    {"name": "Reverse Lunge", "category": "Legs", "desc": "Step back into a lunge, easier on the knees than the forward version."},
+    {"name": "Nordic Curl", "category": "Legs", "desc": "Eccentric bodyweight hamstring curl for serious hamstring strength."},
+    {"name": "Glute-Ham Raise", "category": "Legs", "desc": "GHD hip-and-knee extension for the hamstrings and glutes."},
+    {"name": "Adductor Machine", "category": "Legs", "desc": "Squeeze the pads together to train the inner thighs."},
+    {"name": "Abductor Machine", "category": "Legs", "desc": "Press the pads apart to train the glute medius and outer hips."},
     # Arms
-    {"name": "Barbell Curl", "category": "Arms"},
-    {"name": "EZ-Bar Curl", "category": "Arms"},
-    {"name": "Dumbbell Curl", "category": "Arms"},
-    {"name": "Hammer Curl", "category": "Arms"},
-    {"name": "Preacher Curl", "category": "Arms"},
-    {"name": "Incline Dumbbell Curl", "category": "Arms"},
-    {"name": "Cable Curl", "category": "Arms"},
-    {"name": "Tricep Pushdown", "category": "Arms"},
-    {"name": "Overhead Tricep Extension", "category": "Arms"},
-    {"name": "Skull Crusher", "category": "Arms"},
-    {"name": "Close-Grip Bench Press", "category": "Arms"},
-    {"name": "Cable Overhead Extension", "category": "Arms"},
-    {"name": "Wrist Curl", "category": "Arms"},
+    {"name": "Barbell Curl", "category": "Arms", "desc": "Standing straight-bar curl to build overall biceps mass."},
+    {"name": "EZ-Bar Curl", "category": "Arms", "desc": "Curl on an angled bar that is easier on the wrists."},
+    {"name": "Dumbbell Curl", "category": "Arms", "desc": "Alternating or simultaneous curls with a supinating grip."},
+    {"name": "Hammer Curl", "category": "Arms", "desc": "Neutral-grip curl that targets the brachialis and forearms."},
+    {"name": "Preacher Curl", "category": "Arms", "desc": "Arm braced on a pad to strictly isolate the biceps."},
+    {"name": "Incline Dumbbell Curl", "category": "Arms", "desc": "Curl lying back on an incline for a long biceps stretch."},
+    {"name": "Cable Curl", "category": "Arms", "desc": "Standing cable curl for constant tension through the rep."},
+    {"name": "Tricep Pushdown", "category": "Arms", "desc": "Cable pushdown pressing the handle to lockout for the triceps."},
+    {"name": "Overhead Tricep Extension", "category": "Arms", "desc": "Extend a weight overhead to hit the long head of the triceps."},
+    {"name": "Skull Crusher", "category": "Arms", "desc": "Lying extension lowering the bar toward the forehead for the triceps."},
+    {"name": "Close-Grip Bench Press", "category": "Arms", "desc": "Narrow-grip bench that emphasizes the triceps."},
+    {"name": "Cable Overhead Extension", "category": "Arms", "desc": "Overhead rope extension keeping tension on the long head."},
+    {"name": "Wrist Curl", "category": "Arms", "desc": "Curl the wrists up to build the forearm flexors."},
+    {"name": "Concentration Curl", "category": "Arms", "desc": "Seated single-arm curl braced on the thigh for a peak contraction."},
+    {"name": "Spider Curl", "category": "Arms", "desc": "Curl with arms hanging over an incline bench for constant biceps tension."},
+    {"name": "Reverse Curl", "category": "Arms", "desc": "Overhand curl for the brachialis and forearm extensors."},
+    {"name": "Zottman Curl", "category": "Arms", "desc": "Curl up supinated and lower pronated to hit biceps and forearms."},
+    {"name": "Rope Pushdown", "category": "Arms", "desc": "Cable pushdown with a rope, spreading the ends apart at lockout."},
+    {"name": "Triceps Dip", "category": "Arms", "desc": "Upright bodyweight dip that biases the triceps."},
+    {"name": "Reverse Wrist Curl", "category": "Arms", "desc": "Curl the wrists upward to build the forearm extensors."},
     # Core
-    {"name": "Hanging Leg Raise", "category": "Core"},
-    {"name": "Cable Crunch", "category": "Core"},
-    {"name": "Plank", "category": "Core"},
-    {"name": "Ab Wheel Rollout", "category": "Core"},
-    {"name": "Russian Twist", "category": "Core"},
-    {"name": "Weighted Sit-Up", "category": "Core"},
-    {"name": "Decline Sit-Up", "category": "Core"},
+    {"name": "Hanging Leg Raise", "category": "Core", "desc": "Hang and raise the legs to hit the lower abs and hip flexors."},
+    {"name": "Cable Crunch", "category": "Core", "desc": "Kneeling rope crunch that lets you progressively load the abs."},
+    {"name": "Plank", "category": "Core", "desc": "Hold a rigid plank to build anti-extension core stability."},
+    {"name": "Ab Wheel Rollout", "category": "Core", "desc": "Roll out and back under control for total-core strength."},
+    {"name": "Russian Twist", "category": "Core", "desc": "Rotate side to side to train the obliques."},
+    {"name": "Weighted Sit-Up", "category": "Core", "desc": "Sit-up holding a plate for loaded ab work."},
+    {"name": "Decline Sit-Up", "category": "Core", "desc": "Sit-up on a decline for a longer range on the abs."},
+    {"name": "Hanging Knee Raise", "category": "Core", "desc": "Hang and drive the knees up, a scalable lower-ab builder."},
+    {"name": "Pallof Press", "category": "Core", "desc": "Press a cable straight out to resist rotation (anti-rotation)."},
+    {"name": "Side Plank", "category": "Core", "desc": "Hold on one forearm to train the obliques and lateral core."},
+    {"name": "Toes-to-Bar", "category": "Core", "desc": "Hang and bring the toes to the bar for advanced ab strength."},
+    {"name": "Cable Woodchopper", "category": "Core", "desc": "Cable chop across the body for rotational core power."},
+    {"name": "Machine Crunch", "category": "Core", "desc": "Seated machine crunch for easy, loadable ab volume."},
     # Olympic / Power
-    {"name": "Power Clean", "category": "Olympic"},
-    {"name": "Clean and Jerk", "category": "Olympic"},
-    {"name": "Snatch", "category": "Olympic"},
-    {"name": "Push Press", "category": "Olympic"},
-    {"name": "Clean Pull", "category": "Olympic"},
+    {"name": "Power Clean", "category": "Olympic", "desc": "Explosively pull the bar from the floor to the shoulders."},
+    {"name": "Clean and Jerk", "category": "Olympic", "desc": "Clean to the shoulders, then jerk overhead. Full-body power."},
+    {"name": "Snatch", "category": "Olympic", "desc": "One explosive pull from floor to overhead, the most technical lift."},
+    {"name": "Push Press", "category": "Olympic", "desc": "Dip and drive to press the bar overhead using the legs."},
+    {"name": "Clean Pull", "category": "Olympic", "desc": "The pull portion of the clean to build power off the floor."},
+    {"name": "Hang Clean", "category": "Olympic", "desc": "Clean starting from the hang to train the explosive second pull."},
+    {"name": "Power Snatch", "category": "Olympic", "desc": "Snatch caught above parallel to emphasize speed and power."},
+    {"name": "Push Jerk", "category": "Olympic", "desc": "Dip, drive, and re-dip under the bar to lock it out overhead."},
+    {"name": "Kettlebell Swing", "category": "Olympic", "desc": "Hip-hinge swing for explosive glutes, hamstrings, and conditioning."},
+    {"name": "Box Jump", "category": "Olympic", "desc": "Explosive jump onto a box for lower-body power (log your reps)."},
 ]
+
 
 # Aliases so PR tracking still recognizes the big lifts if a library variant is used
 _PR_ALIASES = {
@@ -1732,6 +1772,7 @@ class RegimenItem(BaseModel):
     name: str
     dosage: str
     schedule: str
+    notes: str = ""
 
 class RegimenIn(BaseModel):
     items: list[RegimenItem]
@@ -1766,6 +1807,88 @@ async def set_regimen(inp: RegimenIn, user=Depends(get_current_user)):
     doc.pop("_id", None)
     doc["created_at"] = now.isoformat()
     return doc
+
+class RegimenNoteIn(BaseModel):
+    index: int
+    notes: str
+
+@api_router.post("/enhanced/regimen/note")
+async def update_regimen_note(inp: RegimenNoteIn, user=Depends(get_current_user)):
+    if not user.get("enhanced"):
+        raise HTTPException(status_code=403, detail="Enhanced access required.")
+    active = await db.ped_regimens.find_one({"user_id": user["user_id"], "active": True}, sort=[("created_at", -1)])
+    if not active:
+        raise HTTPException(status_code=404, detail="No active regimen.")
+    items = active.get("items", [])
+    if inp.index < 0 or inp.index >= len(items):
+        raise HTTPException(status_code=400, detail="Invalid item.")
+    items[inp.index]["notes"] = inp.notes[:1000]
+    await db.ped_regimens.update_one({"_id": active["_id"]}, {"$set": {"items": items}})
+    return {"ok": True}
+
+_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+def _dose_due_today(schedule: str) -> bool:
+    s = (schedule or "").lower()
+    if not s:
+        return False
+    if any(w in s for w in ["daily", "every day", "everyday", "each day", " ed", "ed ", "am/pm", "morning", "evening", "night"]):
+        return True
+    today = _WEEKDAYS[datetime.now(timezone.utc).weekday()]
+    return today in s
+
+@api_router.get("/enhanced/next-dose")
+async def enhanced_next_dose(user=Depends(get_current_user)):
+    if not user.get("enhanced"):
+        return {"enhanced": False, "active": False, "items": [], "due_count": 0}
+    active = await db.ped_regimens.find_one({"user_id": user["user_id"], "active": True}, {"_id": 0}, sort=[("created_at", -1)])
+    if not active:
+        return {"enhanced": True, "active": False, "items": [], "due_count": 0}
+    items = []
+    for it in active.get("items", []):
+        due = _dose_due_today(it.get("schedule", ""))
+        items.append({"name": it.get("name"), "dosage": it.get("dosage"), "schedule": it.get("schedule"), "due_today": due})
+    return {
+        "enhanced": True, "active": True, "items": items,
+        "due_count": sum(1 for i in items if i["due_today"]),
+        "today": _WEEKDAYS[datetime.now(timezone.utc).weekday()].upper(),
+    }
+
+# ---------- Set Presets (favourite rep/weight combos) ----------
+class PresetIn(BaseModel):
+    reps: int
+    weight_lb: float
+    rpe: float = 7
+    label: str = ""
+
+@api_router.get("/presets")
+async def get_presets(user=Depends(get_current_user)):
+    rows = await db.set_presets.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    for r in rows:
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+    return rows
+
+@api_router.post("/presets")
+async def add_preset(inp: PresetIn, user=Depends(get_current_user)):
+    reps = max(1, int(inp.reps))
+    weight = max(0, round(float(inp.weight_lb), 1))
+    rpe = max(1, min(10, round(float(inp.rpe), 1)))
+    label = (inp.label or "").strip()[:40] or f"{int(weight)}lb × {reps}"
+    doc = {
+        "preset_id": new_id("pre"), "user_id": user["user_id"],
+        "reps": reps, "weight_lb": weight, "rpe": rpe, "label": label,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.set_presets.insert_one(doc)
+    doc.pop("_id", None)
+    doc["created_at"] = doc["created_at"].isoformat()
+    return doc
+
+@api_router.delete("/presets/{preset_id}")
+async def delete_preset(preset_id: str, user=Depends(get_current_user)):
+    await db.set_presets.delete_one({"preset_id": preset_id, "user_id": user["user_id"]})
+    return {"ok": True}
 @api_router.post("/workouts/log")
 async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
     workout_id = new_id("wk")
@@ -3244,6 +3367,7 @@ async def seed():
     await db.verification_codes.create_index([("user_id", 1), ("channel", 1)], unique=True)
     await db.verified_purchases.create_index([("user_id", 1), ("entitlement", 1)], unique=True)
     await db.rc_webhook_events.create_index("event_id", unique=True)
+    await db.set_presets.create_index("user_id")
 
     # Warm up object storage (non-fatal if it fails at boot)
     try:

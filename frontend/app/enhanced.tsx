@@ -28,6 +28,7 @@ export default function Enhanced() {
   const [regimen, setRegimen] = useState<any>({ active: null, history: [] });
   const [items, setItems] = useState<any[]>([{ name: "", dosage: "", schedule: "" }]);
   const [pickerFor, setPickerFor] = useState<number | null>(null);
+  const [noteDrafts, setNoteDrafts] = useState<Record<number, string>>({});
 
   const glitch = useSharedValue(0);
   const glitchStyle = useAnimatedStyle(() => ({ opacity: glitch.value }));
@@ -36,7 +37,23 @@ export default function Enhanced() {
     try {
       const [p, r] = await Promise.all([apiFetch(token, "/api/enhanced/peds"), apiFetch(token, "/api/enhanced/regimen")]);
       setPeds(p.peds || []); setRegimen(r);
+      const drafts: Record<number, string> = {};
+      (r?.active?.items || []).forEach((it: any, i: number) => { drafts[i] = it.notes || ""; });
+      setNoteDrafts(drafts);
     } catch {}
+  };
+
+  const saveNote = async (i: number) => {
+    setMsg(null);
+    try {
+      await apiFetch(token, "/api/enhanced/regimen/note", { method: "POST", body: JSON.stringify({ index: i, notes: noteDrafts[i] || "" }) });
+      setRegimen((r: any) => {
+        const items = [...(r.active?.items || [])];
+        if (items[i]) items[i] = { ...items[i], notes: noteDrafts[i] || "" };
+        return { ...r, active: { ...r.active, items } };
+      });
+      setMsg("Notes saved ✓");
+    } catch (e: any) { setMsg(e?.message || "Couldn't save notes"); }
   };
 
   useEffect(() => {
@@ -156,9 +173,23 @@ export default function Enhanced() {
         {regimen.active ? (
           <View style={s.activeCard}>
             {regimen.active.items.map((it: any, i: number) => (
-              <View key={i} style={s.regRow}>
-                <Text style={s.regName}>{it.name}</Text>
-                <Text style={s.regMeta}>{it.dosage} · {it.schedule}</Text>
+              <View key={i} style={s.regItem}>
+                <View style={s.regRow}>
+                  <Text style={s.regName}>{it.name}</Text>
+                  <Text style={s.regMeta}>{it.dosage} · {it.schedule}</Text>
+                </View>
+                <TextInput
+                  testID={`note-${i}`}
+                  value={noteDrafts[i] ?? ""}
+                  onChangeText={(t) => setNoteDrafts((d) => ({ ...d, [i]: t }))}
+                  placeholder="Private notes — how are you responding? (sides, mood, pumps...)"
+                  placeholderTextColor="#7a4a50"
+                  multiline
+                  style={s.noteInput}
+                />
+                <Pressable testID={`save-note-${i}`} onPress={() => saveNote(i)} style={s.noteSave}>
+                  <Text style={s.noteSaveText}>SAVE NOTE</Text>
+                </Pressable>
               </View>
             ))}
           </View>
@@ -249,9 +280,13 @@ const s = StyleSheet.create({
   modalBody: { color: "#fff", lineHeight: 20, marginBottom: spacing.md, fontSize: 13 },
   dim: { color: "#8a5a60", fontSize: 12 },
   activeCard: { backgroundColor: CARD, borderRadius: radius.sm, borderLeftWidth: 3, borderLeftColor: RED, padding: spacing.md },
-  regRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 6 },
+  regItem: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#2a1418" },
+  regRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 2 },
   regName: { color: "#fff", fontWeight: "800" },
   regMeta: { color: "#E8A0A8", fontSize: 12 },
+  noteInput: { marginTop: 8, backgroundColor: "#0f0507", borderWidth: 1, borderColor: "#3a1a1e", borderRadius: radius.sm, color: "#fff", padding: spacing.sm, minHeight: 44, fontSize: 12, textAlignVertical: "top" },
+  noteSave: { alignSelf: "flex-end", marginTop: 6, borderWidth: 1, borderColor: RED, borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 6 },
+  noteSaveText: { color: RED, fontWeight: "900", fontSize: 10, letterSpacing: 1 },
   builder: { marginBottom: spacing.md },
   select: { backgroundColor: CARD, borderWidth: 1, borderColor: "#3a1a1e", borderRadius: radius.sm, padding: spacing.md, minHeight: 44, justifyContent: "center" },
   selectText: { color: "#fff", fontWeight: "700" },

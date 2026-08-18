@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
@@ -49,6 +49,8 @@ export default function WorkoutScreen() {
   const [splitChoice, setSplitChoice] = useState("ppl");
   const [calOpen, setCalOpen] = useState(false);
   const [genBusy, setGenBusy] = useState(false);
+  const [presets, setPresets] = useState<any[]>([]);
+  const [presetPickerFor, setPresetPickerFor] = useState<number | null>(null);
 
   const rank = user?.rank || "Beginner";
   const canAC = (rankIndex(rank) >= 2 || user?.all_rooms_access || user?.athletes_center_access)
@@ -65,6 +67,26 @@ export default function WorkoutScreen() {
   const loadHistory = async () => { try { setHistory(await apiFetch(token, "/api/workouts/history")); } catch {} };
   const loadMonthly = async () => { try { setMonthly(await apiFetch(token, "/api/programs/monthly/current")); } catch {} };
   const loadCoachPlans = async () => { try { setCoachPlans(await apiFetch(token, "/api/coach/plans")); } catch {} };
+  const loadPresets = async () => { try { setPresets(await apiFetch(token, "/api/presets")); } catch {} };
+
+  const savePreset = async (set: SetT) => {
+    try {
+      await apiFetch(token, "/api/presets", { method: "POST", body: JSON.stringify({ reps: set.reps, weight_lb: set.weight_lb, rpe: set.rpe }) });
+      await loadPresets();
+      setNotice("Saved to presets ★");
+    } catch {}
+  };
+  const deletePreset = async (id: string) => {
+    try { await apiFetch(token, `/api/presets/${id}`, { method: "DELETE" }); await loadPresets(); } catch {}
+  };
+  const addSetFromPreset = (ei: number, p: any) => {
+    if (!active) return;
+    const copy = { ...active };
+    copy.exercises[ei].sets.push({ reps: p.reps, weight_lb: p.weight_lb, rpe: p.rpe });
+    setActive({ ...copy });
+    setPresetPickerFor(null);
+    startRest();
+  };
 
   useEffect(() => {
     (async () => {
@@ -72,6 +94,7 @@ export default function WorkoutScreen() {
       loadHistory();
       loadMonthly();
       loadCoachPlans();
+      loadPresets();
     })();
   }, [token]);
 
@@ -297,12 +320,20 @@ export default function WorkoutScreen() {
                   <NumInput testID={`set-${ei}-${si}-reps`} value={s.reps} onChange={(v) => editSet(ei, si, "reps", Math.round(v))} />
                   <NumInput testID={`set-${ei}-${si}-weight`} value={Math.round(units.toDisplay(s.weight_lb) * 10) / 10} decimal onChange={(v) => editWeight(ei, si, v)} />
                   <Stepper testID={`set-${ei}-${si}-rpe`} value={s.rpe} step={0.5} decimal onChange={(v) => editSet(ei, si, "rpe", v)} />
-                  <Pressable testID={`remove-set-${ei}-${si}`} onPress={() => removeSet(ei, si)} style={styles.rm}><Text style={styles.rmX}>✕</Text></Pressable>
+                  <View style={styles.rowActions}>
+                    <Pressable testID={`save-preset-${ei}-${si}`} onPress={() => savePreset(s)} hitSlop={8}><Text style={styles.saveStar}>☆</Text></Pressable>
+                    <Pressable testID={`remove-set-${ei}-${si}`} onPress={() => removeSet(ei, si)} hitSlop={8}><Text style={styles.rmX}>✕</Text></Pressable>
+                  </View>
                 </View>
               ))}
-              <Pressable testID={`add-set-${ei}`} onPress={() => addSet(ei)} style={styles.addSetBtn}>
-                <Text style={styles.addSetText}>{ex.sets.length === 0 ? "+ ADD FIRST SET" : "+ ADD SET"}</Text>
-              </Pressable>
+              <View style={styles.addRow}>
+                <Pressable testID={`add-set-${ei}`} onPress={() => addSet(ei)} style={[styles.addSetBtn, { flex: 1, marginTop: 0 }]}>
+                  <Text style={styles.addSetText}>{ex.sets.length === 0 ? "+ ADD FIRST SET" : "+ ADD SET"}</Text>
+                </Pressable>
+                <Pressable testID={`presets-${ei}`} onPress={() => setPresetPickerFor(ei)} style={styles.presetBtn}>
+                  <Text style={styles.presetBtnText}>★</Text>
+                </Pressable>
+              </View>
             </View>
           ))}
 
@@ -338,6 +369,31 @@ export default function WorkoutScreen() {
         )}
 
         <ExerciseLibraryModal visible={libOpen} onClose={() => setLibOpen(false)} onAdd={addExercises} token={token} />
+
+        <Modal visible={presetPickerFor !== null} transparent animationType="slide" onRequestClose={() => setPresetPickerFor(null)}>
+          <Pressable style={styles.presetModalWrap} onPress={() => setPresetPickerFor(null)}>
+            <Pressable style={styles.presetModal} onPress={() => {}}>
+              <Text style={styles.presetModalTitle}>★ SET PRESETS</Text>
+              <Text style={styles.presetModalSub}>Tap a preset to add it as a set. Save any set with the ☆ on its row.</Text>
+              {presets.length === 0 ? (
+                <Text style={styles.presetEmpty}>No presets yet. Tap the ☆ on a set to save your favourite rep/weight combos.</Text>
+              ) : (
+                <ScrollView style={{ maxHeight: 340 }}>
+                  {presets.map((p) => (
+                    <View key={p.preset_id} style={styles.presetRow}>
+                      <Pressable testID={`use-preset-${p.preset_id}`} style={{ flex: 1 }} onPress={() => presetPickerFor !== null && addSetFromPreset(presetPickerFor, p)}>
+                        <Text style={styles.presetLabel}>{p.label}</Text>
+                        <Text style={styles.presetMeta}>{units.fmt(p.weight_lb, 0)} · {p.reps} reps · RPE {p.rpe}</Text>
+                      </Pressable>
+                      <Pressable testID={`del-preset-${p.preset_id}`} onPress={() => deletePreset(p.preset_id)} hitSlop={8}><Text style={styles.rmX}>✕</Text></Pressable>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+              <Pressable onPress={() => setPresetPickerFor(null)} style={styles.presetClose}><Text style={styles.presetCloseText}>CLOSE</Text></Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </KeyboardAvoidingView>
     );
   }
@@ -630,6 +686,21 @@ const styles = StyleSheet.create({
   rmX: { color: colors.error, fontSize: 16 },
   addSetBtn: { marginTop: spacing.sm, padding: spacing.sm, alignItems: "center", borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm, borderStyle: "dashed" },
   addSetText: { color: colors.brandPrimary, fontWeight: "800", letterSpacing: 2, fontSize: 11 },
+  addRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm, alignItems: "stretch" },
+  presetBtn: { width: 48, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.warning, borderRadius: radius.sm, borderStyle: "dashed" },
+  presetBtnText: { color: colors.warning, fontSize: 18, fontWeight: "900" },
+  rowActions: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
+  saveStar: { color: colors.warning, fontSize: 17 },
+  presetModalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
+  presetModal: { backgroundColor: colors.surface2, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, borderColor: colors.warning, padding: spacing.lg, paddingBottom: spacing.xxl },
+  presetModalTitle: { color: colors.warning, fontWeight: "900", letterSpacing: 2, fontSize: 15 },
+  presetModalSub: { color: colors.textDim, fontSize: 11, marginTop: 4, marginBottom: spacing.md, lineHeight: 15 },
+  presetEmpty: { color: colors.textDim, fontSize: 12, lineHeight: 18, paddingVertical: spacing.lg, textAlign: "center" },
+  presetRow: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
+  presetLabel: { color: colors.text, fontWeight: "800", fontSize: 14 },
+  presetMeta: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  presetClose: { marginTop: spacing.md, padding: spacing.md, alignItems: "center", borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm },
+  presetCloseText: { color: colors.textMid, fontWeight: "800", letterSpacing: 2 },
   addExBtn: { padding: spacing.md, alignItems: "center", borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, backgroundColor: colors.brandTertiary, marginBottom: spacing.sm },
   addExText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2 },
   starRow: { flexDirection: "row", gap: spacing.sm },

@@ -123,7 +123,7 @@ export default function Paywall() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>CONFIRM PURCHASE</Text>
-            <Text style={styles.modalBody}>Subscribe to Hutch's Inner Circle Premium — {plan === "annual" ? `${price}/yr` : `${price}/mo`}?</Text>
+            <Text style={styles.modalBody}>{`Subscribe to Hutch's Inner Circle Premium — ${plan === "annual" ? `${price}/yr` : `${price}/mo`}?`}</Text>
             <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.lg }}>
               <Pressable onPress={() => setConfirmOpen(false)} style={[styles.modalBtn, { backgroundColor: colors.surface3 }]}><Text style={styles.modalBtnText}>CANCEL</Text></Pressable>
               <Pressable testID="confirm-purchase" onPress={doPurchase} style={[styles.modalBtn, { backgroundColor: colors.brandPrimary }]}><Text style={[styles.modalBtnText, { color: "#001122" }]}>CONFIRM</Text></Pressable>
