@@ -477,6 +477,10 @@ async def profile_me(user=Depends(get_current_user)):
 
 @api_router.get("/profile/attributes")
 async def profile_attributes(user=Depends(get_current_user)):
+    return await _compute_attributes(user)
+
+
+async def _compute_attributes(user):
     prs = user.get("prs", {}) or {}
     bench = prs.get("bench", 0); squat = prs.get("squat", 0)
     deadlift = prs.get("deadlift", 0); ohp = prs.get("ohp", 0)
@@ -1532,6 +1536,95 @@ async def get_quests(scope: str = "daily", user=Depends(get_current_user)):
     if scope not in QUEST_TEMPLATES:
         raise HTTPException(status_code=400, detail="Invalid scope")
     return {scope: await _build_quests(user, scope, now)}
+
+
+# ---------- The Journey (RPG map mini-game) ----------
+_JOURNEY_ZONES = {
+    "E": {"name": "THE WASTES", "index": 0, "primary": "#3A4250", "accent": "#8792A6"},
+    "D": {"name": "IRON VALLEY", "index": 1, "primary": "#234E7A", "accent": "#4299E1"},
+    "C": {"name": "STORM RIDGE", "index": 2, "primary": "#1E6C8C", "accent": "#00E5FF"},
+    "B": {"name": "EMBER PEAKS", "index": 3, "primary": "#A2521B", "accent": "#F6A040"},
+    "A": {"name": "CRIMSON CITADEL", "index": 4, "primary": "#8E1B24", "accent": "#FF4D5E"},
+    "S": {"name": "ASCENSION", "index": 5, "primary": "#5B2E9B", "accent": "#C08BFF"},
+}
+
+
+def _zone_for_tier(t: str):
+    return {"tier": t, **_JOURNEY_ZONES.get(t, _JOURNEY_ZONES["E"])}
+
+
+@api_router.get("/journey")
+async def journey(user=Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    attrs = await _compute_attributes(user)
+    nodes = []
+    for sc in ("daily", "weekly", "monthly", "boss"):
+        for q in await _build_quests(user, sc, now):
+            nodes.append({
+                "id": q["id"], "scope": sc, "title": q["title"],
+                "complete": q["complete"], "claimed": q["claimed"],
+                "reward_xp": q["reward_xp"], "reward_label": q["reward_label"],
+                "boss": sc == "boss",
+            })
+    all_users = await db.users.find(
+        {}, {"_id": 0, "user_id": 1, "display_name": 1, "xp": 1, "enhanced": 1, "founder_backer": 1, "sex": 1}
+    ).sort("xp", -1).to_list(3000)
+    idx = next((i for i, u in enumerate(all_users) if u["user_id"] == user["user_id"]), 0)
+    total = len(all_users)
+    lo = max(0, idx - 5)
+    hi = min(total, idx + 6)
+    my_xp = user.get("xp", 0) or 0
+    neighbors = []
+    for i in range(lo, hi):
+        u = all_users[i]
+        uxp = u.get("xp", 0) or 0
+        neighbors.append({
+            "user_id": u["user_id"],
+            "name": u.get("display_name") or "Athlete",
+            "xp": uxp,
+            "level": level_from_xp(uxp),
+            "rank_position": i + 1,
+            "is_me": u["user_id"] == user["user_id"],
+            "ahead": uxp > my_xp,
+            "enhanced": bool(u.get("enhanced")),
+            "founder": bool(u.get("founder_backer")),
+            "sex": u.get("sex", "male"),
+        })
+    return {
+        "me": {
+            "name": user.get("display_name") or "You",
+            "xp": my_xp,
+            "level": level_from_xp(my_xp),
+            "rank_position": idx + 1,
+            "total_players": total,
+            "stats": attrs["stats"],
+            "overall": attrs["overall"],
+            "class_title": attrs["class_title"],
+            "class_tier": attrs["class_tier"],
+            "sex": user.get("sex", "male"),
+        },
+        "zone": _zone_for_tier(attrs["class_tier"]),
+        "nodes": nodes,
+        "neighbors": neighbors,
+    }
+
+
+@api_router.get("/journey/similar")
+async def journey_similar(lift: str, value: float, user=Depends(get_current_user)):
+    if lift not in ("bench", "squat", "deadlift", "ohp"):
+        raise HTTPException(status_code=400, detail="Invalid lift")
+    rows = await db.users.find(
+        {"user_id": {"$ne": user["user_id"]}, f"prs.{lift}": {"$gte": value}},
+        {"_id": 0, "display_name": 1, "prs": 1, "sex": 1, "enhanced": 1},
+    ).to_list(500)
+    rows.sort(key=lambda u: (u.get("prs", {}) or {}).get(lift, 0))
+    members = [{
+        "name": u.get("display_name") or "Athlete",
+        "value": (u.get("prs", {}) or {}).get(lift, 0),
+        "sex": u.get("sex", "male"),
+        "enhanced": bool(u.get("enhanced")),
+    } for u in rows[:8]]
+    return {"lift": lift, "value": value, "count": len(rows), "members": members}
 
 
 @api_router.post("/quests/claim")

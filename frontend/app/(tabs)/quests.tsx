@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withSpring } from "react-native-reanimated";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -141,6 +141,14 @@ export default function Quests() {
         <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.xl, padding: spacing.lg, paddingBottom: 120 }}>
           <Text style={styles.eyebrow}>▚ COACH INTAKE //</Text>
           <Text style={styles.h1}>WHAT ARE YOU CHASING?</Text>
+          <Pressable testID="open-journey" onPress={() => router.push("/journey")} style={styles.journeyBtn}>
+            <Text style={styles.journeyIcon}>⚔</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.journeyTitle}>THE JOURNEY</Text>
+              <Text style={styles.journeySub}>Battle your quests on the RPG map · climb past rivals</Text>
+            </View>
+            <Text style={styles.journeyArrow}>▶</Text>
+          </Pressable>
           <Text style={styles.intakeSub}>
             Tell Coach Hutch your current goals — real life, not just gym numbers. He&apos;ll forge specific quests to get you there. Think &quot;lose 5 lb&quot;, &quot;sign up for a powerlifting meet&quot;, &quot;deadlift 500&quot;.
           </Text>
@@ -219,6 +227,15 @@ export default function Quests() {
             ))}
           </View>
         )}
+
+        <Pressable testID="open-journey" onPress={() => router.push("/journey")} style={styles.journeyBtn}>
+          <Text style={styles.journeyIcon}>⚔</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.journeyTitle}>THE JOURNEY</Text>
+            <Text style={styles.journeySub}>Battle your quests on the RPG map · climb past rivals</Text>
+          </View>
+          <Text style={styles.journeyArrow}>▶</Text>
+        </Pressable>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {SCOPES.map((s) => (
@@ -306,6 +323,12 @@ const styles = StyleSheet.create({
   questBgFade: { position: "absolute", top: 0, left: 0, right: 0, height: 360 },
   h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: spacing.md, paddingHorizontal: spacing.lg },
   chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm },
+  journeyBtn: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  journeyIcon: { color: colors.brandPrimary, fontSize: 24, fontWeight: "900" },
+  journeyTitle: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 14 },
+  journeySub: { color: colors.textDim, fontSize: 10, marginTop: 2 },
+  journeyArrow: { color: colors.brandPrimary, fontSize: 12 },
+
   chip: { paddingHorizontal: spacing.md, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, justifyContent: "center", backgroundColor: colors.surface2, flexShrink: 0 },
   chipActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
   chipText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2, fontSize: 12 },
