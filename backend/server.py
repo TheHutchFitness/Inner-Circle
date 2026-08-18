@@ -2032,7 +2032,7 @@ async def founders_list(user=Depends(get_current_user)):
     # First 100 real members (exclude leaderboard bots), earliest signups first
     rows = await db.users.find(
         {"is_bot": {"$ne": True}},
-        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "created_at": 1, "founder_backer": 1},
+        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "created_at": 1, "founder_backer": 1, "sex": 1},
     ).sort("created_at", 1).limit(FOUNDER_LIMIT).to_list(FOUNDER_LIMIT)
 
     founders = []
@@ -2045,17 +2045,19 @@ async def founders_list(user=Depends(get_current_user)):
             "number": num,
             "display_name": r.get("display_name", "Athlete"),
             "avatar_id": r.get("avatar_id", "avatar_ronin"),
+            "sex": r.get("sex", "male"),
             "rank": rank_from_xp(r.get("xp", 0)),
             "is_backer": bool(r.get("founder_backer")),
         })
 
     backer_rows = await db.users.find(
         {"founder_backer": True, "is_bot": {"$ne": True}},
-        {"_id": 0, "display_name": 1, "avatar_id": 1, "xp": 1, "backed_at": 1},
+        {"_id": 0, "display_name": 1, "avatar_id": 1, "xp": 1, "backed_at": 1, "sex": 1},
     ).sort("backed_at", 1).to_list(500)
     backers = [{
         "display_name": b.get("display_name", "Athlete"),
         "avatar_id": b.get("avatar_id", "avatar_ronin"),
+        "sex": b.get("sex", "male"),
         "rank": rank_from_xp(b.get("xp", 0)),
     } for b in backer_rows]
 

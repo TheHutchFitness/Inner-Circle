@@ -23,8 +23,8 @@ function findBackerPkg(offerings: any) {
   );
 }
 
-function Avatar({ id, size = 34 }: { id: string; size?: number }) {
-  const img = avatarImage(id);
+function Avatar({ id, sex, size = 34 }: { id: string; sex?: string; size?: number }) {
+  const img = avatarImage(id, sex);
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 4 }]}>
       {img ? (
@@ -108,7 +108,7 @@ export default function Founders() {
               return (
                 <View key={f.number} testID={`founder-${f.number}`} style={styles.row}>
                   <Text style={styles.num}>#{f.number}</Text>
-                  <Avatar id={f.avatar_id} />
+                  <Avatar id={f.avatar_id} sex={f.sex} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.name}>{f.display_name}</Text>
                     <Text style={[styles.rank, { color: rc }]}>{f.rank.toUpperCase()}</Text>
@@ -127,7 +127,7 @@ export default function Founders() {
               <View style={styles.backerWrap}>
                 {data.backers.map((b: any, i: number) => (
                   <View key={i} testID={`backer-${i}`} style={styles.backerChip}>
-                    <Avatar id={b.avatar_id} size={26} />
+                    <Avatar id={b.avatar_id} sex={b.sex} size={26} />
                     <Text style={styles.backerName}>{b.display_name}</Text>
                   </View>
                 ))}

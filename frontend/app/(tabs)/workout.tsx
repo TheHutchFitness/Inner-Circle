@@ -387,7 +387,7 @@ export default function WorkoutScreen() {
               </View>
               <Text style={styles.coachPlanText}>{p.text}</Text>
               <Pressable testID={`coach-plan-start-${p.plan_id}`} onPress={() => startCoachPlan(p)} style={styles.coachPlanStart}>
-                <Text style={styles.coachPlanStartText}>▶ START WORKOUT</Text>
+                <Text style={styles.coachPlanStartText}>✎ EDIT & START</Text>
               </Pressable>
             </View>
           ))}
