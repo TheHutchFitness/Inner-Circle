@@ -6,10 +6,6 @@ export const ENHANCED_FLAG = "hic_enhanced_theme";
 
 // Persist (or clear) the red-theme flag so it survives app reloads.
 export async function persistEnhancedFlag(on: boolean) {
-  try {
-    if (on) await AsyncStorage.setItem(ENHANCED_FLAG, "1");
-    else await AsyncStorage.removeItem(ENHANCED_FLAG);
-  } catch {}
   if (Platform.OS === "web") {
     try {
       // @ts-ignore
@@ -18,6 +14,10 @@ export async function persistEnhancedFlag(on: boolean) {
       else window.localStorage.removeItem(ENHANCED_FLAG);
     } catch {}
   }
+  try {
+    if (on) await AsyncStorage.setItem(ENHANCED_FLAG, "1");
+    else await AsyncStorage.removeItem(ENHANCED_FLAG);
+  } catch {}
 }
 
 export async function loadEnhancedFlag(): Promise<boolean> {

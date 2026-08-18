@@ -1,11 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Modal, ScrollView, Pressable, TextInput, ActivityIndicator, Share } from "react-native";
+import { View, Text, StyleSheet, Modal, ScrollView, Pressable, TextInput, ActivityIndicator, Share, Platform } from "react-native";
 import { Image } from "expo-image";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
 import { apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { MuscleMap } from "@/src/components/MuscleMap";
 
 type Ex = { name: string; category: string; desc?: string };
+
+const REP_RANGES: Record<string, { label: string; range: string }[]> = {
+  Chest: [{ label: "STRENGTH", range: "4-6" }, { label: "HYPERTROPHY", range: "8-12" }],
+  Back: [{ label: "STRENGTH", range: "4-6" }, { label: "HYPERTROPHY", range: "8-12" }],
+  Legs: [{ label: "STRENGTH", range: "4-6" }, { label: "HYPERTROPHY", range: "8-12" }],
+  Shoulders: [{ label: "STRENGTH", range: "5-8" }, { label: "HYPERTROPHY", range: "10-15" }],
+  Arms: [{ label: "HYPERTROPHY", range: "8-12" }, { label: "PUMP", range: "12-15" }],
+  Core: [{ label: "ENDURANCE", range: "12-20" }],
+  Olympic: [{ label: "POWER", range: "2-5" }],
+};
+const repRanges = (cat?: string) => REP_RANGES[cat || ""] || [{ label: "HYPERTROPHY", range: "8-12" }];
 
 export function ExerciseLibraryModal({
   visible, onClose, onAdd, token,
@@ -111,6 +124,21 @@ export function ExerciseLibraryModal({
 
   const confirm = () => { if (sel.length) onAdd(sel); onClose(); };
 
+  const shareDemo = async () => {
+    if (!detail) return;
+    const text = `${detail.name} (${detail.category})\n\n${detail.desc || ""}\n\n— shared from Hutch's Inner Circle`;
+    try {
+      if (Platform.OS !== "web" && demoUri && (await Sharing.isAvailableAsync())) {
+        const safe = detail.name.replace(/[^a-z0-9]/gi, "_");
+        const fileUri = `${FileSystem.cacheDirectory}${safe}.png`;
+        const dl = await FileSystem.downloadAsync(demoUri, fileUri);
+        await Sharing.shareAsync(dl.uri, { mimeType: "image/png", dialogTitle: detail.name });
+        return;
+      }
+    } catch {}
+    Share.share({ message: text }).catch(() => {});
+  };
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -208,6 +236,14 @@ export function ExerciseLibraryModal({
               <Pressable testID="demo-close" onPress={() => setDetail(null)}><Text style={styles.close}>✕</Text></Pressable>
             </View>
             {!!detail?.category && <Text style={styles.detailCat}>{detail.category.toUpperCase()}</Text>}
+            <View style={styles.tagRow}>
+              {repRanges(detail?.category).map((t) => (
+                <View key={t.label} style={styles.tag}>
+                  <Text style={styles.tagLabel}>{t.label}</Text>
+                  <Text style={styles.tagRange}>{t.range} reps</Text>
+                </View>
+              ))}
+            </View>
             <View style={styles.demoBox}>
               {demoLoading ? (
                 <View style={styles.demoCenter}>
@@ -232,10 +268,7 @@ export function ExerciseLibraryModal({
               </Pressable>
               <Pressable
                 testID="demo-share"
-                onPress={() => {
-                  if (!detail) return;
-                  Share.share({ message: `${detail.name} (${detail.category})\n\n${detail.desc || ""}\n\n— shared from Hutch's Inner Circle` }).catch(() => {});
-                }}
+                onPress={shareDemo}
                 style={styles.smallBtn}
               >
                 <Text style={styles.smallBtnText}>{"\u2934 SHARE"}</Text>
@@ -293,6 +326,10 @@ const styles = StyleSheet.create({
   detailCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.lg },
   detailTitle: { color: colors.text, fontWeight: "900", fontSize: 18, flex: 1, paddingRight: spacing.sm },
   detailCat: { color: colors.brandPrimary, letterSpacing: 2, fontWeight: "800", fontSize: 10, marginBottom: spacing.sm },
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
+  tag: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surface3, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 5 },
+  tagLabel: { color: colors.brandPrimary, fontWeight: "900", fontSize: 9, letterSpacing: 1 },
+  tagRange: { color: colors.textMid, fontWeight: "700", fontSize: 11 },
   demoBox: { height: 200, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: "hidden", marginBottom: spacing.sm },
   demoCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.lg },
   demoHint: { color: colors.textDim, fontSize: 12, textAlign: "center" },

@@ -47,11 +47,15 @@ function EnhancedSync() {
   useEffect(() => {
     if (!user) return;
     const want = !!user.enhanced;
-    persistEnhancedFlag(want);
     const have = isEnhancedPalette();
-    if (want === have) return;
-    if (want) applyEnhancedPalette();
-    if (Platform.OS === "web" && !done.current) { done.current = true; reloadApp(); }
+    if (want === have) { persistEnhancedFlag(want); return; }
+    if (done.current) return;
+    done.current = true;
+    (async () => {
+      await persistEnhancedFlag(want);   // write flag BEFORE reload so boot applies red
+      if (want) applyEnhancedPalette();
+      if (Platform.OS === "web") reloadApp();
+    })();
   }, [user?.enhanced, user?.user_id]);
   return null;
 }
