@@ -80,6 +80,10 @@ export default function CustomProgram() {
       if (s.intake) { setSavedIntake(s.intake); setView("confirm"); }
       else if (s.purchased || hasCustomProgram) setView("intake");
       else setView("offer");
+      // Mark a delivered program as seen so the Home "PROGRAM READY" badge clears
+      if (s.intake?.program_media_id) {
+        apiFetch(token, "/api/custom-program/alert/seen", { method: "POST" }).catch(() => {});
+      }
     } catch { setView("offer"); }
     setLoading(false);
   };

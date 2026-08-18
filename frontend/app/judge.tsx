@@ -11,6 +11,7 @@ import Svg, { Polyline, Circle, Line as SvgLine } from "react-native-svg";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { VerifyPanel } from "@/src/components/VerifyPanel";
+import { MemberSheet } from "@/src/components/MemberSheet";
 import { colors, spacing, radius, RANK_COLORS, avatarFor } from "@/src/lib/theme";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -123,6 +124,7 @@ export default function Judge() {
   const [comments, setComments] = useState<any[]>([]);
   const [commentText, setCommentText] = useState("");
   const [posting, setPosting] = useState(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const load = async () => { try { setFeed(await apiFetch(token, "/api/judge/feed")); } catch {} };
@@ -300,7 +302,9 @@ export default function Judge() {
                   <Text style={st.boardPos}>{medal}</Text>
                   <Image source={{ uri: mediaUrl(b.media_id) }} style={st.boardThumb} contentFit="cover" />
                   <View style={{ flex: 1 }}>
-                    <Text style={[st.boardName, b.founder_backer && { color: colors.warning }]}>{b.display_name} {b.founder_backer ? "★" : ""}</Text>
+                    <Pressable onPress={() => b.user_id && setMemberId(b.user_id)} hitSlop={6}>
+                      <Text style={[st.boardName, b.founder_backer && { color: colors.warning }]}>{b.display_name} {b.founder_backer ? "★" : ""}</Text>
+                    </Pressable>
                     <Text style={[st.cardRank, { color: rc }]}>{b.rank?.toUpperCase()}</Text>
                   </View>
                   <Text style={[st.boardScore, { color: scoreColor(b.overall) }]}>{b.overall.toFixed(1)}</Text>
@@ -317,7 +321,9 @@ export default function Judge() {
               <View key={s.submission_id} testID={`judge-sub-${s.submission_id}`} style={st.card}>
                 <View style={st.cardHead}>
                   <Text style={st.cardEmoji}>{avatarFor(s.avatar_id).emoji}</Text>
-                  <Text style={[st.cardName, s.founder_backer && { color: colors.warning }]}>{s.display_name} {s.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
+                  <Pressable onPress={() => s.user_id && setMemberId(s.user_id)} hitSlop={6}>
+                    <Text style={[st.cardName, s.founder_backer && { color: colors.warning }]}>{s.display_name} {s.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
+                  </Pressable>
                   <Text style={[st.cardRank, { color: rc }]}>{s.rank?.toUpperCase()}</Text>
                 </View>
                 <Image source={{ uri: mediaUrl(s.media_id) }} style={st.subImage} contentFit="cover" transition={150} />
@@ -361,7 +367,9 @@ export default function Judge() {
                 <View key={c.comment_id} style={st.comment}>
                   <View style={st.commentHead}>
                     <Text style={st.cardEmoji}>{avatarFor(c.avatar_id).emoji}</Text>
-                    <Text style={[st.commentName, c.founder_backer && { color: colors.warning }]}>{c.display_name} {c.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
+                    <Pressable onPress={() => c.user_id && setMemberId(c.user_id)} hitSlop={6}>
+                      <Text style={[st.commentName, c.founder_backer && { color: colors.warning }]}>{c.display_name} {c.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
+                    </Pressable>
                     <Text style={[st.cardRank, { color: RANK_COLORS[c.rank] || colors.brandPrimary }]}>{c.rank?.toUpperCase()}</Text>
                   </View>
                   <Text style={st.commentText}>{c.text}</Text>
@@ -393,6 +401,7 @@ export default function Judge() {
           </View>
         </View>
       </Modal>
+      <MemberSheet userId={memberId} visible={!!memberId} onClose={() => setMemberId(null)} />
     </View>
   );
 }

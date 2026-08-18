@@ -2231,6 +2231,31 @@ async def custom_program_status(user=Depends(get_current_user)):
         "receipt": receipt,
     }
 
+@api_router.get("/custom-program/alert")
+async def custom_program_alert(user=Depends(get_current_user)):
+    """Lightweight poll for the buyer: has Coach delivered their program, and is it unseen?"""
+    req = await db.custom_program_requests.find_one(
+        {"user_id": user["user_id"], "status": "delivered"},
+        {"_id": 0, "program_file_name": 1, "delivered_at": 1, "delivered_seen": 1},
+        sort=[("delivered_at", -1)],
+    )
+    if not req:
+        return {"program_ready": False, "unseen": False}
+    return {
+        "program_ready": True,
+        "unseen": not bool(req.get("delivered_seen")),
+        "file_name": req.get("program_file_name"),
+        "delivered_at": (req["delivered_at"].isoformat() if isinstance(req.get("delivered_at"), datetime) else req.get("delivered_at")),
+    }
+
+@api_router.post("/custom-program/alert/seen")
+async def custom_program_alert_seen(user=Depends(get_current_user)):
+    await db.custom_program_requests.update_many(
+        {"user_id": user["user_id"], "status": "delivered"},
+        {"$set": {"delivered_seen": True}},
+    )
+    return {"ok": True}
+
 def _is_owner(user) -> bool:
     return (user.get("email", "").lower() in [e.lower() for e in OWNER_EMAILS]) or bool(user.get("all_rooms_access"))
 
@@ -2276,7 +2301,8 @@ async def custom_program_deliver(request_id: str, file: UploadFile = File(...), 
     await db.custom_program_requests.update_one(
         {"request_id": request_id},
         {"$set": {"program_media_id": media_id, "program_file_name": file.filename or "program",
-                  "status": "delivered", "delivered_at": datetime.now(timezone.utc)}},
+                  "status": "delivered", "delivered_at": datetime.now(timezone.utc),
+                  "delivered_seen": False}},
     )
     return {"ok": True, "media_id": media_id, "file_name": file.filename}
 
@@ -2633,6 +2659,7 @@ async def judge_leaderboard(user=Depends(get_current_user)):
             "media_id": r.get("media_id"),
             "overall": c.get("overall", 0),
             "founder_backer": r.get("founder_backer", False),
+            "user_id": r.get("user_id"),
         })
     return top
 

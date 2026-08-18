@@ -30,12 +30,19 @@ export default function Dashboard() {
   const { isSubscribed } = useSubscription();
   const router = useRouter();
   const [suggestion, setSuggestion] = useState<any>(null);
+  const [programAlert, setProgramAlert] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
       try { setSuggestion(await apiFetch(token, "/api/workouts/next-suggestion")); } catch {}
     })();
   }, [token, user?.xp]);
+
+  useEffect(() => {
+    (async () => {
+      try { setProgramAlert(await apiFetch(token, "/api/custom-program/alert")); } catch {}
+    })();
+  }, [token]);
 
   if (!user) return null;
   const avatar = avatarFor(user.avatar_id);
@@ -198,8 +205,15 @@ export default function Dashboard() {
 
       <Pressable testID="open-custom-program" onPress={() => router.push("/custom-program")} style={styles.customProgCta}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.customProgTitle}>★ 1-ON-1 CUSTOM PROGRAM</Text>
-          <Text style={styles.customProgSub}>Human-written for your goals + instant Athlete&apos;s Center · $200</Text>
+          <View style={styles.customProgTitleRow}>
+            <Text style={styles.customProgTitle}>★ 1-ON-1 CUSTOM PROGRAM</Text>
+            {programAlert?.unseen && <View style={styles.readyBadge}><Text style={styles.readyBadgeText}>PROGRAM READY</Text></View>}
+          </View>
+          <Text style={styles.customProgSub}>
+            {programAlert?.program_ready
+              ? "Your program from Coach Hutch is ready — tap to download"
+              : "Human-written for your goals + instant Athlete's Center · $200"}
+          </Text>
         </View>
         <Text style={styles.customProgArrow}>▶</Text>
       </Pressable>
@@ -264,6 +278,9 @@ const styles = StyleSheet.create({
   locked: { opacity: 0.55, borderColor: colors.borderStrong },
   customProgCta: { marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.lg, backgroundColor: "rgba(255,234,0,0.06)", borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.warning, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   customProgTitle: { color: colors.warning, fontWeight: "900", letterSpacing: 2, fontSize: 15 },
+  customProgTitleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" },
+  readyBadge: { backgroundColor: colors.success, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  readyBadgeText: { color: "#002200", fontWeight: "900", fontSize: 8, letterSpacing: 1 },
   customProgSub: { color: colors.textMid, fontSize: 11, marginTop: 4, letterSpacing: 1, lineHeight: 16 },
   customProgArrow: { color: colors.warning, fontSize: 18, marginLeft: spacing.sm },
   premiumCta: { marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.md, alignItems: "center" },
