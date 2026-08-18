@@ -22,6 +22,22 @@ export default function WorkoutScreen() {
   const [notice, setNotice] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<any>(null);
   const [rankUp, setRankUp] = useState<any>(null);
+  const [restActive, setRestActive] = useState(false);
+  const [restRemaining, setRestRemaining] = useState(0);
+  const [restDuration, setRestDuration] = useState(120);
+
+  useEffect(() => {
+    if (!restActive) return;
+    if (restRemaining <= 0) { setRestActive(false); return; }
+    const t = setTimeout(() => setRestRemaining((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [restActive, restRemaining]);
+
+  const startRest = (secs = restDuration) => {
+    setRestDuration(secs);
+    setRestRemaining(secs);
+    setRestActive(true);
+  };
 
   // Accept an AI-built session sent from the Athlete's Center
   useFocusEffect(
@@ -61,6 +77,7 @@ export default function WorkoutScreen() {
     const last = copy.exercises[ei].sets[copy.exercises[ei].sets.length - 1];
     copy.exercises[ei].sets.push({ reps: last.reps, weight_lb: last.weight_lb, rpe: last.rpe });
     setActive(copy);
+    startRest();
   };
 
   const editSet = (ei: number, si: number, field: keyof SetT, val: number) => {
@@ -165,6 +182,20 @@ export default function WorkoutScreen() {
             <Text style={styles.cancelText}>CANCEL</Text>
           </Pressable>
         </ScrollView>
+        {restActive && (
+          <View style={styles.restBar}>
+            <View style={styles.restLeft}>
+              <Text style={styles.restLabel}>REST</Text>
+              <Text style={styles.restTime}>{String(Math.floor(restRemaining / 60)).padStart(1, "0")}:{String(restRemaining % 60).padStart(2, "0")}</Text>
+            </View>
+            <View style={styles.restProgTrack}>
+              <View style={[styles.restProgFill, { width: `${(restRemaining / restDuration) * 100}%` }]} />
+            </View>
+            <Pressable testID="rest-minus" onPress={() => setRestRemaining((s) => Math.max(0, s - 15))} style={styles.restCtrl}><Text style={styles.restCtrlText}>-15</Text></Pressable>
+            <Pressable testID="rest-plus" onPress={() => setRestRemaining((s) => s + 15)} style={styles.restCtrl}><Text style={styles.restCtrlText}>+15</Text></Pressable>
+            <Pressable testID="rest-skip" onPress={() => setRestActive(false)} style={styles.restSkip}><Text style={styles.restSkipText}>SKIP</Text></Pressable>
+          </View>
+        )}
       </KeyboardAvoidingView>
     );
   }
@@ -260,4 +291,14 @@ const styles = StyleSheet.create({
   finishText: { color: "#001122", fontWeight: "900", letterSpacing: 3 },
   cancelBtn: { padding: spacing.md, alignItems: "center", marginTop: spacing.sm },
   cancelText: { color: colors.textDim, letterSpacing: 2 },
+  restBar: { position: "absolute", left: spacing.md, right: spacing.md, bottom: 80, flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(10,12,18,0.96)", borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  restLeft: { alignItems: "flex-start" },
+  restLabel: { color: colors.brandPrimary, fontSize: 9, letterSpacing: 2, fontWeight: "800" },
+  restTime: { color: colors.text, fontSize: 20, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  restProgTrack: { flex: 1, height: 4, backgroundColor: colors.surface3, borderRadius: 2, overflow: "hidden" },
+  restProgFill: { height: "100%", backgroundColor: colors.brandPrimary },
+  restCtrl: { paddingHorizontal: 8, paddingVertical: 8, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
+  restCtrlText: { color: colors.textMid, fontWeight: "800", fontSize: 11 },
+  restSkip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: radius.sm, backgroundColor: colors.brandPrimary },
+  restSkipText: { color: "#001122", fontWeight: "900", fontSize: 11, letterSpacing: 1 },
 });

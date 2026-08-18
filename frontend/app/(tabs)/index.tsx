@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage, avatarImage } from "@/src/lib/theme";
 import { HudSectionHeader, HudFrame } from "@/src/components/Hud";
 
 function nextRankInfo(xp: number) {
@@ -72,7 +72,11 @@ export default function Dashboard() {
       <LinearGradient colors={[colors.brandTertiary, colors.surface2]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.heroCard}>
         <View style={styles.heroRow}>
           <View style={[styles.avatarBox, { borderColor: rankColor }]}>
-            <Text style={styles.avatarEmoji}>{avatar.emoji}</Text>
+            {avatarImage(user.avatar_id) ? (
+              <Image source={avatarImage(user.avatar_id)} style={styles.avatarImg} contentFit="cover" />
+            ) : (
+              <Text style={styles.avatarEmoji}>{avatar.emoji}</Text>
+            )}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.rankText, { color: rankColor }]}>{rank.toUpperCase()}</Text>
@@ -189,7 +193,8 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
   heroCard: { marginHorizontal: spacing.lg, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderStrong },
   heroRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  avatarBox: { width: 68, height: 68, borderRadius: radius.md, borderWidth: 2, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  avatarBox: { width: 68, height: 68, borderRadius: radius.md, borderWidth: 2, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  avatarImg: { width: "100%", height: "100%" },
   avatarEmoji: { fontSize: 38 },
   rankText: { fontSize: 18, fontWeight: "900", letterSpacing: 3 },
   level: { color: colors.textDim, fontSize: 12, marginTop: 2, letterSpacing: 2 },

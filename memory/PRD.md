@@ -48,6 +48,13 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Unlockable backgrounds/widgets tied to level.
 - Adaptive next-workout suggestion.
 
+## Implemented (2026-06 — Player Card + HUD polish)
+- ME tab redesigned as a dynamic holographic PLAYER CARD (game character-card look): AI anime hero portrait, rank stamp, LV, class, PWR/XP/LOGS stat bars, premium/skool pills; tap card to open "SELECT FIGHTER" picker; STATS toggle + SHARE (capture card).
+- 8 AI-generated full anime-hero portrait avatars (Nano Banana) replace emoji: ronin, kaido, titan, saiyan, demon, shinobi, phoenix, reaper; portraits also show on HQ hero avatar.
+- Global animated CRT scanline/vignette overlay (ScanlineOverlay) for Pip-Boy HUD feel; non-interactive.
+- Rest Timer: auto-starts on adding a set; floating REST countdown with -15/+15/SKIP.
+- Verified: 28/28 pytest + full frontend flows (iteration_6).
+
 ## Implemented (2026-06 — HUD restyle + rank perks)
 - Recap/Vault moved to a top HUD toolbar on the dashboard (fixed low/right placement); 44px tap targets.
 - Pip-Boy / game-inventory HUD look: mono terminal status line, ▚ // section headers, corner-bracket HudFrame component, AI-generated anime hero/gym backgrounds behind dashboard + vault.

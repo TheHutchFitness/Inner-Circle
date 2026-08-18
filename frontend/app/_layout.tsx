@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth } from "@/src/lib/auth";
 import { initializeRevenueCat, SubscriptionProvider, useRCIdentityBinder } from "@/src/lib/revenuecat";
+import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
@@ -41,6 +42,7 @@ export default function RootLayout() {
             <RCIdentity>
               <StatusBar barStyle="light-content" backgroundColor="#050508" />
               <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#050508" } }} />
+              <ScanlineOverlay />
             </RCIdentity>
           </SubscriptionProvider>
         </AuthProvider>

@@ -1,0 +1,37 @@
+{
+  "summary": "All 5 new features + regressions verified end-to-end. (1) ME PLAYER CARD: holographic card renders with anime portrait, ELITE rank stamp, LV 17, KAIDO / SHINOBI CLASS name/class, PWR/XP/LOGS bars, SKOOL pill, 'TAP THE CARD TO SWITCH YOUR AVATAR' hint. change-avatar Pressable opens SELECT FIGHTER grid. (2) AVATAR ART SWITCH: avatar-avatar_shinobi selectable, portrait updates to Shinobi art, PATCH /api/profile/update persists (verified via re-render + HQ hero avatar reflects Shinobi art after switch). ART tag appears on 8 art avatars, others fall back to emoji (Wolf/Ghost/Dragon/Coach visible). (3) STATS TOGGLE + SHARE: toggle-stats hides/shows PR VAULT + STRENGTH CURVE + MILESTONE BADGES; chart-tab-bench/squat/deadlift/ohp all present; share-card tapped without crashing on web (Sharing.isAvailableAsync() false path handled). (4) REST TIMER: tapping add-set-0 auto-shows floating REST bar starting 2:00; countdown confirmed (1:59 -> 1:56 in 3s); rest-plus +15 = 2:11; two rest-minus taps = 1:41; rest-skip dismisses (bar unmounts, rest-minus no longer in DOM). (5) SCANLINE: overlay mounted globally, does NOT block taps (every button interaction succeeded: tab-profile, change-avatar, toggle-stats, share-card, tab-workout, start-prog_ppl_advanced-push, add-set-0, rest ctrls, tab-dashboard, open-recap/open-vault). REGRESSION: HQ 'WELCOME, KAIDO' + open-recap + open-vault render at top. Backend: 28/28 pytest pass in 55s. Deprecated RN prop detected: ScanlineOverlay uses props.pointerEvents (RN warns to move to style.pointerEvents). Additional deprecations still logging: 'textShadow*' (RankUpCelebration) and NEW 'shadow*' (Player Card glow uses shadowColor/shadowOpacity/shadowRadius/shadowOffset — should use boxShadow shorthand).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "profile.tsx <Pressable> receives activeOpacity", "issue": "Pressable does not support activeOpacity prop (that's a TouchableOpacity prop). Prop is silently ignored on the change-avatar Pressable. Cosmetic only — tap still works. Reference: /app/frontend/app/(tabs)/profile.tsx:70", "testID": "change-avatar", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "ME / Player Card", "issues": ["Card portrait renders great at 300px width; corner brackets + holo scanline read well. Consider centering the tapHint or increasing its contrast (currently colors.textDim at 10pt)."]}
+    ],
+    "react_native_issues": [
+      {"component": "ScanlineOverlay pointerEvents prop", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Currently: <View pointerEvents=\"none\" style={StyleSheet.absoluteFill}>. Move to style: <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>. Reference: /app/frontend/src/components/ScanlineOverlay.tsx:18"},
+      {"component": "shadow* style props (Player Card glow)", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' The cardGlow style uses shadowColor/shadowOpacity/shadowRadius/shadowOffset. RN 0.76+ warns; consolidate into boxShadow or wrap in Platform.select. Reference: /app/frontend/app/(tabs)/profile.tsx:216 (styles.cardGlow)"},
+      {"component": "textShadow* style props", "issue": "Existing warning still present from RankUpCelebration and similar. Reference: /app/frontend/src/components/RankUpCelebration.tsx"}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "ScanlineOverlay.tsx L18: replace `pointerEvents=\"none\"` prop with `style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}` to silence RN warning.",
+    "profile.tsx L216 cardGlow: migrate shadow* -> boxShadow (or Platform.select the two) so 'shadow* deprecated' warning goes away.",
+    "profile.tsx L70: drop the `activeOpacity={0.9}` prop from Pressable (or swap to TouchableOpacity) — it's a no-op.",
+    "Optional: continue textShadow* cleanup in RankUpCelebration.tsx."
+  ],
+  "critical_code_review_comments": [
+    "profile.tsx: excellent use of view-shot + expo-sharing with graceful fallback message on web — no crash observed.",
+    "workout.tsx L30-39: rest timer state machine is clean; setTimeout-based countdown auto-clears when restRemaining hits 0. Consider clearing when workout is finished/canceled to avoid a stale ticker if user exits mid-timer (didn't reproduce a stuck bar in this run, but recommend explicit cleanup on session end).",
+    "profile.tsx L104: XP bar denominator is fixed at 250 which is a nice approximation but not tied to real level thresholds; consider computing progress-to-next-level from server-provided next_rank_xp.",
+    "ScanlineOverlay uses `pointerEvents=\"none\"` prop AND style.absoluteFill — the prop is deprecated but functionally still non-blocking (verified by all downstream taps working)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "100% (player card render, avatar switch + persistence, stats toggle, share w/o crash, rest timer auto-start/countdown/+-15/skip, scanline non-blocking, HQ regression)"},
+  "seed_data_creation": "Backend suite still registers fresh_*/rankup_*/perk_* users each run; harmless.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login button label is 'ENTER'. Placeholders: 'Email', 'Password'. Avatar testIDs use 'avatar-avatar_<id>'. Rest timer starts on ADD-SET (add-set-<ei>), initial duration 120s (renders 1:59 on first frame because a 1s tick has already elapsed). rest-minus/rest-plus adjust ±15s, rest-skip immediately dismisses. ScanlineOverlay warning is cosmetic (pointerEvents prop). All primary flows working — main agent can proceed to polish tasks."
+}

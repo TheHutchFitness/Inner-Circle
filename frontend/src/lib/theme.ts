@@ -45,6 +45,26 @@ export function avatarFor(id: string) {
   return AVATARS.find((a) => a.id === id) || AVATARS[0];
 }
 
+// AI-generated full anime-hero portraits (game character-select art)
+export const AVATAR_IMAGES: Record<string, any> = {
+  avatar_ronin: require("@/assets/images/av_ronin.png"),
+  avatar_kaido: require("@/assets/images/av_kaido.png"),
+  avatar_titan: require("@/assets/images/av_titan.png"),
+  avatar_saiyan: require("@/assets/images/av_saiyan.png"),
+  avatar_demon: require("@/assets/images/av_demon.png"),
+  avatar_shinobi: require("@/assets/images/av_shinobi.png"),
+  avatar_phoenix: require("@/assets/images/av_phoenix.png"),
+  avatar_reaper: require("@/assets/images/av_reaper.png"),
+};
+
+export function avatarImage(id?: string) {
+  return AVATAR_IMAGES[id || ""] || null;
+}
+
+export function hasAvatarArt(id?: string) {
+  return !!AVATAR_IMAGES[id || ""];
+}
+
 export const RANK_COLORS: Record<string, string> = {
   Beginner: "#A0A5B5",
   Intermediate: "#00E5FF",

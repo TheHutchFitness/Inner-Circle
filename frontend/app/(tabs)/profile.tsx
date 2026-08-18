@@ -1,14 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Modal } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, AVATARS, RANK_COLORS, fmtWeight } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight } from "@/src/lib/theme";
 import { StrengthChart } from "@/src/components/StrengthChart";
 import { HudSectionHeader } from "@/src/components/Hud";
 
-const LIFT_TABS = [["BENCH","bench"],["SQUAT","squat"],["DEAD","deadlift"],["OHP","ohp"]];
+const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"], ["OHP", "ohp"]];
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
@@ -18,17 +23,24 @@ export default function Profile() {
   const [avatarOpen, setAvatarOpen] = useState(false);
   const [chart, setChart] = useState<any>(null);
   const [liftTab, setLiftTab] = useState("bench");
+  const [showStats, setShowStats] = useState(true);
+  const [msg, setMsg] = useState<string | null>(null);
+  const cardRef = useRef<View>(null);
+
+  const shimmer = useSharedValue(0);
+  useEffect(() => { shimmer.value = withRepeat(withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
+  const shimmerStyle = useAnimatedStyle(() => ({ opacity: 0.35 + shimmer.value * 0.5 }));
 
   useEffect(() => {
-    (async () => {
-      try { setChart(await apiFetch(token, "/api/progress/chart")); } catch {}
-    })();
+    (async () => { try { setChart(await apiFetch(token, "/api/progress/chart")); } catch {} })();
   }, [token]);
 
   if (!user) return null;
   const av = avatarFor(user.avatar_id);
   const rank = user.rank || "Beginner";
   const rankColor = RANK_COLORS[rank];
+  const portrait = avatarImage(user.avatar_id);
+  const totalLift = (user.prs?.bench || 0) + (user.prs?.squat || 0) + (user.prs?.deadlift || 0) + (user.prs?.ohp || 0);
 
   const pickAvatar = async (avatar_id: string) => {
     try {
@@ -38,87 +50,146 @@ export default function Profile() {
     setAvatarOpen(false);
   };
 
+  const shareCard = async () => {
+    try {
+      const uri = await captureRef(cardRef, { format: "png", quality: 1 });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
+    } catch { setMsg("Sharing unavailable here — try on a device."); }
+  };
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.surface }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
-      <Text style={[styles.eyebrow, { paddingHorizontal: spacing.lg }]}>DIGITAL DOSSIER</Text>
-      <Text style={[styles.h1, { paddingHorizontal: spacing.lg }]}>PROFILE</Text>
-
-      <View style={styles.heroCard}>
-        <Pressable testID="change-avatar" onPress={() => setAvatarOpen(true)} style={[styles.bigAvatar, { borderColor: rankColor }]}>
-          <Text style={styles.bigEmoji}>{av.emoji}</Text>
-        </Pressable>
-        <Text style={styles.name}>{user.display_name}</Text>
-        <Text style={[styles.rankTag, { color: rankColor }]}>{rank.toUpperCase()} · LVL {user.level}</Text>
-        <View style={styles.badgeRow}>
-          {isSubscribed && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ PREMIUM</Text></View>}
-          {user.skool_verified && <View style={[styles.pill, { backgroundColor: colors.success }]}><Text style={styles.pillText}>✓ SKOOL</Text></View>}
-        </View>
+      <View style={styles.topRow}>
+        <Text style={styles.hudTag}>⌁ PLAYER CARD</Text>
+        <Pressable testID="open-settings" onPress={() => router.push("/settings")} style={styles.gearBtn}><Text style={styles.gearText}>⚙ CONFIG</Text></Pressable>
       </View>
 
-      <View style={styles.infoGrid}>
-        <View style={styles.info}><Text style={styles.infoL}>BODYWEIGHT</Text><Text style={styles.infoV}>{user.bodyweight_lb} lb</Text></View>
-        <View style={styles.info}><Text style={styles.infoL}>AGE</Text><Text style={styles.infoV}>{user.age}</Text></View>
-        <View style={styles.info}><Text style={styles.infoL}>XP</Text><Text style={styles.infoV}>{user.xp}</Text></View>
-        <View style={styles.info}><Text style={styles.infoL}>STREAK</Text><Text style={styles.infoV}>{user.streak_days}d</Text></View>
-      </View>
+      {/* PLAYER CARD */}
+      <View style={styles.cardOuter}>
+        <Animated.View style={[styles.cardGlow, { shadowColor: rankColor }, shimmerStyle]} />
+        <Pressable testID="change-avatar" onPress={() => setAvatarOpen(true)}>
+          <View ref={cardRef} collapsable={false} style={styles.cardWrap}>
+            <LinearGradient colors={[rankColor + "55", "#0A0C12", "#050508"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
+              {/* corner brackets */}
+              <View style={[styles.corner, styles.tl, { borderColor: rankColor }]} />
+              <View style={[styles.corner, styles.tr, { borderColor: rankColor }]} />
+              <View style={[styles.corner, styles.bl, { borderColor: rankColor }]} />
+              <View style={[styles.corner, styles.br, { borderColor: rankColor }]} />
 
-      <HudSectionHeader label="PR VAULT" />
-      <View style={styles.grid}>
-        {[["BENCH","bench"],["SQUAT","squat"],["DEADLIFT","deadlift"],["OHP","ohp"]].map(([label, key]) => (
-          <View key={key} style={styles.prCard}>
-            <Text style={styles.prLabel}>{label}</Text>
-            <Text style={styles.prValue}>{fmtWeight(user.prs?.[key] || 0)}</Text>
+              <View style={styles.cardHeaderRow}>
+                <Text style={[styles.rankStamp, { color: rankColor, borderColor: rankColor }]}>{rank.toUpperCase()}</Text>
+                <Text style={styles.lvlStamp}>LV {user.level}</Text>
+              </View>
+
+              <View style={styles.portraitWrap}>
+                {portrait ? (
+                  <Image source={portrait} style={styles.portrait} contentFit="cover" />
+                ) : (
+                  <View style={styles.portraitFallback}><Text style={styles.portraitEmoji}>{av.emoji}</Text></View>
+                )}
+                <LinearGradient colors={["transparent", "transparent", "rgba(5,5,8,0.95)"]} style={StyleSheet.absoluteFill} />
+                <View style={styles.holoLine} />
+              </View>
+
+              <View style={styles.namePlate}>
+                <Text style={styles.playerName}>{user.display_name?.toUpperCase()}</Text>
+                <Text style={[styles.playerClass, { color: rankColor }]}>{av.label.toUpperCase()} CLASS</Text>
+                <View style={styles.pillRow}>
+                  {isSubscribed && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ PREMIUM</Text></View>}
+                  {user.skool_verified && <View style={[styles.pill, { backgroundColor: colors.success }]}><Text style={styles.pillText}>✓ SKOOL</Text></View>}
+                </View>
+                {/* mini stat bars */}
+                <View style={styles.barsRow}>
+                  <StatBar label="PWR" value={Math.min(1, totalLift / 2000)} color={rankColor} />
+                  <StatBar label="XP" value={user.level ? (user.xp % 250) / 250 : 0} color={colors.brandPrimary} />
+                  <StatBar label="LOGS" value={Math.min(1, (user.workouts_logged || 0) / 100)} color={colors.success} />
+                </View>
+              </View>
+            </LinearGradient>
           </View>
-        ))}
+        </Pressable>
+        <Text style={styles.tapHint}>TAP THE CARD TO SWITCH YOUR AVATAR</Text>
       </View>
 
-      <HudSectionHeader label="STRENGTH CURVE" />
-      <View style={styles.chartCard}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartTabs}>
-          {LIFT_TABS.map(([label, key]) => (
-            <Pressable testID={`chart-tab-${key}`} key={key} onPress={() => setLiftTab(key)} style={[styles.chartChip, liftTab === key && styles.chartChipActive]}>
-              <Text style={[styles.chartChipText, liftTab === key && styles.chartChipTextActive]}>{label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-        <StrengthChart data={chart?.[liftTab] || []} color={colors.brandPrimary} />
+      {/* STATS / SHARE actions */}
+      <View style={styles.actionRow}>
+        <Pressable testID="toggle-stats" onPress={() => setShowStats((s) => !s)} style={[styles.actionBtn, showStats && styles.actionBtnActive]}>
+          <Text style={[styles.actionText, showStats && styles.actionTextActive]}>▤ STATS</Text>
+        </Pressable>
+        <Pressable testID="share-card" onPress={shareCard} style={styles.actionBtn}>
+          <Text style={styles.actionText}>⇪ SHARE</Text>
+        </Pressable>
       </View>
+      {msg && <Text style={styles.msg}>{msg}</Text>}
 
-      <HudSectionHeader label="MILESTONE BADGES" />
-      <View style={styles.badgeGrid}>
-        {(user.badges || []).length === 0 ? (
-          <Text style={styles.emptyBadges}>Hit 135, 225, 315+ to earn badges.</Text>
-        ) : (
-          (user.badges || []).map((b: string) => (
-            <View key={b} style={styles.badgeCard}>
-              <Text style={styles.badgeText}>{b.replace("_", " ").toUpperCase()}</Text>
-            </View>
-          ))
-        )}
-      </View>
+      {showStats && (
+        <>
+          <View style={styles.infoGrid}>
+            <View style={styles.info}><Text style={styles.infoL}>BODYWEIGHT</Text><Text style={styles.infoV}>{user.bodyweight_lb} lb</Text></View>
+            <View style={styles.info}><Text style={styles.infoL}>AGE</Text><Text style={styles.infoV}>{user.age}</Text></View>
+            <View style={styles.info}><Text style={styles.infoL}>TOTAL</Text><Text style={styles.infoV}>{totalLift}</Text></View>
+            <View style={styles.info}><Text style={styles.infoL}>STREAK</Text><Text style={styles.infoV}>{user.streak_days}d</Text></View>
+          </View>
 
-      <Pressable testID="open-settings" onPress={() => router.push("/settings")} style={styles.actionBtn}>
-        <Text style={styles.actionText}>EDIT PROFILE + SKOOL</Text>
+          <HudSectionHeader label="PR VAULT" />
+          <View style={styles.grid}>
+            {[["BENCH", "bench"], ["SQUAT", "squat"], ["DEADLIFT", "deadlift"], ["OHP", "ohp"]].map(([label, key]) => (
+              <View key={key} style={styles.prCard}>
+                <View style={[styles.prAccent, { backgroundColor: rankColor }]} />
+                <Text style={styles.prLabel}>{label}</Text>
+                <Text style={styles.prValue}>{fmtWeight(user.prs?.[key] || 0)}</Text>
+              </View>
+            ))}
+          </View>
+
+          <HudSectionHeader label="STRENGTH CURVE" />
+          <View style={styles.chartCard}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartTabs}>
+              {LIFT_TABS.map(([label, key]) => (
+                <Pressable testID={`chart-tab-${key}`} key={key} onPress={() => setLiftTab(key)} style={[styles.chartChip, liftTab === key && styles.chartChipActive]}>
+                  <Text style={[styles.chartChipText, liftTab === key && styles.chartChipTextActive]}>{label}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <StrengthChart data={chart?.[liftTab] || []} color={rankColor} />
+          </View>
+
+          <HudSectionHeader label="MILESTONE BADGES" />
+          <View style={styles.badgeGrid}>
+            {(user.badges || []).length === 0 ? (
+              <Text style={styles.emptyBadges}>Hit 135, 225, 315+ to earn badges.</Text>
+            ) : (
+              (user.badges || []).map((b: string) => (
+                <View key={b} style={styles.badgeCard}><Text style={styles.badgeText}>{b.replace("_", " ").toUpperCase()}</Text></View>
+              ))
+            )}
+          </View>
+        </>
+      )}
+
+      <Pressable testID="open-paywall-profile" onPress={() => router.push("/paywall")} style={styles.linkBtn}>
+        <Text style={styles.linkText}>MANAGE PREMIUM</Text>
       </Pressable>
-      <Pressable testID="open-paywall-profile" onPress={() => router.push("/paywall")} style={styles.actionBtn}>
-        <Text style={styles.actionText}>MANAGE PREMIUM</Text>
-      </Pressable>
-      <Pressable testID="sign-out" onPress={signOut} style={[styles.actionBtn, { borderColor: colors.error }]}>
-        <Text style={[styles.actionText, { color: colors.error }]}>SIGN OUT</Text>
+      <Pressable testID="sign-out" onPress={signOut} style={[styles.linkBtn, { borderColor: colors.error }]}>
+        <Text style={[styles.linkText, { color: colors.error }]}>SIGN OUT</Text>
       </Pressable>
 
       <Modal visible={avatarOpen} transparent animationType="fade" onRequestClose={() => setAvatarOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>SELECT AVATAR</Text>
-            <View style={styles.avatarGrid}>
-              {AVATARS.map((a) => (
-                <Pressable testID={`avatar-${a.id}`} key={a.id} onPress={() => pickAvatar(a.id)} style={[styles.avOpt, user.avatar_id === a.id && styles.avOptSel]}>
-                  <Text style={{ fontSize: 32 }}>{a.emoji}</Text>
-                  <Text style={styles.avOptLabel}>{a.label}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <Text style={styles.modalTitle}>SELECT FIGHTER</Text>
+            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={styles.avatarGrid}>
+              {AVATARS.map((a) => {
+                const img = avatarImage(a.id);
+                return (
+                  <Pressable testID={`avatar-${a.id}`} key={a.id} onPress={() => pickAvatar(a.id)} style={[styles.avOpt, user.avatar_id === a.id && styles.avOptSel]}>
+                    {img ? <Image source={img} style={styles.avImg} contentFit="cover" /> : <View style={styles.avEmojiWrap}><Text style={{ fontSize: 30 }}>{a.emoji}</Text></View>}
+                    <Text style={styles.avOptLabel} numberOfLines={1}>{a.label}</Text>
+                    {hasAvatarArt(a.id) && <View style={styles.artTag}><Text style={styles.artTagText}>ART</Text></View>}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
             <Pressable onPress={() => setAvatarOpen(false)} style={styles.modalClose}><Text style={{ color: colors.textDim, letterSpacing: 2 }}>CLOSE</Text></Pressable>
           </View>
         </View>
@@ -127,44 +198,86 @@ export default function Profile() {
   );
 }
 
+function StatBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <View style={styles.bar}>
+      <Text style={styles.barLabel}>{label}</Text>
+      <View style={styles.barTrack}><View style={[styles.barFill, { width: `${Math.max(4, value * 100)}%`, backgroundColor: color }]} /></View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  eyebrow: { color: colors.brandPrimary, letterSpacing: 4, fontSize: 11, fontWeight: "700" },
-  h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: spacing.md },
-  heroCard: { alignItems: "center", padding: spacing.lg, marginHorizontal: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong },
-  bigAvatar: { width: 100, height: 100, borderRadius: radius.md, borderWidth: 3, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface },
-  bigEmoji: { fontSize: 54 },
-  name: { color: colors.text, fontSize: 22, fontWeight: "900", marginTop: spacing.sm, letterSpacing: 1 },
-  rankTag: { fontSize: 12, fontWeight: "800", letterSpacing: 3, marginTop: 4 },
-  badgeRow: { flexDirection: "row", gap: 8, marginTop: spacing.md, flexWrap: "wrap", justifyContent: "center" },
-  pill: { paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill },
-  pillText: { color: "#001122", fontWeight: "900", fontSize: 10, letterSpacing: 2 },
-  infoGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: spacing.lg, marginTop: spacing.md, gap: spacing.sm },
+  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  hudTag: { color: colors.brandPrimary, letterSpacing: 3, fontSize: 12, fontWeight: "900" },
+  gearBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, minHeight: 40, justifyContent: "center", borderRadius: radius.sm },
+  gearText: { color: colors.brandPrimary, fontWeight: "800", letterSpacing: 2, fontSize: 11 },
+  cardOuter: { alignItems: "center", paddingHorizontal: spacing.lg },
+  cardGlow: { position: "absolute", top: 10, width: "86%", height: "92%", borderRadius: radius.md, shadowOpacity: 0.9, shadowRadius: 24, shadowOffset: { width: 0, height: 0 }, elevation: 12 },
+  cardWrap: { width: 300, borderRadius: radius.md, overflow: "hidden" },
+  card: { width: "100%", padding: spacing.md, borderWidth: 2, borderColor: "rgba(0,229,255,0.4)", borderRadius: radius.md },
+  corner: { position: "absolute", width: 18, height: 18, zIndex: 2 },
+  tl: { top: 4, left: 4, borderTopWidth: 3, borderLeftWidth: 3 },
+  tr: { top: 4, right: 4, borderTopWidth: 3, borderRightWidth: 3 },
+  bl: { bottom: 4, left: 4, borderBottomWidth: 3, borderLeftWidth: 3 },
+  br: { bottom: 4, right: 4, borderBottomWidth: 3, borderRightWidth: 3 },
+  cardHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.sm },
+  rankStamp: { fontSize: 12, fontWeight: "900", letterSpacing: 3, borderWidth: 1, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm },
+  lvlStamp: { color: colors.text, fontSize: 14, fontWeight: "900", letterSpacing: 1, fontVariant: ["tabular-nums"] },
+  portraitWrap: { width: "100%", aspectRatio: 0.92, borderRadius: radius.sm, overflow: "hidden", backgroundColor: "#05070C", borderWidth: 1, borderColor: "rgba(0,229,255,0.25)" },
+  portrait: { width: "100%", height: "100%" },
+  portraitFallback: { flex: 1, alignItems: "center", justifyContent: "center" },
+  portraitEmoji: { fontSize: 100 },
+  holoLine: { position: "absolute", top: "45%", left: 0, right: 0, height: 2, backgroundColor: "rgba(0,229,255,0.25)" },
+  namePlate: { marginTop: spacing.md },
+  playerName: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1 },
+  playerClass: { fontSize: 11, letterSpacing: 3, fontWeight: "800", marginTop: 2 },
+  pillRow: { flexDirection: "row", gap: 6, marginTop: spacing.sm, flexWrap: "wrap" },
+  pill: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
+  pillText: { color: "#001122", fontWeight: "900", fontSize: 9, letterSpacing: 1 },
+  barsRow: { marginTop: spacing.md, gap: 6 },
+  bar: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  barLabel: { color: colors.textDim, fontSize: 9, fontWeight: "800", letterSpacing: 2, width: 34 },
+  barTrack: { flex: 1, height: 6, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden" },
+  barFill: { height: "100%" },
+  tapHint: { color: colors.textDim, fontSize: 10, letterSpacing: 2, marginTop: spacing.sm, fontWeight: "700" },
+  actionRow: { flexDirection: "row", gap: spacing.md, paddingHorizontal: spacing.lg, marginTop: spacing.lg },
+  actionBtn: { flex: 1, borderWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm, backgroundColor: colors.surface2 },
+  actionBtnActive: { backgroundColor: colors.brandTertiary },
+  actionText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2 },
+  actionTextActive: { color: colors.brandPrimary },
+  msg: { color: colors.warning, textAlign: "center", marginTop: spacing.sm },
+  infoGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: spacing.lg, marginTop: spacing.lg, gap: spacing.sm },
   info: { flex: 1, minWidth: "45%", backgroundColor: colors.surface2, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
   infoL: { color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
   infoV: { color: colors.text, fontSize: 18, fontWeight: "900", marginTop: 4 },
-  section: { color: colors.text, letterSpacing: 4, fontWeight: "800", fontSize: 13, paddingHorizontal: spacing.lg, marginTop: spacing.xl, marginBottom: spacing.sm },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingHorizontal: spacing.lg },
+  prCard: { width: "48%", backgroundColor: colors.surface2, borderRadius: radius.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
+  prAccent: { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
+  prLabel: { color: colors.brandPrimary, fontSize: 11, letterSpacing: 3, fontWeight: "800" },
+  prValue: { color: colors.text, fontSize: 20, fontWeight: "900", marginTop: 4 },
   chartCard: { marginHorizontal: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
   chartTabs: { gap: spacing.sm, paddingBottom: spacing.md },
   chartChip: { paddingHorizontal: spacing.md, height: 32, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, justifyContent: "center", backgroundColor: colors.surface3, flexShrink: 0 },
   chartChipActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
   chartChipText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2, fontSize: 11 },
   chartChipTextActive: { color: colors.brandPrimary },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingHorizontal: spacing.lg },
-  prCard: { width: "48%", backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
-  prLabel: { color: colors.brandPrimary, fontSize: 11, letterSpacing: 3, fontWeight: "800" },
-  prValue: { color: colors.text, fontSize: 20, fontWeight: "900", marginTop: 4 },
   badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: spacing.lg },
   badgeCard: { backgroundColor: colors.brandTertiary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6, borderWidth: 1, borderColor: colors.borderStrong },
   badgeText: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 1, fontWeight: "800" },
   emptyBadges: { color: colors.textDim, paddingHorizontal: spacing.lg },
-  actionBtn: { marginTop: spacing.md, marginHorizontal: spacing.lg, padding: spacing.md, alignItems: "center", borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm },
-  actionText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 3 },
-  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  linkBtn: { marginTop: spacing.md, marginHorizontal: spacing.lg, padding: spacing.md, alignItems: "center", borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm },
+  linkText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 3 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderStrong },
-  modalTitle: { color: colors.brandPrimary, letterSpacing: 3, fontWeight: "800", textAlign: "center", marginBottom: spacing.md },
-  avatarGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.md },
-  avOpt: { width: "28%", alignItems: "center", padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
+  modalTitle: { color: colors.brandPrimary, letterSpacing: 3, fontWeight: "900", textAlign: "center", marginBottom: spacing.md },
+  avatarGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm },
+  avOpt: { width: "30%", alignItems: "center", padding: 6, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
   avOptSel: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
-  avOptLabel: { color: colors.textDim, fontSize: 10, marginTop: 4, letterSpacing: 1 },
+  avImg: { width: "100%", aspectRatio: 1, borderRadius: radius.sm },
+  avEmojiWrap: { width: "100%", aspectRatio: 1, alignItems: "center", justifyContent: "center" },
+  avOptLabel: { color: colors.textMid, fontSize: 10, marginTop: 4, letterSpacing: 1, fontWeight: "700" },
+  artTag: { position: "absolute", top: 8, right: 8, backgroundColor: colors.brandPrimary, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 },
+  artTagText: { color: "#001122", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   modalClose: { alignItems: "center", marginTop: spacing.lg },
 });
