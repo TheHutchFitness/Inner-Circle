@@ -2300,6 +2300,7 @@ async def founders_list(user=Depends(get_current_user)):
             my_number = num
         founders.append({
             "number": num,
+            "user_id": r["user_id"],
             "display_name": r.get("display_name", "Athlete"),
             "avatar_id": r.get("avatar_id", "avatar_ronin"),
             "sex": r.get("sex", "male"),
@@ -2309,9 +2310,10 @@ async def founders_list(user=Depends(get_current_user)):
 
     backer_rows = await db.users.find(
         {"founder_backer": True, "is_bot": {"$ne": True}},
-        {"_id": 0, "display_name": 1, "avatar_id": 1, "xp": 1, "backed_at": 1, "sex": 1},
+        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "backed_at": 1, "sex": 1},
     ).sort("backed_at", 1).to_list(500)
     backers = [{
+        "user_id": b.get("user_id"),
         "display_name": b.get("display_name", "Athlete"),
         "avatar_id": b.get("avatar_id", "avatar_ronin"),
         "sex": b.get("sex", "male"),
@@ -2445,6 +2447,32 @@ async def coach_sales(user=Depends(get_current_user)):
         "by_month": months,
     }
 
+@api_router.get("/coach/buyers")
+async def coach_buyers(user=Depends(get_current_user)):
+    """Owner-only: everyone who bought the 1-on-1 Custom Program, with intake status."""
+    if not _is_owner(user):
+        raise HTTPException(status_code=403, detail="Coach access only")
+    vps = await db.verified_purchases.find(
+        {"entitlement": CUSTOM_PROGRAM_ENTITLEMENT, "revoked": {"$ne": True}}, {"_id": 0}
+    ).sort("verified_at", -1).to_list(500)
+    out = []
+    for vp in vps:
+        u = await db.users.find_one({"user_id": vp["user_id"]}, {"_id": 0, "display_name": 1, "avatar_id": 1, "sex": 1})
+        intake = await db.custom_program_requests.find_one(
+            {"user_id": vp["user_id"]}, {"_id": 0}, sort=[("created_at", -1)]
+        )
+        out.append({
+            "user_id": vp["user_id"],
+            "display_name": (u or {}).get("display_name", "Athlete"),
+            "avatar_id": (u or {}).get("avatar_id", "avatar_ronin"),
+            "sex": (u or {}).get("sex", "male"),
+            "order_number": vp.get("order_number"),
+            "purchased_at": (vp["verified_at"].isoformat() if isinstance(vp.get("verified_at"), datetime) else vp.get("verified_at")),
+            "has_intake": bool(intake),
+            "intake_status": (intake.get("status") if intake else None),
+            "request_id": (intake.get("request_id") if intake else None),
+        })
+    return {"buyers": out}
 
 
 # ---------- The Judge (AI physique critique + member comments) ----------

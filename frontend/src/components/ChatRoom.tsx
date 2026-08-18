@@ -6,6 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, avatarFor, RANK_COLORS } from "@/src/lib/theme";
 import { VerifyPanel } from "./VerifyPanel";
+import { MemberSheet } from "./MemberSheet";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -30,6 +31,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
   const [pending, setPending] = useState<any>(null);
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [memberId, setMemberId] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const isVerified = !!(user?.email_verified || user?.phone_verified);
@@ -145,7 +147,9 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
             <View key={m.message_id} style={[st.msg, { borderLeftColor: m.founder_backer ? colors.warning : accent }, m.founder_backer && st.msgBackerGlow, highlightMine && mine && st.msgMine]}>
               <View style={st.msgHead}>
                 <Text style={st.msgEmoji}>{av.emoji}</Text>
-                <Text style={[st.msgName, m.founder_backer && st.msgNameBacker]}>{m.display_name}</Text>
+                <Pressable onPress={() => m.user_id && setMemberId(m.user_id)} hitSlop={6}>
+                  <Text style={[st.msgName, m.founder_backer && st.msgNameBacker]}>{m.display_name}</Text>
+                </Pressable>
                 <Text style={[st.msgRank, { color: RANK_COLORS[m.rank] || accent }]}>{m.rank?.toUpperCase()}</Text>
                 {m.founder_backer && (
                   <View style={st.backerPill}>
@@ -213,6 +217,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
           </View>
         </View>
       </Modal>
+      <MemberSheet userId={memberId} visible={!!memberId} onClose={() => setMemberId(null)} />
     </>
   );
 }

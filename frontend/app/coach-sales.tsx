@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor } from "@/src/lib/theme";
 
 const money = (n: number) => `$${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const monthLabel = (m: string) => {
@@ -18,13 +18,16 @@ export default function CoachSales() {
   const router = useRouter();
   const { token } = useAuth();
   const [data, setData] = useState<any>(null);
+  const [buyers, setBuyers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
-    apiFetch(token, "/api/coach/sales")
-      .then(setData)
+    Promise.all([
+      apiFetch(token, "/api/coach/sales").then(setData),
+      apiFetch(token, "/api/coach/buyers").then((r) => setBuyers(r.buyers || [])).catch(() => {}),
+    ])
       .catch((e: any) => setErr(e?.message || "Coach access only"))
       .finally(() => setLoading(false));
   }, [token]);
@@ -80,6 +83,26 @@ export default function CoachSales() {
                 </View>
               ))
             )}
+
+            <Text style={styles.sectionTitle}>CUSTOM PROGRAM BUYERS</Text>
+            {buyers.length === 0 ? (
+              <Text style={styles.empty}>No Custom Program buyers yet.</Text>
+            ) : (
+              buyers.map((b, i) => (
+                <View key={b.order_number || i} testID={`buyer-${i}`} style={styles.buyerCard}>
+                  <Text style={styles.buyerEmoji}>{avatarFor(b.avatar_id).emoji}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.buyerName}>{b.display_name}</Text>
+                    <Text style={styles.buyerOrder}>{b.order_number} · {b.has_intake ? (b.intake_status || "submitted").toUpperCase() : "NO INTAKE YET"}</Text>
+                  </View>
+                  {b.has_intake && (
+                    <Pressable testID={`buyer-intake-${i}`} onPress={() => router.push("/coach-programs")} style={styles.intakeBtn}>
+                      <Text style={styles.intakeBtnText}>VIEW INTAKE</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ))
+            )}
           </>
         )}
       </ScrollView>
@@ -110,4 +133,10 @@ const styles = StyleSheet.create({
   monthMetaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
   monthMeta: { color: colors.textMid, fontSize: 12 },
   monthBreak: { color: colors.textDim, fontSize: 11 },
+  buyerCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  buyerEmoji: { fontSize: 26 },
+  buyerName: { color: colors.text, fontWeight: "800", letterSpacing: 1 },
+  buyerOrder: { color: colors.textDim, fontSize: 11, marginTop: 2, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  intakeBtn: { borderWidth: 1, borderColor: colors.warning, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 8 },
+  intakeBtnText: { color: colors.warning, fontWeight: "900", fontSize: 10, letterSpacing: 1 },
 });

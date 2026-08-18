@@ -8,6 +8,7 @@ import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription, rcEnabled } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, RANK_COLORS, avatarFor, avatarImage } from "@/src/lib/theme";
+import { MemberSheet } from "@/src/components/MemberSheet";
 
 const BACKER_FALLBACK_PRICE = "$25.00";
 
@@ -37,7 +38,7 @@ function Avatar({ id, sex, size = 34 }: { id: string; sex?: string; size?: numbe
   );
 }
 
-function BackerCard({ b, index, isMe }: { b: any; index: number; isMe?: boolean }) {
+function BackerCard({ b, index, isMe, onPress }: { b: any; index: number; isMe?: boolean; onPress?: () => void }) {
   const glow = useSharedValue(0);
   useEffect(() => {
     glow.value = withDelay(
@@ -56,13 +57,15 @@ function BackerCard({ b, index, isMe }: { b: any; index: number; isMe?: boolean 
       testID={`backer-${index}`}
       style={[styles.backerCard, isMe && styles.backerCardMe]}
     >
-      <Animated.Text style={[styles.backerCardStar, starStyle]}>★</Animated.Text>
-      <Avatar id={b.avatar_id} sex={b.sex} size={40} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.backerCardName} numberOfLines={1}>{b.display_name}</Text>
-        <Text style={[styles.backerCardRank, { color: rc }]}>{(b.rank || "").toUpperCase()}</Text>
-      </View>
-      {isMe && <Text style={styles.backerYouTag}>YOU</Text>}
+      <Pressable onPress={onPress} style={styles.backerCardInner}>
+        <Animated.Text style={[styles.backerCardStar, starStyle]}>★</Animated.Text>
+        <Avatar id={b.avatar_id} sex={b.sex} size={40} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.backerCardName} numberOfLines={1}>{b.display_name}</Text>
+          <Text style={[styles.backerCardRank, { color: rc }]}>{(b.rank || "").toUpperCase()}</Text>
+        </View>
+        {isMe && <Text style={styles.backerYouTag}>YOU</Text>}
+      </Pressable>
     </Animated.View>
   );
 }
@@ -78,6 +81,7 @@ export default function Founders() {
   const [tab, setTab] = useState<"founders" | "backers">("founders");
   const [msg, setMsg] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState(false);
+  const [memberId, setMemberId] = useState<string | null>(null);
 
   const pkg = findBackerPkg(offerings);
   const price = pkg?.product?.priceString || BACKER_FALLBACK_PRICE;
@@ -155,15 +159,15 @@ export default function Founders() {
             data.founders.map((f: any) => {
               const rc = RANK_COLORS[f.rank] || colors.brandPrimary;
               return (
-                <View key={f.number} testID={`founder-${f.number}`} style={styles.row}>
+                <Pressable key={f.number} testID={`founder-${f.number}`} onPress={() => f.user_id && setMemberId(f.user_id)} style={styles.row}>
                   <Text style={styles.num}>#{f.number}</Text>
                   <Avatar id={f.avatar_id} sex={f.sex} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>{f.display_name}</Text>
+                    <Text style={[styles.name, f.is_backer && { color: colors.warning }]}>{f.display_name}</Text>
                     <Text style={[styles.rank, { color: rc }]}>{f.rank.toUpperCase()}</Text>
                   </View>
                   {f.is_backer && <Text style={styles.backerStar}>★</Text>}
-                </View>
+                </Pressable>
               );
             })
           ) : (
@@ -176,7 +180,7 @@ export default function Founders() {
               const raw = data?.backers ?? [];
               // Pin the current user's own backer card to the very top with a highlight
               const meCard = isBacker && user
-                ? { display_name: user.display_name || "You", avatar_id: user.avatar_id, sex: user.sex, rank: user.rank }
+                ? { user_id: user.user_id, display_name: user.display_name || "You", avatar_id: user.avatar_id, sex: user.sex, rank: user.rank }
                 : null;
               const others = meCard
                 ? raw.filter((b: any) => b.display_name !== meCard.display_name)
@@ -185,7 +189,7 @@ export default function Founders() {
               return list.length ? (
                 <View style={styles.backerList}>
                   {list.map((b: any, i: number) => (
-                    <BackerCard key={i} b={b} index={i} isMe={!!meCard && i === 0} />
+                    <BackerCard key={i} b={b} index={i} isMe={!!meCard && i === 0} onPress={() => b.user_id && setMemberId(b.user_id)} />
                   ))}
                 </View>
               ) : (
@@ -243,6 +247,7 @@ export default function Founders() {
           </View>
         </View>
       </Modal>
+      <MemberSheet userId={memberId} visible={!!memberId} onClose={() => setMemberId(null)} />
     </View>
   );
 }
@@ -272,12 +277,8 @@ const styles = StyleSheet.create({
   backerChip: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.06)" },
   backerName: { color: colors.text, fontWeight: "800", letterSpacing: 1, fontSize: 12 },
   backerList: { gap: spacing.sm },
-  backerCard: {
-    flexDirection: "row", alignItems: "center", gap: spacing.md,
-    padding: spacing.md, borderRadius: radius.md,
-    borderWidth: 1.5, borderColor: "rgba(255,234,0,0.35)",
-    backgroundColor: "rgba(255,234,0,0.05)",
-  },
+  backerCard: { borderRadius: radius.md, borderWidth: 1.5, borderColor: "rgba(255,234,0,0.35)", backgroundColor: "rgba(255,234,0,0.05)" },
+  backerCardInner: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md },
   backerCardMe: {
     borderColor: colors.warning, borderWidth: 2,
     backgroundColor: "rgba(255,234,0,0.12)",
