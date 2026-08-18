@@ -300,7 +300,7 @@ export default function Judge() {
                   <Text style={st.boardPos}>{medal}</Text>
                   <Image source={{ uri: mediaUrl(b.media_id) }} style={st.boardThumb} contentFit="cover" />
                   <View style={{ flex: 1 }}>
-                    <Text style={st.boardName}>{b.display_name} {b.founder_backer ? "★" : ""}</Text>
+                    <Text style={[st.boardName, b.founder_backer && { color: colors.warning }]}>{b.display_name} {b.founder_backer ? "★" : ""}</Text>
                     <Text style={[st.cardRank, { color: rc }]}>{b.rank?.toUpperCase()}</Text>
                   </View>
                   <Text style={[st.boardScore, { color: scoreColor(b.overall) }]}>{b.overall.toFixed(1)}</Text>
@@ -317,7 +317,7 @@ export default function Judge() {
               <View key={s.submission_id} testID={`judge-sub-${s.submission_id}`} style={st.card}>
                 <View style={st.cardHead}>
                   <Text style={st.cardEmoji}>{avatarFor(s.avatar_id).emoji}</Text>
-                  <Text style={st.cardName}>{s.display_name} {s.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
+                  <Text style={[st.cardName, s.founder_backer && { color: colors.warning }]}>{s.display_name} {s.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
                   <Text style={[st.cardRank, { color: rc }]}>{s.rank?.toUpperCase()}</Text>
                 </View>
                 <Image source={{ uri: mediaUrl(s.media_id) }} style={st.subImage} contentFit="cover" transition={150} />
@@ -361,7 +361,7 @@ export default function Judge() {
                 <View key={c.comment_id} style={st.comment}>
                   <View style={st.commentHead}>
                     <Text style={st.cardEmoji}>{avatarFor(c.avatar_id).emoji}</Text>
-                    <Text style={st.commentName}>{c.display_name} {c.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
+                    <Text style={[st.commentName, c.founder_backer && { color: colors.warning }]}>{c.display_name} {c.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
                     <Text style={[st.cardRank, { color: RANK_COLORS[c.rank] || colors.brandPrimary }]}>{c.rank?.toUpperCase()}</Text>
                   </View>
                   <Text style={st.commentText}>{c.text}</Text>

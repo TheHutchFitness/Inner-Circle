@@ -167,9 +167,14 @@ export default function CustomProgram() {
         {Header}
 
         {user?.all_rooms_access && (
-          <Pressable testID="cp-coach-inbox" onPress={() => router.push("/coach-programs")} style={styles.coachBtn}>
-            <Text style={styles.coachBtnText}>🛠 COACH INBOX — DELIVER PROGRAMS</Text>
-          </Pressable>
+          <>
+            <Pressable testID="cp-coach-inbox" onPress={() => router.push("/coach-programs")} style={styles.coachBtn}>
+              <Text style={styles.coachBtnText}>🛠 COACH INBOX — DELIVER PROGRAMS</Text>
+            </Pressable>
+            <Pressable testID="cp-coach-sales" onPress={() => router.push("/coach-sales")} style={styles.coachBtn}>
+              <Text style={styles.coachBtnText}>📊 SALES RECAP — ORDERS & REVENUE</Text>
+            </Pressable>
+          </>
         )}
 
         <LinearGradient colors={["#3A2E00", colors.surface2]} style={styles.hero}>

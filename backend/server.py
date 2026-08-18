@@ -1745,6 +1745,32 @@ async def leaderboard(board_type: str, user=Depends(get_current_user)):
     return users[:50]
 
 
+@api_router.get("/users/{user_id}/public")
+async def public_user(user_id: str, user=Depends(get_current_user)):
+    u = await db.users.find_one(
+        {"user_id": user_id}, {"_id": 0, "password_hash": 0, "email": 0, "phone": 0}
+    )
+    if not u:
+        raise HTTPException(status_code=404, detail="Member not found")
+    prs = u.get("prs", {}) or {}
+    return {
+        "user_id": u["user_id"],
+        "display_name": u.get("display_name", "Athlete"),
+        "avatar_id": u.get("avatar_id", "avatar_ronin"),
+        "sex": u.get("sex", "male"),
+        "rank": rank_from_xp(u.get("xp", 0)),
+        "level": level_from_xp(u.get("xp", 0)),
+        "xp": u.get("xp", 0),
+        "founder_backer": bool(u.get("founder_backer")),
+        "skool_verified": bool(u.get("skool_verified")),
+        "prs": prs,
+        "total_lift": sum(prs.values()),
+        "workouts_logged": u.get("workouts_logged", 0),
+        "badges_count": len(u.get("badges", []) or []),
+    }
+
+
+
 # ---------- Chat ----------
 @api_router.get("/chat/{room}/messages")
 async def get_messages(room: str, user=Depends(get_current_user)):
@@ -2375,6 +2401,49 @@ async def resend_receipt(inp: ReceiptResendIn, user=Depends(get_current_user)):
     subject, html = _receipt_resend_email(user, ent, vp)
     await send_email(to=to, subject=subject, html=html)  # raises HTTPException on failure
     return {"ok": True, "sent_to": to, "order_number": vp.get("order_number")}
+
+
+@api_router.get("/coach/sales")
+async def coach_sales(user=Depends(get_current_user)):
+    """Owner-only: total orders + revenue, broken down by month and product."""
+    if not _is_owner(user):
+        raise HTTPException(status_code=403, detail="Coach access only")
+    PRICES = {CUSTOM_PROGRAM_ENTITLEMENT: 200.0, BACKER_ENTITLEMENT: 25.0}
+    rows = await db.verified_purchases.find({"revoked": {"$ne": True}}, {"_id": 0}).to_list(5000)
+    by_month: dict = {}
+    total_rev = 0.0
+    total_orders = 0
+    prod_counts = {CUSTOM_PROGRAM_ENTITLEMENT: 0, BACKER_ENTITLEMENT: 0}
+    for r in rows:
+        ent = r.get("entitlement")
+        price = PRICES.get(ent, 0.0)
+        when = r.get("verified_at")
+        if not isinstance(when, datetime):
+            continue
+        key = when.strftime("%Y-%m")
+        m = by_month.setdefault(key, {"month": key, "orders": 0, "revenue": 0.0, "custom_program": 0, "backer": 0})
+        m["orders"] += 1
+        m["revenue"] += price
+        if ent == CUSTOM_PROGRAM_ENTITLEMENT:
+            m["custom_program"] += 1
+        elif ent == BACKER_ENTITLEMENT:
+            m["backer"] += 1
+        total_rev += price
+        total_orders += 1
+        if ent in prod_counts:
+            prod_counts[ent] += 1
+    months = sorted(by_month.values(), key=lambda x: x["month"], reverse=True)
+    for m in months:
+        m["revenue"] = round(m["revenue"], 2)
+    return {
+        "total_orders": total_orders,
+        "total_revenue": round(total_rev, 2),
+        "by_product": {
+            "custom_program": {"count": prod_counts[CUSTOM_PROGRAM_ENTITLEMENT], "revenue": round(prod_counts[CUSTOM_PROGRAM_ENTITLEMENT] * 200.0, 2)},
+            "backer": {"count": prod_counts[BACKER_ENTITLEMENT], "revenue": round(prod_counts[BACKER_ENTITLEMENT] * 25.0, 2)},
+        },
+        "by_month": months,
+    }
 
 
 

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, avatarFor, RANK_COLORS } from "@/src/lib/theme";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
+import { MemberSheet } from "@/src/components/MemberSheet";
 
 const BOARDS = [
   { key: "xp", label: "LEVEL", desc: "Overall Level" },
@@ -32,6 +33,7 @@ export default function Leaderboards() {
   const [cardioBoard, setCardioBoard] = useState<"overall" | "single" | "speed">("overall");
   const [dist, setDist] = useState(5);
   const [active, setActive] = useState<number | null>(null);
+  const [memberId, setMemberId] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -132,19 +134,19 @@ export default function Leaderboards() {
             {podium.map((p, i) => {
               const av = avatarFor(p.avatar_id);
               return (
-                <View key={p.user_id || i} style={[styles.podiumCard, { borderColor: PODIUM_COLORS[i] }]}>
+                <Pressable key={p.user_id || i} onPress={() => p.user_id && setMemberId(p.user_id)} style={[styles.podiumCard, { borderColor: PODIUM_COLORS[i] }]}>
                   <Text style={[styles.podiumRank, { color: PODIUM_COLORS[i] }]}>#{i + 1}</Text>
                   <View style={[styles.podiumAvatar, { borderColor: PODIUM_COLORS[i] }]}>
                     <Text style={styles.podiumEmoji}>{av.emoji}</Text>
                   </View>
-                  <Text style={styles.podiumName} numberOfLines={1}>{p.display_name}</Text>
+                  <Text style={[styles.podiumName, p.founder_backer && { color: colors.warning }]} numberOfLines={1}>{p.display_name}</Text>
                   <View style={styles.podiumRankRow}>
                     <Text style={[styles.podiumRankBadge, { color: RANK_COLORS[p.rank] }]}>{p.rank}</Text>
                     {p.founder_backer && <Text style={styles.backerStar}>★</Text>}
                   </View>
                   <Text style={styles.podiumMetric}>{p.metric}</Text>
                   <Text style={styles.podiumMetricLabel}>{p.metric_label}</Text>
-                </View>
+                </Pressable>
               );
             })}
           </View>
@@ -154,24 +156,25 @@ export default function Leaderboards() {
               const isMe = r.user_id === user?.user_id;
               const av = avatarFor(r.avatar_id);
               return (
-                <View testID={`rank-row-${i+4}`} key={r.user_id} style={[styles.row, isMe && styles.rowMe]}>
+                <Pressable testID={`rank-row-${i+4}`} key={r.user_id} onPress={() => r.user_id && setMemberId(r.user_id)} style={[styles.row, isMe && styles.rowMe]}>
                   <Text style={styles.rowRank}>#{i + 4}</Text>
                   <Text style={styles.rowEmoji}>{av.emoji}</Text>
                   <View style={{ flex: 1 }}>
                     <View style={styles.rowNameRow}>
-                      <Text style={styles.rowName}>{r.display_name}</Text>
+                      <Text style={[styles.rowName, r.founder_backer && { color: colors.warning }]}>{r.display_name}</Text>
                       {r.founder_backer && <View style={styles.backerPill}><Text style={styles.backerPillText}>★ BACKER</Text></View>}
                     </View>
                     <Text style={[styles.rowSub, { color: RANK_COLORS[r.rank] }]}>{r.rank}</Text>
                   </View>
                   <Text style={styles.rowMetric}>{r.metric}</Text>
-                </View>
+                </Pressable>
               );
             })}
           </View>
         </>
       )}
     </ScrollView>
+    <MemberSheet userId={memberId} visible={!!memberId} onClose={() => setMemberId(null)} />
     </View>
     </SwipeTabs>
   );
