@@ -8,8 +8,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider, useAuth } from "@/src/lib/auth";
+import { UnitsProvider } from "@/src/lib/units";
 import { initializeRevenueCat, SubscriptionProvider, useRCIdentityBinder } from "@/src/lib/revenuecat";
 import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
+import { HeroIntro } from "@/src/components/HeroIntro";
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
@@ -28,6 +30,12 @@ function RCIdentity({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function IntroGate() {
+  const { intro, user, clearIntro } = useAuth();
+  if (!intro || !user) return null;
+  return <HeroIntro user={user} mode={intro.mode} onDone={clearIntro} />;
+}
+
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
   useEffect(() => {
@@ -42,9 +50,12 @@ export default function RootLayout() {
         <AuthProvider>
           <SubscriptionProvider>
             <RCIdentity>
+              <UnitsProvider>
               <StatusBar barStyle="light-content" backgroundColor="#050508" />
               <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#050508" } }} />
               <ScanlineOverlay />
+              <IntroGate />
+              </UnitsProvider>
             </RCIdentity>
           </SubscriptionProvider>
         </AuthProvider>

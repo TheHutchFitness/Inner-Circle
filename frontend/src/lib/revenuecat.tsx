@@ -9,6 +9,8 @@ const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
 const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY;
 
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pro";
+export const CUSTOM_PROGRAM_ENTITLEMENT = "custom_program";
+export const FOUNDER_BACKER_ENTITLEMENT = "backer";
 export const rcEnabled = Platform.OS !== "web" || __DEV__;
 
 function getRevenueCatApiKey() {
@@ -65,6 +67,8 @@ function useSubscriptionContext() {
   const restoreMutation = useMutation({ mutationFn: () => Purchases.restorePurchases() });
 
   const isSubscribed = customerInfoQuery.data?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER] !== undefined;
+  const hasCustomProgram = customerInfoQuery.data?.entitlements.active?.[CUSTOM_PROGRAM_ENTITLEMENT] !== undefined;
+  const hasBackerEntitlement = customerInfoQuery.data?.entitlements.active?.[FOUNDER_BACKER_ENTITLEMENT] !== undefined;
   const originalAppUserId = customerInfoQuery.data?.originalAppUserId;
   const identityReady = !!originalAppUserId && !originalAppUserId.startsWith("$RCAnonymousID:");
 
@@ -72,6 +76,8 @@ function useSubscriptionContext() {
     customerInfo: customerInfoQuery.data,
     offerings: offeringsQuery.data,
     isSubscribed,
+    hasCustomProgram,
+    hasBackerEntitlement,
     identityReady,
     isLoading: customerInfoQuery.isLoading || offeringsQuery.isLoading,
     purchase: purchaseMutation.mutateAsync,

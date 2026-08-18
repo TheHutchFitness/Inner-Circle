@@ -1,0 +1,59 @@
+{
+  "summary": "Iteration 10 — WORKOUT REVAMP (templates, exercise library, exercise stats, PUSH split log, lb/kg toggle) and NEW 4-digit Skool code (4882) VERIFIED end-to-end. BACKEND: 78/80 full-suite pass on parallel run (2 flakes were transient parallel-worker connect timeouts against the public preview URL — both re-run pass individually; identical pattern as iterations 8/9). New workout-revamp suite (16/16) 100% pass in isolated and parallel runs: GET /api/workout/templates returns exactly 8 templates with ids {push, pull, legs, upper, lower, arnold, fullbody, custom} and 'Barbell Bench Press' present on PUSH. GET /api/exercises returns {library:73 items, custom:[]} with categories Chest/Back/Shoulders/Legs/Arms/Core all present. POST /api/exercises/custom persists to user.custom_exercises via $addToSet, rejects blank name with 400, subsequent GET /api/exercises returns the custom row. GET /api/exercise/stats?name=Bench Press&rng=all returns full schema (totals/averages/max{weight,reps,volume}+dates/avg-max) with non-zero max_weight and max_weight_date populated (athlete@ has Bench Press history). rng=1w/1m/3m all return 200 with matching 'range' field. Unknown exercise returns zeroed shape. GET /api/exercise/log returns sessions[{date,sets:[{reps,weight_lb,rpe}],workout_name}] populated. GET /api/exercise/graph returns points[{date,weight,volume}] populated. POST /api/workouts/log with split_type='push' and 'Barbell Bench Press' logs successfully, awards XP, and correctly credits bench PR via the _PR_ALIASES map (Barbell Bench Press -> bench). Skool code updated: POST /api/profile/skool-verify with {code:'4882'} returns 200 + skool_verified=true; {code:'0000'} returns 400; legacy 'HUTCH-INNER-CIRCLE-2026' also returns 400 (correctly rejected). FRONTEND (Expo web, 390x844, athlete@): login lands on HQ; TRAIN tab shows 'SELECT YOUR SPLIT' with ALL 8 template cards (PUSH/PULL/LEGS/UPPER/LOWER/ARNOLD SPLIT/FULL BODY/CUSTOM) + HISTORY section listing prior workouts; tapping template-push opens ACTIVE SESSION > PUSH with all 5 exercises listed (each with 'VIEW STATS' link + '+ ADD FIRST SET' button) and the '+ ADD EXERCISE' CTA at the bottom; unit-toggle switches header pill LB<->KG live (verified). Add-set stepper spawns SET row with REPS/LB/RPE steppers and ✕ removal, and set-0-0-reps-up / set-0-0-weight-up / set-0-0-rpe-up all fire. '+ ADD EXERCISE' opens the EXERCISE LIBRARY modal grouped by category (Chest visible), with search that filters ('curl' -> Barbell Curl row visible), multi-select checkbox rows, and 'ADD EXERCISES' confirm that inserts the selected lift into the current session (Barbell Curl appeared in session after confirm). Custom-exercise create field ('+ ADD') present in modal header. VIEW STATS on an active-session exercise routes to /exercise-stats?name=<> with STATS/LOG/GRAPHS tabs and 1W/1M/3M/ALL range chips + unit-toggle in the stats header — schema keys all rendered (Total Sets, Total Workouts, Total Wt (lb), Avg Wt, Max Wt, etc). FINISH WORKOUT -> SESSION COMPLETE summary with '+60 XP' and 'Barbell Bench Press · 1 set · 80 lb top'; tapping summary-ex-0 opens exercise-stats. HISTORY -> expand a session -> tap an exercise row opens exercise-stats (verified). Settings screen shows SKOOL VERIFICATION with placeholder 'Enter 4-digit code', maxLength=4, keyboardType=number-pad — '4882' -> 'Skool verified! You now have Circle access.'; '0000' -> 'Invalid Skool verification code'. No red screens; no 500s. Deprecated console warnings (textShadow*, shadow*, pointerEvents) carried over from prior iterations — cosmetic only.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/exercises/custom (parallel-only)", "issue": "Transient 15s connect-timeout on parallel worker retry via the public preview URL. Isolated re-run PASSED. Not a code bug — same network-flake pattern seen in iterations 8/9."},
+      {"endpoint": "/api/quests?scope=daily (parallel-only)", "issue": "Transient 15s connect-timeout on parallel worker retry via the public preview URL. Isolated re-run PASSED."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "textShadow* style props (carried over)", "issue": "Console warning: '\"textShadow*\" style props are deprecated. Use \"textShadow\".' Reference: /app/frontend/src/components/RankUpCelebration.tsx and others"},
+      {"component": "shadow* style props (carried over)", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Reference: /app/frontend/app/(tabs)/profile.tsx cardGlow"},
+      {"component": "props.pointerEvents (carried over)", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/src/components/ScanlineOverlay.tsx"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_workout_revamp.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_cardio.py",
+    "/app/backend/tests/test_quests.py",
+    "/app/test_reports/pytest/workout_revamp.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL (carried over): migrate leftover textShadow*/shadow*/pointerEvents deprecation warnings — cosmetic only.",
+    "Native-only paths not validated on web (device build required, not blocking): Apple Health / Health Connect real sync, live GPS run/bike route."
+  ],
+  "critical_code_review_comments": [
+    "server.py workout/templates returns the WORKOUT_TEMPLATES list literal (8 entries) — deterministic, cheap, no DB call. Good.",
+    "server.py EXERCISE_LIBRARY has exactly 73 items across 7 categories (Chest 11, Back 14, Shoulders 9, Legs 14, Arms 13, Core 7, Olympic 5). Matches spec.",
+    "server.py add_custom_exercise uses $addToSet on user.custom_exercises so duplicates are silently ignored — safe for retries.",
+    "server.py _PR_ALIASES correctly maps 'Barbell Bench Press' -> bench so PUSH template lifts still update the user's bench PR. Verified end-to-end.",
+    "server.py exercise_stats returns avg_max_{weight,reps,volume} using session-tops (per-session max) — this is the right metric for progression charts.",
+    "server.py exercise/graph iterates reversed(sessions) so points are oldest->newest — chart-ready.",
+    "server.py skool_verify uses case-insensitive strip().upper() comparison and reads SKOOL_CODE from env (default '4882'). backend/.env pins SKOOL_VERIFICATION_CODE=4882.",
+    "frontend/app/(tabs)/workout.tsx: full session ↔ template ↔ library ↔ stats flow is co-located in ~340 lines. Uses units helper for lb/kg roundtrip on weight fields. testIDs are present on every interactive control (template-*, add-set-*, remove-*, add-exercise, unit-toggle, finish-workout, ex-stats-*, hist-*, hist-ex-*, summary-ex-*).",
+    "frontend/src/components/ExerciseLibraryModal.tsx: search filters library across both library and custom entries; multi-select via `sel` set; confirm returns selected names via `onAdd`. testIDs (lib-close, lib-search, lib-new-name, lib-create, lib-ex-<name>, lib-confirm) all wired.",
+    "frontend/app/exercise-stats.tsx: STATS/LOG/GRAPHS tabs + 1W/1M/3M/ALL range chips; unit toggle uses units.toDisplay for max/avg weights; renders max-*-date underlines gracefully when null.",
+    "frontend/app/settings.tsx: skool input has maxLength={4}, keyboardType='number-pad', placeholder 'Enter 4-digit code'. Verify wired to /api/profile/skool-verify with body {code}."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_workout_revamp.py (new — 16 tests, 16 pass)",
+    "/app/backend/tests/backend_test.py (updated: legacy skool code 'HUTCH-INNER-CIRCLE-2026' -> '4882' to match new 4-digit spec)"
+  ],
+  "success_rate": {
+    "backend": "97.5% parallel (78/80), 100% on isolated re-run (2 transient network-only flakes); 100% (16/16) on the new workout-revamp suite in both parallel and sequential runs",
+    "frontend": "100% on all validated flows: TRAIN 8 templates + HISTORY, PUSH template opens session with 5 exercises + ADD FIRST SET + ADD EXERCISE, library modal search + multi-select + add-to-session, add-set steppers, lb/kg live toggle, VIEW STATS -> exercise-stats (STATS/LOG/GRAPHS x 1W/1M/3M/ALL), FINISH WORKOUT -> SESSION COMPLETE summary with tappable exercise row -> exercise-stats, HISTORY expand -> exercise row -> exercise-stats, Skool 4882 verification success + 0000 rejection"
+  },
+  "seed_data_creation": "Workout-revamp suite registers isolated fresh users (revamp_<uuid>@test.com) for POST /workouts/log + POST /exercises/custom tests. Stats tests reuse the seeded athlete@ who already has 'Bench Press' history from prior iterations (deterministic across restarts).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "PUSH template uses 'Barbell Bench Press' (aliased to bench PR) — its exercise-stats page reads 0s on athlete@ because that lift name doesn't have logged history yet; use exercise name 'Bench Press' (via direct navigation or by logging a Barbell Bench Press set first) to see populated stats. In the SESSION COMPLETE summary, ONLY exercises that had sets logged are listed (empty exercises are filtered out server-side by the workout log). Settings page is reachable via /settings direct URL (no visible link from ME tab was needed for this run — direct URL worked). Skool verification input maxLength=4 and keyboardType=number-pad; the input silently blocks >4 chars. Legacy long code 'HUTCH-INNER-CIRCLE-2026' now returns 400 (intended). backend_test.py was updated to use '4882' — do not revert.",
+  "rca_of_issue": "N/A — no blocking bugs. Two flaky test failures on parallel-workers are ambient network flakes against the public preview host (retry-safe; identical pattern seen in prior iterations)."
+}

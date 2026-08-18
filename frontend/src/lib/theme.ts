@@ -82,9 +82,19 @@ export const CARD_FRAMES: Record<string, { name: string; colors: [string, string
   Beginner:     { name: "STEEL FRAME",     colors: ["#2A2F3A", "#0A0C12", "#050508"], border: "#3A4152", glow: "#4A5568" },
   Intermediate: { name: "CYAN FRAME",      colors: ["#00E5FF55", "#0A0C12", "#050508"], border: "#00E5FF", glow: "#00E5FF" },
   Advanced:     { name: "COBALT FRAME",    colors: ["#0055FF66", "#0A0C12", "#050508"], border: "#0055FF", glow: "#0055FF" },
+  Vanguard:     { name: "VANGUARD FRAME",  colors: ["#4C6FFF66", "#0A0C16", "#050508"], border: "#4C6FFF", glow: "#4C6FFF" },
+  Warrior:      { name: "WARRIOR FRAME",   colors: ["#E08A2B66", "#140C04", "#050508"], border: "#E08A2B", glow: "#E08A2B" },
+  Boss:         { name: "BOSS FRAME",      colors: ["#12B88666", "#04140C", "#050508"], border: "#12B886", glow: "#12B886" },
   Elite:        { name: "GILDED FRAME",    colors: ["#FFEA0066", "#0A0C12", "#050508"], border: "#FFEA00", glow: "#FFEA00" },
   Freak:        { name: "CRIMSON PRIME",   colors: ["#FF003C66", "#12040A", "#050508"], border: "#FF003C", glow: "#FF003C" },
 };
+
+// Rank ladder — each rank spans 10 app levels
+export const RANK_ORDER = ["Beginner", "Intermediate", "Advanced", "Vanguard", "Warrior", "Boss", "Elite", "Freak"];
+export function rankIndex(rank?: string) {
+  const i = RANK_ORDER.indexOf(rank || "Beginner");
+  return i < 0 ? 0 : i;
+}
 
 export function frameFor(rank?: string) {
   return CARD_FRAMES[rank || "Beginner"] || CARD_FRAMES.Beginner;
@@ -98,6 +108,9 @@ export const RANK_COLORS: Record<string, string> = {
   Beginner: "#A0A5B5",
   Intermediate: "#00E5FF",
   Advanced: "#0055FF",
+  Vanguard: "#4C6FFF",
+  Warrior: "#E08A2B",
+  Boss: "#12B886",
   Elite: "#FFEA00",
   Freak: "#FF003C",
 };
@@ -111,6 +124,9 @@ export const BACKGROUNDS: Record<string, string[]> = {
   bg_cyber: ["#001A33", "#003A5C"],
   bg_toxic: ["#0A2A00", "#12141A"],
   bg_inferno: ["#2A0010", "#12141A"],
+  bg_vanguard: ["#0A2A66", "#050914"],
+  bg_warrior: ["#3A1E00", "#140A00"],
+  bg_boss: ["#052A1A", "#04120C"],
   bg_void: ["#1A0033", "#050508"],
   bg_freak: ["#330000", "#0A0000"],
 };
@@ -126,6 +142,9 @@ export const BG_IMAGES: Record<string, any> = {
   bg_cyber: require("@/assets/images/bg_cyber.png"),
   bg_toxic: require("@/assets/images/bg_toxic.png"),
   bg_inferno: require("@/assets/images/bg_inferno.png"),
+  bg_vanguard: require("@/assets/images/bg_vanguard.png"),
+  bg_warrior: require("@/assets/images/bg_warrior.png"),
+  bg_boss: require("@/assets/images/bg_boss.png"),
   bg_void: require("@/assets/images/bg_void.png"),
   bg_freak: require("@/assets/images/bg_freak.png"),
 };

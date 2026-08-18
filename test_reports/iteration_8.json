@@ -1,0 +1,41 @@
+{
+  "summary": "Cardio feature verified end-to-end. BACKEND: 47/47 pytest pass (39 regression + 8 new cardio). POST /api/cardio/log for run (5.2km, 26min) returns cardio doc with avg_speed_kmh=12.0 (rounded), awards XP = 30 + distance_km*10 = 82 XP, user.xp increments; bike (12km, 30min) returns avg_speed_kmh=24.0. Doc has cardio_id, no _id leak, logged_at ISO. GET /api/cardio/history returns sessions sorted desc, route field stripped, no _id. GET /api/cardio/leaderboard: board=overall sums distance ('KM total'), board=single = max single ('KM (single)'), board=speed uses max avg_speed_kmh among sessions with distance_km>=dist ('km/h @ {N}k+'); verified sorting desc; verified a 3km run does NOT appear in speed@dist=5 board but DOES appear in speed@dist=1 board. FRONTEND (Expo web, 390x844): app boots without the previous 'Importing native-only module' crash — react-native-maps is correctly isolated behind CardioMap.web.tsx placeholder ('Start an activity to enable GPS tracking and your live map' + satellite emoji). HQ → open-cardio opens CARDIO screen with unit-toggle (KM↔MI toggles correctly), type-run/type-bike chips work, START RUN button, and stat readouts render (DIST/TIME/PACE/SPEED/ELEV/TEMP labels present). RANK tab: mode-strength/mode-cardio toggle works. Cardio mode shows activity-run/activity-bike + cboard-overall/single/speed. When speed selected, dist-1/dist-5/dist-10/dist-20 chips appear; switching hides them. Leaderboard rows render for logged cardio (Kaido #1 with 15.6 KM total run after backend seeded runs, 12 km/h @ 5k+ on speed board, 12 KM single on bike/longest). Regression: all 6 tabs render (tab-index/workout/leaderboard/quests/community/profile), quests tab loads (quest-scope-daily), ME tab loads (change-avatar). No red-screen, no 500s. Deprecated warnings (textShadow*, shadow*, pointerEvents) still logging — carried over from prior iterations, not new.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "textShadow* style props (carried over)", "issue": "Console warning still present. RN 0.76+: replace with 'textShadow' shorthand. Reference: /app/frontend/src/components/RankUpCelebration.tsx (and possibly others)"},
+      {"component": "shadow* style props (carried over)", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Reference: /app/frontend/app/(tabs)/profile.tsx (styles.cardGlow)"},
+      {"component": "props.pointerEvents (carried over)", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/src/components/ScanlineOverlay.tsx"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_quests.py",
+    "/app/backend/tests/test_cardio.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "None blocking. Cardio backend + web preview UI both verified. Live GPS tracking is native-only and correctly gated behind CardioMap.web.tsx placeholder; can only be validated on a device build.",
+    "Optional: consider migrating the leftover textShadow*/shadow*/pointerEvents deprecations (cosmetic warnings).",
+    "Optional: /api/cardio/leaderboard entries don't include a numeric position rank (only user rank string); frontend derives '#1/#2/#3' from array index. That's fine unless a stable rank number is needed on the entry itself."
+  ],
+  "critical_code_review_comments": [
+    "server.py log_cardio: avg_speed_kmh derived server-side from distance_km/duration_s — no client trust for speed leaderboard eligibility (good).",
+    "server.py cardio_history + cardio_leaderboard: correctly project out {_id: 0, route: 0} so Mongo ObjectId + huge route arrays never leak into responses.",
+    "server.py cardio_leaderboard: speed board uses `s['distance_km'] >= dist` — correct threshold semantics for '5k+ speed' (a 5.0km run qualifies for dist=5). Verified via test.",
+    "cardio.tsx correctly imports CardioMap from '@/src/components/CardioMap'; Metro resolves CardioMap.web.tsx on web build → no react-native-maps native import on web (confirmed: no bundle crash).",
+    "leaderboard.tsx: tab testIDs actually use route names (tab-index / tab-leaderboard / tab-community), NOT the label-based names (tab-dashboard / tab-rank / tab-social) referenced in prior test reports. Future test scripts should use route names.",
+    "leaderboard.tsx rank-row testIDs start at i+4 (top-3 podium cards intentionally don't have rank-row-* testIDs). To assert leaderboard has entries on top-3, count podium view instead of rank-row-* locator."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cardio.py (new)"
+  ],
+  "success_rate": {"backend": "100% (47/47 pytest incl. 8 new cardio)", "frontend": "100% (cardio screen render + unit toggle + type toggle, rank cardio mode + activity + board + dist chips, regression 6 tabs + quests + change-avatar)"},
+  "seed_data_creation": "test_cardio.py logs 2 cardio runs (5.2km run + 12km bike) on elite@test.com and 1 x 3km run for a fresh registered user (cardio_*@test.com) used to verify speed-board distance filter. All isolated; seed users regenerated on backend restart.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "TAB TESTIDS: use route names — tab-index (HQ), tab-workout (TRAIN), tab-leaderboard (RANK), tab-quests, tab-community (SOCIAL), tab-profile (ME). NOT tab-dashboard/tab-rank/tab-social (that was inaccurate in iteration_7). LEADERBOARD ROWS: rank-row-{i+4} testIDs only exist for positions 4+ (top-3 are podium cards without that testID). CARDIO WEB: react-native-maps is native-only and correctly isolated via CardioMap.tsx (native) + CardioMap.web.tsx (placeholder). Live GPS tracking + actual map polylines cannot be validated in web preview — device build only. On web, the map area shows a satellite emoji + 'Start an activity to enable GPS tracking and your live map' placeholder before start; do NOT flag this as a bug. Cardio XP formula: 30 + distance_km*10 (integer). Leaderboard speed board is filtered by distance_km >= dist (inclusive)."
+}

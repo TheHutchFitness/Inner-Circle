@@ -2,6 +2,7 @@
 type PendingSession = {
   name: string;
   split_key?: string;
+  source?: string;
   exercises: { name: string; sets: { reps: number; weight_lb: number; rpe: number }[] }[];
 } | null;
 
@@ -12,6 +13,7 @@ export function setPendingWorkout(session: any) {
   pending = {
     name: session.name || "Custom Session",
     split_key: session.split_key || "custom",
+    source: session.source || "ai",
     exercises: (session.exercises || []).map((ex: any) => ({
       name: ex.name || "Exercise",
       sets: Array.from({ length: Math.max(1, Number(ex.sets) || 1) }).map(() => ({

@@ -1,0 +1,57 @@
+{
+  "summary": "Iteration 9 — Sprint, Steps, Heart-Rate, Active Count, Radar-integration, 10-bot leaderboards, INVENTORY rename, CONDITIONING card, and login/signup cinematics ALL VERIFIED. BACKEND: 62/64 pytest pass (17/17 new-feature suite passed on isolated run; 2 unrelated timeouts on parallel worker retry — /api/heart-rate/today & /api/profile/skool-verify — both network flakes, not code failures). New endpoints verified end-to-end: POST /api/sprint/log (40yd/100m) stores best, is_best=true only on PR, awards exactly +40 XP on new best and 0 XP on non-PR; GET /api/sprint/me returns {sprints:{40yd,100m}}. POST /api/steps/log upserts today's row (verified: 3000→9000 replaces), GET /api/steps/today returns {steps, goal:10000}. POST /api/heart-rate/log accepts resting/avg/max (any subset), rejects empty body with 400, GET /api/heart-rate/today returns null-safe defaults. GET /api/active-count returns {active}>=10 (observed 64). GET /api/profile/attributes: SPEED axis increases after logging fast 40yd (4.4s) + 100m (11.5s) [confirmed post > pre]; ENDURANCE axis increases after logging 15000 steps + 10km run [confirmed post > pre]. GET /api/leaderboard/{strength,xp,ratio} each contain ALL 10 bots (Apex Prime, Overkill, Bastion, Nightfall, Colossus, Vanguard, Warhound, Gravitas, Iron Sentinel, Plate Prophet) and return >=10 rows. GET /api/cardio/leaderboard: run board contains >=5 seeded run bots, bike board contains >=3 seeded bike bots. FRONTEND (Expo web, 390x844): (a) WELCOME BACK cinematic overlays instantly on login and dismisses within ~2s landing on HQ. (b) HERO AWAKENED cinematic renders on new signup — visually confirmed screenshot shows 'SYSTEM · SOUL LINK ESTABLISHED / HERO AWAKENED / YOUR ASCENSION BEGINS / LV 1' overlay; auto-dismisses to HQ. Note: measured on-screen duration was closer to ~2-3s than the spec ~4.5s, but the animation plays and dismisses correctly to HQ. (c) HUD button reads 'INVENTORY' and inventory screen title is 'INVENTORY' (VAULT rename applied). (d) RANK screen shows green '64 ACTIVE' pill and all 10 bot rows visible (Apex Prime #1 / Titan #2 / Overkill #3, then Bastion / Nightfall / Colossus / Kaido / Vanguard / Warhound / Gravitas / Iron Sentinel). (e) CARDIO screen has GPS TRACK / SPRINT TEST toggle. SPRINT mode: 40-YARD/100M toggles, START TIMER → STOP & LOG → 'Logged 1.52s · Best 1.25s' logged and best persists; bests card updates immediately. (f) ME → CONDITIONING card renders with DAILY STEPS progress bar (8,200 / 10,000 · 82%), RESTING (54 bpm), AVG HR (128 bpm), 40-YARD (1.25s), 100M placeholder, SYNC HEALTH button + graceful web fallback copy 'Health sync isn't available on web — use ✎ ENTER.', ENTER opens LOG CONDITIONING modal with STEPS TODAY / RESTING HR / AVG HR inputs + SAVE/CANCEL. (g) Player Card radar/class updates: athlete@ shows STRIKER A-CLASS after fast sprints logged (SPEED axis visibly boosted). No red screens; no 500s; no bundler errors. Deprecated console warnings (textShadow*, shadow*, pointerEvents) carried over from prior iterations.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/heart-rate/today (parallel-only)", "issue": "One 15s connect-timeout on parallel worker retry via the public preview URL. Endpoint works fine in isolated run and on curl. Cosmetic — retry-safe."},
+      {"endpoint": "/api/profile/skool-verify (parallel-only)", "issue": "Same transient parallel worker connect-timeout via public URL. Endpoint returned 200 in isolated new-feature run and prior iterations."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "HeroIntro cinematic duration", "issue": "HERO AWAKENED overlay dismissed to HQ in ~2-3s instead of the spec ~4.5s. Overlay content and 'SOUL LINK ESTABLISHED / YOUR ASCENSION BEGINS' text render correctly. Reference: /app/frontend/src/components/HeroIntro.tsx", "testID": "hero-intro", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "textShadow* style props (carried over)", "issue": "Console warning: '\"textShadow*\" style props are deprecated. Use \"textShadow\".' Reference: /app/frontend/src/components/RankUpCelebration.tsx and others"},
+      {"component": "shadow* style props (carried over)", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Reference: /app/frontend/app/(tabs)/profile.tsx cardGlow"},
+      {"component": "props.pointerEvents (carried over)", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/src/components/ScanlineOverlay.tsx"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_cardio.py",
+    "/app/backend/tests/test_quests.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/pytest_results_new.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: verify HERO AWAKENED intro duration in HeroIntro.tsx matches the ~4.5s spec. Screen dismissed to HQ in ~2-3s during test. If intentional, disregard.",
+    "OPTIONAL: migrate leftover textShadow*/shadow*/pointerEvents deprecations (cosmetic).",
+    "Native-only paths that CANNOT be validated on web/Expo Go (device-build required, not blocking): real Apple Health / Health Connect sync via SYNC HEALTH button (web copy 'Health sync isn't available on web — use ENTER' correctly displayed as graceful fallback); live GPS run/bike route on Cardio map."
+  ],
+  "critical_code_review_comments": [
+    "server.py log_sprint: correctly only awards +40 XP when is_best=true; award_xp increments xp AND recomputes level in a second update. Uses $set on user.sprints (dict) — fine for two keys, but note the sprints doc is stored on user record, not a separate history collection (a per-sprint history row IS written to db.sprints for auditability — good).",
+    "server.py steps/heart-rate use upsert on {user_id, date} — clean per-day model, no dupes.",
+    "server.py active-count: max(10, real) is intentional to always meet spec floor of 10; real value observed 64 (from user_sessions since -30min).",
+    "profile/attributes SPEED formula blends speed_base with sprint scores (avg of 40yd + 100m scores). Verified SPEED integer axis increased from pre to post after logging fast sprints. Formula ranges 40yd 6.5→4.3s = 0→100, 100m 18→11s = 0→100. Solid.",
+    "profile/attributes ENDURANCE now adds min(30, cardio_km*1.2) + min(20, avg_steps/10000*20). Verified endurance increased after 15000 steps + 10km cardio.",
+    "vault.tsx: screen title is 'INVENTORY' (line 38). HQ button label is 'INVENTORY' (line 33 in vault; verified in HQ screenshot too). Route file itself is still named vault.tsx / /vault — that's fine (URL vs UI label).",
+    "cardio.tsx sprint stopwatch uses Date.now() diff + 31ms interval — accurate enough for hundredths; POST body {sprint_type, seconds} matches SprintLog model.",
+    "CardioMap.web.tsx placeholder correctly gates react-native-maps native module out of the web bundle — no bundle crash observed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_features.py (new — 17 tests, all pass)"
+  ],
+  "success_rate": {
+    "backend": "97% (62/64 pytest; 100% (17/17) on new-feature suite in isolated run; 2 parallel-worker transient timeouts unrelated to feature code)",
+    "frontend": "100% on validated flows: login → WELCOME BACK cinematic → HQ; signup → HERO AWAKENED overlay (visually confirmed) → HQ; CARDIO GPS↔SPRINT toggle; SPRINT start/stop/log/best-update; RANK 64 ACTIVE pill + 10 bots + strength/level/BW-ratio toggle; ME CONDITIONING card + LOG modal + web-fallback copy; HQ shows INVENTORY button and vault screen titled INVENTORY."
+  ],
+  "seed_data_creation": "Each new-feature test registers isolated fresh users (new_<uuid>@test.com) so shared seed users don't drift. Sprint/steps/heart-rate/cardio rows are created on those fresh users. Milestone bots (10) + 3 seed test users are seeded on backend startup — deterministic across restarts.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "AUTH SUBMIT BUTTONS DIFFER BY MODE: on LOGIN tab the submit button text is 'ENTER'; on ENLIST tab the submit button text is also 'ENLIST' (same as the tab label — there are TWO 'ENLIST' elements when in signup mode: index 0 = tab, index -1 = submit button). CONDITIONING modal opens from ME → scroll down to CONDITIONING card → click ✎ ENTER (not the ATHLETE'S CENTER ENTER at top). Modal inputs are placeholder='e.g. 8500' / 'e.g. 58' / 'e.g. 130' in order (STEPS TODAY / RESTING HR / AVG HR). SYNC HEALTH on web always shows the fallback copy 'Health sync isn't available on web — use ✎ ENTER.' — the button click is a no-op path (graceful degrade), so don't expect a new toast/message after clicking; the copy is always rendered above the buttons. RANK bot rows are present at #1-#3 podium (Apex Prime / Titan / Overkill) plus rows for #4+ (Bastion, Nightfall, Colossus, Kaido, Vanguard, Warhound, Gravitas, Iron Sentinel). ACTIVE pill on RANK reads e.g. '64 ACTIVE' with green dot.",
+  "rca_of_issue": "N/A — no blocking bugs. Two transient parallel-worker HTTP connect timeouts on public preview URL are network-level, not code-level (endpoint pass 100% in isolated / sequential runs)."
+}

@@ -86,3 +86,13 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Weekly Recap (/app/recap): shareable card (XP gained, sessions, total volume, PR count, rank-up banner) from GET /api/recap/weekly (last 7 days). Workouts now persist xp_gained + pr_details.
 - Program History in Athlete's Center: BUILD / HISTORY tabs; saved AI programs listed and re-openable (GET /api/ai/programs).
 - Tests: 23/23 pytest passing.
+
+
+## Implemented (2026-06 — Monetization + The Judge + Rank Overhaul)
+- 1-ON-1 CUSTOM PROGRAM ($200 one-time, RevenueCat lifetime entitlement `custom_program`): exclusive screen (entry from paywall + HOME). Grants instant Athlete's Center + intake form (goals/injuries/schedule/contact) + confirmation. Backend: /api/custom-program/unlock|intake|status. Human-written program (not AI).
+- FOUNDERS screen (HOME → below Cardio): first 100 members by signup (excludes bots) with join numbers + your standing; "Development Backers" tab lists backer names equally. Backer = RC entitlement `backer` ($25). Backend: GET /api/founders, POST /api/founders/back.
+- THE JUDGE (HOME CTA; gated by Skool OR $5 premium): submit physique via camera/gallery → AI head-judge critique via OpenAI gpt-5.6-terra vision (overall/10 + Symmetry/Conditioning/Size/Posing + notes); shared feed where members comment. Backend: /api/judge/submit|feed|{id}/comments. Photos in Emergent Object Storage.
+- RANK OVERHAUL: 8 ranks, each spanning exactly 10 app levels (level = 1 + xp//250). Added Vanguard/Warrior/Boss between Advanced and Elite. New card frames + rank colors + perk backgrounds (bg_vanguard/warrior/boss via Nano Banana) + 4 new HUD widgets. Athlete's Center = Advanced+, The Room = Elite+.
+- PROGRESSION screen (HOME → RANKS button): full 8-tier ladder with frame previews + perks + level-gated background/widget rewards.
+- HOME tab: renamed HQ→HOME; removed terminal/online status line; centered RECAP/INVENTORY/RANKS HUD buttons.
+- Login cover: animated glitch (RGB-split displaced slices + scan sweep) + TV static overlay.

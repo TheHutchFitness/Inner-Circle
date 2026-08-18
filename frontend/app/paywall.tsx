@@ -109,6 +109,11 @@ export default function Paywall() {
           <Text style={styles.restoreText}>{isRestoring ? "RESTORING..." : "RESTORE PURCHASES"}</Text>
         </Pressable>
 
+        <Pressable testID="open-custom-program" onPress={() => router.push("/custom-program")} style={styles.customLink}>
+          <Text style={styles.customLinkTitle}>★ WANT A 1-ON-1 CUSTOM PROGRAM?</Text>
+          <Text style={styles.customLinkSub}>Human-written for your goals + instant Athlete&apos;s Center · $200 one-time</Text>
+        </Pressable>
+
         {msg && <Text testID="paywall-msg" style={styles.msg}>{msg}</Text>}
         {!rcEnabled && <Text style={styles.simulated}>Simulated in web preview.</Text>}
         {__DEV__ && <Text style={styles.simulated}>Dev / Expo Go uses the RevenueCat Test Store.</Text>}
@@ -156,6 +161,9 @@ const styles = StyleSheet.create({
   primaryText: { color: "#001122", fontWeight: "900", letterSpacing: 3 },
   restoreBtn: { marginTop: spacing.md, alignItems: "center", padding: spacing.md },
   restoreText: { color: colors.textDim, letterSpacing: 2, fontWeight: "700" },
+  customLink: { marginTop: spacing.md, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.06)", alignItems: "center" },
+  customLinkTitle: { color: colors.warning, fontWeight: "900", letterSpacing: 2, fontSize: 13, textAlign: "center" },
+  customLinkSub: { color: colors.textMid, fontSize: 11, marginTop: 6, letterSpacing: 1, textAlign: "center", lineHeight: 16 },
   activeCard: { marginTop: spacing.lg, padding: spacing.lg, alignItems: "center", backgroundColor: colors.success, borderRadius: radius.sm },
   activeText: { color: "#002200", fontWeight: "900", letterSpacing: 3 },
   errorCard: { marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.error },

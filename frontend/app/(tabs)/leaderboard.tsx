@@ -27,14 +27,35 @@ export default function Leaderboards() {
   const [board, setBoard] = useState("xp");
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"strength" | "cardio">("strength");
+  const [activity, setActivity] = useState<"run" | "bike">("run");
+  const [cardioBoard, setCardioBoard] = useState<"overall" | "single" | "speed">("overall");
+  const [dist, setDist] = useState(5);
+  const [active, setActive] = useState<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const poll = async () => {
+      try { const r = await apiFetch(token, "/api/active-count"); if (alive) setActive(r.active); } catch {}
+    };
+    poll();
+    const iv = setInterval(poll, 20000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [token]);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      try { setRows(await apiFetch(token, `/api/leaderboard/${board}`)); } catch {}
+      try {
+        if (mode === "strength") {
+          setRows(await apiFetch(token, `/api/leaderboard/${board}`));
+        } else {
+          setRows(await apiFetch(token, `/api/cardio/leaderboard?board=${cardioBoard}&activity=${activity}&dist=${dist}`));
+        }
+      } catch { setRows([]); }
       setLoading(false);
     })();
-  }, [board, token]);
+  }, [board, token, mode, activity, cardioBoard, dist]);
 
   const podium = rows.slice(0, 3);
   const rest = rows.slice(3);
@@ -50,18 +71,61 @@ export default function Leaderboards() {
       />
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <Text style={styles.eyebrow}>RANKINGS</Text>
-      <Text style={styles.h1}>THE CIRCLE</Text>
+      <View style={styles.titleRow}>
+        <Text style={styles.h1}>THE CIRCLE</Text>
+        <View style={styles.activePill}>
+          <View style={styles.activeDot} />
+          <Text style={styles.activeText}>{active ?? "—"} ACTIVE</Text>
+        </View>
+      </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {BOARDS.map((b) => (
-          <Pressable testID={`board-${b.key}`} key={b.key} onPress={() => setBoard(b.key)} style={[styles.chip, board === b.key && styles.chipActive]}>
-            <Text style={[styles.chipText, board === b.key && styles.chipTextActive]}>{b.label}</Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={styles.modeRow}>
+        <Pressable testID="mode-strength" onPress={() => setMode("strength")} style={[styles.modeBtn, mode === "strength" && styles.modeBtnActive]}>
+          <Text style={[styles.modeText, mode === "strength" && styles.modeTextActive]}>💪 STRENGTH</Text>
+        </Pressable>
+        <Pressable testID="mode-cardio" onPress={() => setMode("cardio")} style={[styles.modeBtn, mode === "cardio" && styles.modeBtnActive]}>
+          <Text style={[styles.modeText, mode === "cardio" && styles.modeTextActive]}>🏃 CARDIO</Text>
+        </Pressable>
+      </View>
+
+      {mode === "strength" ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          {BOARDS.map((b) => (
+            <Pressable testID={`board-${b.key}`} key={b.key} onPress={() => setBoard(b.key)} style={[styles.chip, board === b.key && styles.chipActive]}>
+              <Text style={[styles.chipText, board === b.key && styles.chipTextActive]}>{b.label}</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            {[["run", "🏃 RUN"], ["bike", "🚴 BIKE"]].map(([k, l]) => (
+              <Pressable testID={`activity-${k}`} key={k} onPress={() => setActivity(k as any)} style={[styles.chip, activity === k && styles.chipActive]}>
+                <Text style={[styles.chipText, activity === k && styles.chipTextActive]}>{l}</Text>
+              </Pressable>
+            ))}
+            {[["overall", "OVERALL"], ["single", "LONGEST"], ["speed", "SPEED"]].map(([k, l]) => (
+              <Pressable testID={`cboard-${k}`} key={k} onPress={() => setCardioBoard(k as any)} style={[styles.chip, cardioBoard === k && styles.chipActive]}>
+                <Text style={[styles.chipText, cardioBoard === k && styles.chipTextActive]}>{l}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          {cardioBoard === "speed" && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+              {[1, 5, 10, 20].map((d) => (
+                <Pressable testID={`dist-${d}`} key={d} onPress={() => setDist(d)} style={[styles.chip, dist === d && styles.chipActive]}>
+                  <Text style={[styles.chipText, dist === d && styles.chipTextActive]}>{d}K+</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </>
+      )}
 
       {loading ? (
         <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} />
+      ) : rows.length === 0 ? (
+        <Text style={styles.emptyBoard}>No entries yet. Be the first to log {mode === "cardio" ? "a " + activity : "your lifts"}.</Text>
       ) : (
         <>
           <View style={styles.podiumWrap}>
@@ -109,8 +173,18 @@ export default function Leaderboards() {
 
 const styles = StyleSheet.create({
   bgImage: { position: "absolute", top: 0, left: 0, right: 0, height: 420 },
+  modeRow: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  modeBtn: { flex: 1, paddingVertical: spacing.sm, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  modeBtnActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  modeText: { color: colors.textDim, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
+  modeTextActive: { color: colors.brandPrimary },
+  emptyBoard: { color: colors.textDim, textAlign: "center", marginTop: 40, paddingHorizontal: spacing.xl, lineHeight: 20 },
   eyebrow: { color: colors.brandPrimary, letterSpacing: 4, fontSize: 11, fontWeight: "700", paddingHorizontal: spacing.lg },
   h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: spacing.md, paddingHorizontal: spacing.lg },
+  titleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingRight: spacing.lg },
+  activePill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,229,180,0.12)", borderWidth: 1, borderColor: colors.success, paddingHorizontal: spacing.sm, paddingVertical: 5, borderRadius: radius.pill, marginBottom: spacing.md, marginTop: 4 },
+  activeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.success },
+  activeText: { color: colors.success, fontSize: 10, fontWeight: "900", letterSpacing: 1, fontVariant: ["tabular-nums"] },
   chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm },
   chip: { paddingHorizontal: spacing.md, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, justifyContent: "center", backgroundColor: colors.surface2, flexShrink: 0 },
   chipActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },

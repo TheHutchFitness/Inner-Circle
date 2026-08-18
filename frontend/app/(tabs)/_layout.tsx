@@ -6,7 +6,7 @@ import { useAuth } from "@/src/lib/auth";
 import { colors } from "@/src/lib/theme";
 
 const TABS = [
-  { name: "index", label: "HQ", icon: "◆" },
+  { name: "index", label: "HOME", icon: "◆" },
   { name: "workout", label: "TRAIN", icon: "▲" },
   { name: "leaderboard", label: "RANK", icon: "☰" },
   { name: "quests", label: "QUESTS", icon: "❖" },
@@ -46,7 +46,7 @@ export default function TabsLayout() {
     if (!loading && !user) router.replace("/");
   }, [user, loading]);
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(p) => <CustomTabBar {...p} />}>
+    <Tabs screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.surface } }} tabBar={(p) => <CustomTabBar {...p} />}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="workout" />
       <Tabs.Screen name="leaderboard" />

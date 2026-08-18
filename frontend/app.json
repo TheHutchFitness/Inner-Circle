@@ -10,7 +10,15 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.poweruparena.p5ck2j"
+      "bundleIdentifier": "com.emergent.poweruparena.p5ck2j",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Track your run and bike routes live",
+        "NSHealthShareUsageDescription": "Read steps and heart rate for your stats",
+        "NSHealthUpdateUsageDescription": "Log your conditioning to your profile",
+        "NSCameraUsageDescription": "Snap photos and videos to share in chat",
+        "NSPhotoLibraryUsageDescription": "Share photos and videos from your gallery in chat",
+        "NSMicrophoneUsageDescription": "Record audio for videos you share in chat"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +26,16 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.poweruparena.p5ck2j"
+      "package": "com.emergent.poweruparena.p5ck2j",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.READ_RESTING_HEART_RATE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -34,6 +51,17 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000000"
+        }
+      ],
+      "react-native-health-connect",
+      "@kingstinct/react-native-healthkit",
+      "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Share photos and videos from your gallery in chat",
+          "cameraPermission": "Snap photos and videos to share in chat",
+          "microphonePermission": "Record audio for videos you share in chat"
         }
       ]
     ],

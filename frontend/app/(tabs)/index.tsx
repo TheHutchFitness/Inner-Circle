@@ -6,16 +6,19 @@ import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage, avatarImage } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage, avatarImage, rankIndex } from "@/src/lib/theme";
 import { HudSectionHeader, HudFrame } from "@/src/components/Hud";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 function nextRankInfo(xp: number) {
   const thresholds = [
-    { name: "Intermediate", xp: 500 },
-    { name: "Advanced", xp: 1500 },
-    { name: "Elite", xp: 3500 },
-    { name: "Freak", xp: 8000 },
+    { name: "Intermediate", xp: 2500 },
+    { name: "Advanced", xp: 5000 },
+    { name: "Vanguard", xp: 7500 },
+    { name: "Warrior", xp: 10000 },
+    { name: "Boss", xp: 12500 },
+    { name: "Elite", xp: 15000 },
+    { name: "Freak", xp: 17500 },
   ];
   for (const t of thresholds) if (xp < t.xp) return { name: t.name, xp: t.xp };
   return { name: "MAX", xp };
@@ -42,8 +45,9 @@ export default function Dashboard() {
   const progress = next.name === "MAX" ? 1 : Math.min(1, user.xp / next.xp);
 
   const isPremium = isSubscribed || user.skool_verified;
-  const canAthletesCenter = rank === "Advanced" || rank === "Elite" || rank === "Freak";
-  const canRoom = rank === "Elite" || rank === "Freak";
+  const canAthletesCenter = rankIndex(rank) >= 2 || user?.all_rooms_access || user?.athletes_center_access;
+  const canRoom = rankIndex(rank) >= 6 || user?.all_rooms_access;
+  const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access;
 
   return (
     <SwipeTabs current="index">
@@ -56,15 +60,15 @@ export default function Dashboard() {
       />
       <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <View style={styles.topBar}>
-        <Text style={styles.hudTag}>⌁ HQ TERMINAL · ONLINE</Text>
-        <View style={styles.topBarBtns}>
-          <Pressable testID="open-recap" onPress={() => router.push("/recap")} style={styles.hudBtn}>
-            <Text style={styles.hudBtnText}>▤ RECAP</Text>
-          </Pressable>
-          <Pressable testID="open-vault" onPress={() => router.push("/vault")} style={styles.hudBtn}>
-            <Text style={styles.hudBtnText}>◈ VAULT</Text>
-          </Pressable>
-        </View>
+        <Pressable testID="open-recap" onPress={() => router.push("/recap")} style={styles.hudBtn}>
+          <Text style={styles.hudBtnText}>▤ RECAP</Text>
+        </Pressable>
+        <Pressable testID="open-vault" onPress={() => router.push("/vault")} style={styles.hudBtn}>
+          <Text style={styles.hudBtnText}>⬡ INVENTORY</Text>
+        </Pressable>
+        <Pressable testID="open-progression" onPress={() => router.push("/progression")} style={styles.hudBtn}>
+          <Text style={styles.hudBtnText}>◈ RANKS</Text>
+        </Pressable>
       </View>
       <View style={styles.header}>
         <Text style={styles.eyebrow}>▚ MISSION BRIEFING //</Text>
@@ -143,7 +147,7 @@ export default function Dashboard() {
         </Pressable>
       )}
 
-      <HudSectionHeader label="PROTOCOLS" />
+      <HudSectionHeader label="ROOMS" />
       <Pressable testID="open-athletes-center" onPress={() => router.push("/athletes-center")} style={[styles.ctaCard, !canAthletesCenter && styles.locked]}>
         <View>
           <Text style={styles.ctaTitle}>ATHLETE'S CENTER {canAthletesCenter ? "" : "🔒"}</Text>
@@ -158,6 +162,38 @@ export default function Dashboard() {
           <Text style={styles.ctaSub}>Elite-only encrypted chatroom · Elite+</Text>
         </View>
         <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
+
+      <Pressable testID="open-cardio" onPress={() => router.push("/cardio")} style={styles.ctaCard}>
+        <View>
+          <Text style={styles.ctaTitle}>CARDIO · GPS TRACKER</Text>
+          <Text style={styles.ctaSub}>Live map runs & rides · pace, elevation, temp</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
+
+      <Pressable testID="open-founders" onPress={() => router.push("/founders")} style={styles.ctaCard}>
+        <View>
+          <Text style={styles.ctaTitle}>FOUNDERS</Text>
+          <Text style={styles.ctaSub}>First 100 members + development backers</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
+
+      <Pressable testID="open-judge" onPress={() => router.push("/judge")} style={[styles.ctaCard, !canJudge && styles.locked]}>
+        <View>
+          <Text style={styles.ctaTitle}>THE JUDGE {canJudge ? "" : "🔒"}</Text>
+          <Text style={styles.ctaSub}>AI physique scoring + member critiques · Members</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
+
+      <Pressable testID="open-custom-program" onPress={() => router.push("/custom-program")} style={styles.customProgCta}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.customProgTitle}>★ 1-ON-1 CUSTOM PROGRAM</Text>
+          <Text style={styles.customProgSub}>Human-written for your goals + instant Athlete&apos;s Center · $200</Text>
+        </View>
+        <Text style={styles.customProgArrow}>▶</Text>
       </Pressable>
 
       {!isPremium && (
@@ -175,9 +211,7 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "transparent" },
   bgArt: { position: "absolute", top: 0, left: 0, right: 0, height: 520 },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: "rgba(0,85,255,0.35)" },
-  hudTag: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "800", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
-  topBarBtns: { flexDirection: "row", gap: spacing.sm },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: "rgba(0,85,255,0.35)" },
   hudBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, backgroundColor: "rgba(0,42,85,0.5)" },
   hudBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 11 },
   header: { paddingHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md },
@@ -220,6 +254,10 @@ const styles = StyleSheet.create({
   ctaSub: { color: colors.textDim, fontSize: 11, marginTop: 4, letterSpacing: 1 },
   ctaArrow: { color: colors.brandPrimary, fontSize: 18 },
   locked: { opacity: 0.55, borderColor: colors.borderStrong },
+  customProgCta: { marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.lg, backgroundColor: "rgba(255,234,0,0.06)", borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.warning, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  customProgTitle: { color: colors.warning, fontWeight: "900", letterSpacing: 2, fontSize: 15 },
+  customProgSub: { color: colors.textMid, fontSize: 11, marginTop: 4, letterSpacing: 1, lineHeight: 16 },
+  customProgArrow: { color: colors.warning, fontSize: 18, marginLeft: spacing.sm },
   premiumCta: { marginHorizontal: spacing.lg, marginTop: spacing.lg, padding: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.md, alignItems: "center" },
   premiumCtaText: { color: "#001122", fontWeight: "900", letterSpacing: 3, fontSize: 15 },
   premiumCtaSub: { color: "#001122", marginTop: 4, letterSpacing: 1, fontSize: 11 },

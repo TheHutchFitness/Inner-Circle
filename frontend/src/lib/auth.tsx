@@ -11,6 +11,9 @@ interface AuthCtx {
   user: User | null;
   loading: boolean;
   token: string | null;
+  intro: { mode: "signup" | "login" } | null;
+  showIntro: (mode: "signup" | "login") => void;
+  clearIntro: () => void;
   setSession: (token: string, user: User) => Promise<void>;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -38,7 +41,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [intro, setIntro] = useState<{ mode: "signup" | "login" } | null>(null);
   const tokenRef = useRef<string | null>(null);
+
+  const showIntro = useCallback((mode: "signup" | "login") => setIntro({ mode }), []);
+  const clearIntro = useCallback(() => setIntro(null), []);
 
   const refresh = useCallback(async () => {
     const t = tokenRef.current;
@@ -79,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     const data = await r.json();
     await setSession(data.session_token, data.user);
+    setIntro({ mode: "login" });
   }, [setSession]);
 
   const registerEmail = useCallback(async (email: string, password: string, name: string) => {
@@ -93,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     const data = await r.json();
     await setSession(data.session_token, data.user);
+    setIntro({ mode: "signup" });
   }, [setSession]);
 
   useEffect(() => {
@@ -108,7 +117,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   return (
-    <Ctx.Provider value={{ user, token, loading, setSession, refresh, signOut, loginEmail, registerEmail }}>
+    <Ctx.Provider value={{ user, token, loading, intro, showIntro, clearIntro, setSession, refresh, signOut, loginEmail, registerEmail }}>
       {children}
     </Ctx.Provider>
   );

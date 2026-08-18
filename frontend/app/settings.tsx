@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
+import { VerifyPanel } from "@/src/components/VerifyPanel";
 
 export default function Settings() {
   const insets = useSafeAreaInsets();
@@ -64,10 +65,14 @@ export default function Settings() {
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>SKOOL VERIFICATION</Text>
         <Text style={styles.helper}>Get your access code from the Hutch's Inner Circle Skool community. Members enter the code below to unlock chatrooms + AI.</Text>
-        <TextInput testID="s-skool-code" value={code} onChangeText={setCode} placeholder="Enter Skool code" placeholderTextColor={colors.textDim} style={styles.input} autoCapitalize="characters" />
+        <TextInput testID="s-skool-code" value={code} onChangeText={setCode} placeholder="Enter 4-digit code" placeholderTextColor={colors.textDim} style={styles.input} keyboardType="number-pad" maxLength={4} />
         <Pressable testID="verify-skool" onPress={verifySkool} style={styles.primary}>
           <Text style={styles.primaryText}>VERIFY MEMBERSHIP</Text>
         </Pressable>
+
+        <Text style={[styles.h1, { marginTop: spacing.xl }]}>ACCOUNT VERIFICATION</Text>
+        <Text style={styles.helper}>Verify your email or phone number to unlock photo & video sharing in the chatrooms.</Text>
+        <VerifyPanel />
 
         {msg && <Text testID="settings-msg" style={styles.msg}>{msg}</Text>}
       </ScrollView>

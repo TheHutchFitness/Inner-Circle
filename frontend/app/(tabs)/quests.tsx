@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Modal, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
@@ -14,6 +14,8 @@ const SCOPES = [
   { key: "all", label: "ALL" },
 ];
 
+const GOAL_CHIPS = ["Lose weight", "Build muscle", "Compete in a powerlifting meet", "Bigger total", "Run faster", "Get shredded"];
+
 export default function Quests() {
   const insets = useSafeAreaInsets();
   const { token, refresh } = useAuth();
@@ -23,6 +25,11 @@ export default function Quests() {
   const [selected, setSelected] = useState<any>(null);
   const [claiming, setClaiming] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [personal, setPersonal] = useState<any>(null);
+  const [goalText, setGoalText] = useState("");
+  const [goalBusy, setGoalBusy] = useState(false);
+  const [editingGoals, setEditingGoals] = useState(false);
+  const [goalErr, setGoalErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -30,8 +37,35 @@ export default function Quests() {
     setLoading(false);
   }, [scope, token]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-  useEffect(() => { load(); }, [load]);
+  const loadPersonal = useCallback(async () => {
+    try { setPersonal(await apiFetch(token, "/api/quests/personal")); } catch {}
+  }, [token]);
+
+  useFocusEffect(useCallback(() => { load(); loadPersonal(); }, [load, loadPersonal]));
+  useEffect(() => { load(); loadPersonal(); }, [load, loadPersonal]);
+
+  const submitGoals = async () => {
+    if (goalText.trim().length < 3 || goalBusy) return;
+    setGoalBusy(true); setGoalErr(null);
+    try {
+      await apiFetch(token, "/api/quests/goals", { method: "POST", body: JSON.stringify({ goals: goalText.trim() }) });
+      await loadPersonal();
+      setEditingGoals(false);
+      setToast("COACH FORGED YOUR QUESTS");
+      setTimeout(() => setToast(null), 2600);
+    } catch (e: any) { setGoalErr(e.message); }
+    setGoalBusy(false);
+  };
+
+  const completePersonal = async (q: any) => {
+    try {
+      const res = await apiFetch(token, "/api/quests/personal/complete", { method: "POST", body: JSON.stringify({ quest_id: q.quest_id }) });
+      setToast(`QUEST COMPLETE · +${res.xp_gained} XP`);
+      await refresh();
+      await loadPersonal();
+    } catch (e: any) { setToast(e.message); }
+    setTimeout(() => setToast(null), 2600);
+  };
 
   const claim = async (q: any) => {
     setClaiming(true);
@@ -48,12 +82,86 @@ export default function Quests() {
 
   const scopes = scope === "all" ? ["daily", "weekly", "monthly"] : [scope];
 
+  // ---------- FIRST-ENTRY GOAL INTAKE ----------
+  if (personal && (personal.needs_setup || editingGoals)) {
+    return (
+      <SwipeTabs current="quests">
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.surface }}>
+        <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.xl, padding: spacing.lg, paddingBottom: 120 }}>
+          <Text style={styles.eyebrow}>▚ COACH INTAKE //</Text>
+          <Text style={styles.h1}>WHAT ARE YOU CHASING?</Text>
+          <Text style={styles.intakeSub}>
+            Tell Coach Hutch your current goals — real life, not just gym numbers. He&apos;ll forge specific quests to get you there. Think &quot;lose 5 lb&quot;, &quot;sign up for a powerlifting meet&quot;, &quot;deadlift 500&quot;.
+          </Text>
+          <View style={styles.goalChipRow}>
+            {GOAL_CHIPS.map((g) => (
+              <Pressable testID={`goal-chip-${g}`} key={g} onPress={() => setGoalText((t) => (t ? `${t}, ${g}` : g))} style={styles.goalChip}>
+                <Text style={styles.goalChipText}>+ {g}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <TextInput
+            testID="goal-input"
+            value={goalText}
+            onChangeText={setGoalText}
+            placeholder="e.g. Lose 5 lb before summer, hit a 405 squat, sign up for my first meet..."
+            placeholderTextColor={colors.textDim}
+            multiline
+            style={styles.goalInput}
+          />
+          {goalErr && <Text style={styles.goalErr}>{goalErr}</Text>}
+          <Pressable testID="forge-quests" onPress={submitGoals} disabled={goalBusy || goalText.trim().length < 3} style={[styles.forgeBtn, (goalBusy || goalText.trim().length < 3) && { opacity: 0.6 }]}>
+            {goalBusy ? <ActivityIndicator color="#001122" /> : <Text style={styles.forgeText}>FORGE MY QUESTS</Text>}
+          </Pressable>
+          {goalBusy && <Text style={styles.forging}>Coach is studying your stats and writing your quests...</Text>}
+          {editingGoals && !personal.needs_setup && (
+            <Pressable onPress={() => setEditingGoals(false)} style={{ alignItems: "center", marginTop: spacing.md, minHeight: 44, justifyContent: "center" }}>
+              <Text style={{ color: colors.textDim, letterSpacing: 2 }}>CANCEL</Text>
+            </Pressable>
+          )}
+        </ScrollView>
+      </KeyboardAvoidingView>
+      </SwipeTabs>
+    );
+  }
+
   return (
     <SwipeTabs current="quests">
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
         <Text style={styles.eyebrow}>▚ QUEST LOG //</Text>
         <Text style={styles.h1}>QUESTS</Text>
+
+        {personal && !personal.needs_setup && (
+          <View>
+            <View style={styles.pqHeader}>
+              <Text style={styles.pqTitle}>◈ YOUR GOALS</Text>
+              <Pressable testID="edit-goals" onPress={() => { setGoalText(personal.goals || ""); setEditingGoals(true); }} hitSlop={10}>
+                <Text style={styles.pqEdit}>EDIT GOALS</Text>
+              </Pressable>
+            </View>
+            {(personal.quests || []).filter((q: any) => q.status === "active").map((q: any) => (
+              <View testID={`pq-${q.quest_id}`} key={q.quest_id} style={styles.pqCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pqCardTitle}>{q.title}</Text>
+                  <Text style={styles.pqDesc}>{q.description}</Text>
+                  <Text style={styles.pqMeta}>{q.timeframe} · ◈ {q.xp} XP</Text>
+                </View>
+                <Pressable testID={`pq-done-${q.quest_id}`} onPress={() => completePersonal(q)} style={styles.pqDone}>
+                  <Text style={styles.pqDoneText}>DONE</Text>
+                </Pressable>
+              </View>
+            ))}
+            {(personal.quests || []).filter((q: any) => q.status === "completed").slice(0, 3).map((q: any) => (
+              <View key={q.quest_id} style={[styles.pqCard, { opacity: 0.55 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pqCardTitle}>✓ {q.title}</Text>
+                  <Text style={styles.pqMeta}>COMPLETED · +{q.xp} XP</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {SCOPES.map((s) => (
@@ -176,4 +284,22 @@ const styles = StyleSheet.create({
   claimText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },
   closeBtn: { alignItems: "center", padding: spacing.md },
   closeText: { color: colors.textDim, letterSpacing: 2 },
+  intakeSub: { color: colors.textDim, lineHeight: 20, marginBottom: spacing.md },
+  goalChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: spacing.md },
+  goalChip: { borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 8, backgroundColor: colors.surface2 },
+  goalChipText: { color: colors.brandPrimary, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  goalInput: { backgroundColor: colors.surface2, color: colors.text, borderRadius: radius.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, minHeight: 100, textAlignVertical: "top", lineHeight: 20 },
+  goalErr: { color: colors.error, marginTop: spacing.sm },
+  forgeBtn: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm, minHeight: 48, justifyContent: "center" },
+  forgeText: { color: "#001122", fontWeight: "900", letterSpacing: 3 },
+  forging: { color: colors.textDim, textAlign: "center", marginTop: spacing.md, fontStyle: "italic", fontSize: 12 },
+  pqHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
+  pqTitle: { color: colors.warning, fontWeight: "900", letterSpacing: 3, fontSize: 12 },
+  pqEdit: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "800" },
+  pqCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning + "55", borderLeftWidth: 3, borderLeftColor: colors.warning },
+  pqCardTitle: { color: colors.text, fontWeight: "800", fontSize: 14 },
+  pqDesc: { color: colors.textDim, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  pqMeta: { color: colors.warning, fontSize: 10, letterSpacing: 1, fontWeight: "800", marginTop: 4 },
+  pqDone: { borderWidth: 1, borderColor: colors.success, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 10, minHeight: 44, justifyContent: "center" },
+  pqDoneText: { color: colors.success, fontWeight: "900", letterSpacing: 2, fontSize: 11 },
 });

@@ -144,7 +144,7 @@ class TestProfile:
         assert r.status_code == 400
 
     def test_skool_verify_correct(self, athlete_token):
-        r = requests.post(f"{API}/profile/skool-verify", json={"code": "HUTCH-INNER-CIRCLE-2026"}, headers=auth_h(athlete_token), timeout=15)
+        r = requests.post(f"{API}/profile/skool-verify", json={"code": "4882"}, headers=auth_h(athlete_token), timeout=15)
         assert r.status_code == 200
         assert r.json()["skool_verified"] is True
 
@@ -187,7 +187,7 @@ class TestAI:
 
     def test_ai_allowed_for_elite(self, elite_token):
         # Ensure skool-verified for elite
-        requests.post(f"{API}/profile/skool-verify", json={"code": "HUTCH-INNER-CIRCLE-2026"}, headers=auth_h(elite_token), timeout=15)
+        requests.post(f"{API}/profile/skool-verify", json={"code": "4882"}, headers=auth_h(elite_token), timeout=15)
         payload = {"goal": "strength", "split": "ppl", "days_per_week": 5, "experience": "elite", "notes": "short"}
         r = requests.post(f"{API}/ai/build-workout", json=payload, headers=auth_h(elite_token), timeout=120)
         assert r.status_code == 200, r.text
@@ -201,7 +201,7 @@ class TestAI:
 class TestProgramHistory:
     def test_ai_programs_list_reflects_new_program(self, elite_token):
         # Ensure skool-verified
-        requests.post(f"{API}/profile/skool-verify", json={"code": "HUTCH-INNER-CIRCLE-2026"}, headers=auth_h(elite_token), timeout=15)
+        requests.post(f"{API}/profile/skool-verify", json={"code": "4882"}, headers=auth_h(elite_token), timeout=15)
 
         # Snapshot current list
         pre = requests.get(f"{API}/ai/programs", headers=auth_h(elite_token), timeout=15)
@@ -279,7 +279,7 @@ class TestWeeklyRecap:
 class TestAISessions:
     def test_build_workout_returns_clean_program_text_and_sessions(self, elite_token):
         # Ensure elite is skool-verified
-        requests.post(f"{API}/profile/skool-verify", json={"code": "HUTCH-INNER-CIRCLE-2026"},
+        requests.post(f"{API}/profile/skool-verify", json={"code": "4882"},
                       headers=auth_h(elite_token), timeout=15)
         payload = {"goal": "strength", "split": "ppl", "days_per_week": 5, "experience": "elite", "notes": "TEST_sessions"}
         r = requests.post(f"{API}/ai/build-workout", json=payload, headers=auth_h(elite_token), timeout=120)

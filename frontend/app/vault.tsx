@@ -35,7 +35,7 @@ export default function Vault() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.surface }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, padding: spacing.lg, paddingBottom: 40 }}>
       <Pressable onPress={() => router.back()}><Text style={styles.back}>← BACK</Text></Pressable>
       <Text style={styles.eyebrow}>REWARDS · LVL {data?.level ?? "—"}</Text>
-      <Text style={styles.h1}>THE VAULT</Text>
+      <Text style={styles.h1}>INVENTORY</Text>
       <Text style={styles.helper}>Level up to unlock backgrounds & widgets.</Text>
 
       {loading ? <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} /> : (

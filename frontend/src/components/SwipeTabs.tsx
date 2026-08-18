@@ -38,7 +38,7 @@ export function SwipeTabs({ current, children }: { current: string; children: Re
 
   return (
     <GestureDetector gesture={pan}>
-      <View style={{ flex: 1 }}>{children}</View>
+      <View style={{ flex: 1, backgroundColor: "#050508" }}>{children}</View>
     </GestureDetector>
   );
 }

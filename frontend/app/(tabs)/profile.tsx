@@ -13,6 +13,7 @@ import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS,
 import { StrengthChart } from "@/src/components/StrengthChart";
 import { RadarChart } from "@/src/components/RadarChart";
 import { HudSectionHeader } from "@/src/components/Hud";
+import { HealthCard } from "@/src/components/HealthCard";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"], ["OHP", "ohp"]];
@@ -149,6 +150,10 @@ export default function Profile() {
         </Pressable>
       </View>
       {msg && <Text style={styles.msg}>{msg}</Text>}
+
+      {/* CONDITIONING — steps, heart rate, sprints */}
+      <HudSectionHeader label="CONDITIONING" />
+      <HealthCard token={token} onChange={() => { (async () => { try { setAttrs(await apiFetch(token, "/api/profile/attributes")); } catch {} })(); }} />
 
       {showStats && (
         <>

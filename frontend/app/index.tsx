@@ -1,18 +1,18 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, Platform, ScrollView, KeyboardAvoidingView, ActivityIndicator } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
+import { GlitchImage } from "@/src/components/GlitchImage";
 
 WebBrowser.maybeCompleteAuthSession();
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function Index() {
-  const { user, loading, loginEmail, registerEmail, setSession } = useAuth();
+  const { user, loading, loginEmail, registerEmail, setSession, showIntro } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
@@ -41,6 +41,7 @@ export default function Index() {
         if (!r.ok) throw new Error("Auth failed");
         const data = await r.json();
         await setSession(data.session_token, data.user);
+        showIntro("login");
         if (Platform.OS === "web" && typeof window !== "undefined") {
           window.history.replaceState(window.history.state, "", window.location.pathname);
         }
@@ -92,6 +93,7 @@ export default function Index() {
             if (r.ok) {
               const data = await r.json();
               await setSession(data.session_token, data.user);
+              showIntro("login");
             }
           } catch {}
         }
@@ -111,10 +113,9 @@ export default function Index() {
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.heroWrap}>
-          <Image
+          <GlitchImage
             source={require("../assets/images/login-bg.png")}
             style={styles.hero}
-            contentFit="cover"
           />
           <LinearGradient
             colors={["rgba(5,5,8,0)", "rgba(5,5,8,0.5)", colors.surface]}

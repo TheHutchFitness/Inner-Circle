@@ -1,12 +1,19 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends, UploadFile, File, Form
+from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
 import logging
 import uuid
 import httpx
 import bcrypt
+import secrets
+import ipaddress
+from html import escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
 from pathlib import Path
 from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional, Literal
@@ -20,7 +27,18 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
-SKOOL_CODE = os.environ.get('SKOOL_VERIFICATION_CODE', 'HUTCH-INNER-CIRCLE-2026')
+SKOOL_CODE = os.environ.get('SKOOL_VERIFICATION_CODE', '4882')
+
+# ---------- Emergent Object Storage (chat media) ----------
+STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+STORAGE_APP_NAME = "hutchs-inner-circle"
+_storage_key: Optional[str] = None
+
+# ---------- Emergent Managed Email (Resend) ----------
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"  # constant, never from env
+EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Hutch's Inner Circle")
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -66,13 +84,31 @@ class WorkoutLog(BaseModel):
     rating: Optional[int] = None  # 1-5
     critique: Optional[str] = None
     duration_min: Optional[int] = None
+    source: Optional[str] = None  # "ai" | "monthly" | None
+    monthly_day: Optional[int] = None
+
+class MonthlyGenIn(BaseModel):
+    split: str
+
+class GoalsIn(BaseModel):
+    goals: str
+
+class PersonalCompleteIn(BaseModel):
+    quest_id: str
 
 class PRUpdate(BaseModel):
     lift: Literal["bench", "squat", "deadlift", "ohp"]
     weight_lb: float
 
 class ChatMessageIn(BaseModel):
-    text: str
+    text: Optional[str] = ""
+    media_id: Optional[str] = None
+
+class PhoneSendIn(BaseModel):
+    phone: str
+
+class CodeConfirmIn(BaseModel):
+    code: str
 
 class SkoolVerifyIn(BaseModel):
     code: str
@@ -90,6 +126,29 @@ class AIWorkoutRequest(BaseModel):
     experience: str
     notes: Optional[str] = ""
 
+class CardioLog(BaseModel):
+    activity_type: Literal["run", "bike"]
+    distance_km: float
+    duration_s: int
+    elevation_gain_m: Optional[float] = 0
+    temperature_c: Optional[float] = None
+    avg_pace_min_km: Optional[float] = None
+    route: Optional[List[dict]] = None
+
+class SprintLog(BaseModel):
+    sprint_type: Literal["40yd", "100m"]
+    seconds: float
+
+class CustomProgramIntake(BaseModel):
+    goals: str
+    injuries: Optional[str] = ""
+    schedule: Optional[str] = ""
+    days_per_week: Optional[str] = ""
+    experience: Optional[str] = ""
+    contact_method: Optional[str] = "email"
+    contact_value: Optional[str] = ""
+    notes: Optional[str] = ""
+
 
 # ---------- Helpers ----------
 def hash_password(pw: str) -> str:
@@ -104,15 +163,17 @@ def verify_password(pw: str, hashed: str) -> bool:
 def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
-def rank_from_xp(xp: int) -> str:
-    if xp < 500: return "Beginner"
-    if xp < 1500: return "Intermediate"
-    if xp < 3500: return "Advanced"
-    if xp < 8000: return "Elite"
-    return "Freak"
+# 8-tier rank ladder — each rank spans exactly 10 app levels (level = 1 + xp//250)
+RANK_ORDER = ["Beginner", "Intermediate", "Advanced", "Vanguard", "Warrior", "Boss", "Elite", "Freak"]
+LEVELS_PER_RANK = 10
 
 def level_from_xp(xp: int) -> int:
     return 1 + xp // 250
+
+def rank_from_xp(xp: int) -> str:
+    lvl = level_from_xp(xp)
+    idx = min((lvl - 1) // LEVELS_PER_RANK, len(RANK_ORDER) - 1)
+    return RANK_ORDER[idx]
 
 def milestones_for(weight: float) -> List[int]:
     milestones = []
@@ -167,6 +228,11 @@ def default_user_doc(email: str, name: str, picture: str = "") -> dict:
         "streak_days": 0,
         "last_workout_date": None,
         "skool_verified": False,
+        "email_verified": False,
+        "phone_verified": False,
+        "phone": None,
+        "athletes_center_access": False,
+        "custom_program_purchased": False,
         "active_background": "bg_default",
         "created_at": datetime.now(timezone.utc),
     }
@@ -177,6 +243,130 @@ async def award_xp(user_id: str, amount: int):
     if user:
         new_level = level_from_xp(user["xp"])
         await db.users.update_one({"user_id": user_id}, {"$set": {"level": new_level}})
+
+
+# ---------- Object Storage helpers ----------
+async def init_storage() -> str:
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    async with httpx.AsyncClient(timeout=30) as http:
+        r = await http.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_LLM_KEY})
+    r.raise_for_status()
+    _storage_key = r.json()["storage_key"]
+    return _storage_key
+
+async def storage_put(path: str, data: bytes, content_type: str) -> dict:
+    global _storage_key
+    key = await init_storage()
+    async with httpx.AsyncClient(timeout=120) as http:
+        r = await http.put(f"{STORAGE_URL}/objects/{path}",
+                           headers={"X-Storage-Key": key, "Content-Type": content_type}, content=data)
+    if r.status_code == 503:  # stale key — re-init once
+        _storage_key = None
+        key = await init_storage()
+        async with httpx.AsyncClient(timeout=120) as http:
+            r = await http.put(f"{STORAGE_URL}/objects/{path}",
+                               headers={"X-Storage-Key": key, "Content-Type": content_type}, content=data)
+    r.raise_for_status()
+    return r.json()
+
+async def storage_get(path: str) -> bytes:
+    global _storage_key
+    key = await init_storage()
+    async with httpx.AsyncClient(timeout=60) as http:
+        r = await http.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key})
+    if r.status_code == 503:
+        _storage_key = None
+        key = await init_storage()
+        async with httpx.AsyncClient(timeout=60) as http:
+            r = await http.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key})
+    r.raise_for_status()
+    return r.content
+
+
+# ---------- Email guardrail gate (per Emergent Resend playbook — do not weaken) ----------
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan(); scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for mm in _HOSTISH.finditer(text):
+            if not _same_site(mm.group(1).lower(), real):
+                raise ValueError(f"Anchor text {mm.group(1)!r} != real link host {real!r} (G3)")
+
+async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    try:
+        async with httpx.AsyncClient(timeout=30) as http:
+            resp = await http.post(f"{EMAIL_BASE_URL}/api/v1/email/send",
+                                   headers={"X-Email-Key": EMAIL_KEY}, json=payload)
+        resp.raise_for_status()
+        return resp.json().get("id")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Email send failed: {e.response.status_code} {e.response.text}")
+        raise HTTPException(status_code=400, detail="Couldn't send to that email address — try phone verification instead")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email send error: {e}")
+        raise HTTPException(status_code=400, detail="Failed to send email — try again")
 
 
 # ---------- Auth ----------
@@ -293,10 +483,25 @@ async def profile_attributes(user=Depends(get_current_user)):
     strength = clamp(0.6 * global_strength + 0.4 * app_percentile)
     # Power = relative strength (total per bodyweight); ~7x bw = elite
     power = clamp((total / bw) / 7.0 * 100)
-    # Speed = explosive/press proxy (ohp relative) + training frequency
-    speed = clamp((ohp / bw) / 0.9 * 60 + min(40, workouts * 0.8))
-    # Endurance = volume/consistency
-    endurance = clamp(workouts * 1.4 + streak * 2.2)
+    # Speed = explosive/press proxy (ohp relative) + training frequency, boosted by sprint times
+    speed_base = (ohp / bw) / 0.9 * 60 + min(40, workouts * 0.8)
+    sprints = user.get("sprints", {}) or {}
+    sprint_scores = []
+    if sprints.get("40yd"):
+        sprint_scores.append(max(0, min(100, (6.5 - sprints["40yd"]) / (6.5 - 4.3) * 100)))
+    if sprints.get("100m"):
+        sprint_scores.append(max(0, min(100, (18.0 - sprints["100m"]) / (18.0 - 11.0) * 100)))
+    if sprint_scores:
+        speed = clamp(0.5 * speed_base + 0.5 * (sum(sprint_scores) / len(sprint_scores)))
+    else:
+        speed = clamp(speed_base)
+    # Endurance = volume/consistency, boosted by cardio distance + daily steps
+    cardio_km = 0.0
+    async for c in db.cardio.find({"user_id": user["user_id"]}, {"_id": 0, "distance_km": 1}):
+        cardio_km += c.get("distance_km", 0) or 0
+    step_rows = await db.steps.find({"user_id": user["user_id"]}, {"_id": 0, "steps": 1}).sort("date", -1).limit(7).to_list(7)
+    avg_steps = (sum(r.get("steps", 0) or 0 for r in step_rows) / len(step_rows)) if step_rows else 0
+    endurance = clamp(workouts * 1.0 + streak * 1.6 + min(30, cardio_km * 1.2) + min(20, avg_steps / 10000 * 20))
     # Grit = progression + achievements
     grit = clamp(lvl * 3.2 + badges * 3.5)
 
@@ -329,6 +534,144 @@ async def profile_attributes(user=Depends(get_current_user)):
         "app_percentile": app_percentile,
     }
 
+# ---------- Cardio (Strava-style) ----------
+@api_router.post("/cardio/log")
+async def log_cardio(inp: CardioLog, user=Depends(get_current_user)):
+    speed_kmh = (inp.distance_km / (inp.duration_s / 3600)) if inp.duration_s > 0 else 0
+    doc = {
+        "cardio_id": new_id("cardio"),
+        "user_id": user["user_id"],
+        "activity_type": inp.activity_type,
+        "distance_km": round(inp.distance_km, 3),
+        "duration_s": inp.duration_s,
+        "elevation_gain_m": round(inp.elevation_gain_m or 0, 1),
+        "temperature_c": inp.temperature_c,
+        "avg_pace_min_km": inp.avg_pace_min_km,
+        "avg_speed_kmh": round(speed_kmh, 2),
+        "route": (inp.route or [])[:2000],
+        "logged_at": datetime.now(timezone.utc),
+    }
+    await db.cardio.insert_one(doc)
+    xp_gain = int(30 + inp.distance_km * 10)
+    await award_xp(user["user_id"], xp_gain)
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    doc.pop("_id", None)
+    doc["logged_at"] = doc["logged_at"].isoformat()
+    return {"cardio": doc, "user": fresh, "xp_gained": xp_gain}
+
+@api_router.get("/cardio/history")
+async def cardio_history(user=Depends(get_current_user)):
+    rows = await db.cardio.find({"user_id": user["user_id"]}, {"_id": 0, "route": 0}).sort("logged_at", -1).limit(50).to_list(50)
+    for r in rows:
+        if isinstance(r.get("logged_at"), datetime):
+            r["logged_at"] = r["logged_at"].isoformat()
+    return rows
+
+@api_router.get("/cardio/leaderboard")
+async def cardio_leaderboard(board: str = "overall", activity: str = "run", dist: float = 5, user=Depends(get_current_user)):
+    q = {"activity_type": activity}
+    rows = await db.cardio.find(q, {"_id": 0, "route": 0}).to_list(5000)
+    # group by user
+    by_user: dict = {}
+    for r in rows:
+        by_user.setdefault(r["user_id"], []).append(r)
+    users = {u["user_id"]: u for u in await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(2000)}
+    entries = []
+    for uid, sessions in by_user.items():
+        u = users.get(uid)
+        if not u:
+            continue
+        if board == "single":
+            metric = max(s["distance_km"] for s in sessions)
+            label = "KM (single)"
+        elif board == "overall":
+            metric = round(sum(s["distance_km"] for s in sessions), 1)
+            label = "KM total"
+        else:  # speed at distance category
+            qualifying = [s for s in sessions if s["distance_km"] >= dist]
+            if not qualifying:
+                continue
+            metric = max(s["avg_speed_kmh"] for s in qualifying)
+            label = f"km/h @ {int(dist)}k+"
+        entries.append({
+            "user_id": uid,
+            "display_name": u.get("display_name"),
+            "avatar_id": u.get("avatar_id"),
+            "rank": rank_from_xp(u.get("xp", 0)),
+            "metric": round(metric, 2),
+            "metric_label": label,
+        })
+    entries.sort(key=lambda x: x["metric"], reverse=True)
+    return entries[:50]
+
+@api_router.post("/sprint/log")
+async def log_sprint(inp: SprintLog, user=Depends(get_current_user)):
+    sprints = user.get("sprints", {}) or {}
+    prev = sprints.get(inp.sprint_type)
+    is_best = prev is None or inp.seconds < prev
+    if is_best:
+        sprints[inp.sprint_type] = round(inp.seconds, 2)
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"sprints": sprints}})
+        await award_xp(user["user_id"], 40)
+    await db.sprints.insert_one({"user_id": user["user_id"], "sprint_type": inp.sprint_type, "seconds": inp.seconds, "logged_at": datetime.now(timezone.utc)})
+    return {"best": sprints.get(inp.sprint_type), "is_best": is_best}
+
+@api_router.get("/sprint/me")
+async def my_sprints(user=Depends(get_current_user)):
+    return {"sprints": user.get("sprints", {}) or {}}
+
+class StepsLog(BaseModel):
+    steps: int
+    date: Optional[str] = None
+
+@api_router.post("/steps/log")
+async def log_steps(inp: StepsLog, user=Depends(get_current_user)):
+    day = inp.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.steps.update_one(
+        {"user_id": user["user_id"], "date": day},
+        {"$set": {"steps": inp.steps, "updated_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    return {"date": day, "steps": inp.steps}
+
+@api_router.get("/steps/today")
+async def steps_today(user=Depends(get_current_user)):
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    row = await db.steps.find_one({"user_id": user["user_id"], "date": day}, {"_id": 0})
+    return {"date": day, "steps": (row or {}).get("steps", 0), "goal": 10000}
+
+class HeartRateLog(BaseModel):
+    resting_bpm: Optional[int] = None
+    avg_bpm: Optional[int] = None
+    max_bpm: Optional[int] = None
+    date: Optional[str] = None
+
+@api_router.post("/heart-rate/log")
+async def log_heart_rate(inp: HeartRateLog, user=Depends(get_current_user)):
+    day = inp.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    fields = {k: v for k, v in {"resting_bpm": inp.resting_bpm, "avg_bpm": inp.avg_bpm, "max_bpm": inp.max_bpm}.items() if v is not None}
+    if not fields:
+        raise HTTPException(status_code=400, detail="No heart-rate values provided")
+    fields["updated_at"] = datetime.now(timezone.utc)
+    await db.heart_rate.update_one({"user_id": user["user_id"], "date": day}, {"$set": fields}, upsert=True)
+    return {"date": day, "resting_bpm": inp.resting_bpm, "avg_bpm": inp.avg_bpm, "max_bpm": inp.max_bpm}
+
+@api_router.get("/heart-rate/today")
+async def heart_rate_today(user=Depends(get_current_user)):
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    row = await db.heart_rate.find_one({"user_id": user["user_id"], "date": day}, {"_id": 0, "updated_at": 0})
+    return row or {"date": day, "resting_bpm": None, "avg_bpm": None, "max_bpm": None}
+
+@api_router.get("/active-count")
+async def active_count(user=Depends(get_current_user)):
+    since = datetime.now(timezone.utc) - timedelta(minutes=30)
+    try:
+        real = await db.user_sessions.count_documents({"created_at": {"$gte": since}})
+    except Exception:
+        real = 0
+    return {"active": max(10, real)}
+
 @api_router.patch("/profile/update")
 async def update_profile(inp: ProfileUpdate, user=Depends(get_current_user)):
     update = {k: v for k, v in inp.dict().items() if v is not None}
@@ -343,6 +686,103 @@ async def skool_verify(inp: SkoolVerifyIn, user=Depends(get_current_user)):
     if inp.code.strip().upper() != SKOOL_CODE.upper():
         raise HTTPException(status_code=400, detail="Invalid Skool verification code")
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"skool_verified": True}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return fresh
+
+
+# ---------- Account verification (email + phone) ----------
+VERIFY_TTL_MIN = 10
+
+def gen_verify_code() -> str:
+    return f"{secrets.randbelow(1000000):06d}"
+
+async def _store_code(user_id: str, channel: str, code: str, extra: Optional[dict] = None):
+    doc = {
+        "user_id": user_id, "channel": channel, "code": code,
+        "created_at": datetime.now(timezone.utc),
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=VERIFY_TTL_MIN),
+        "attempts": 0,
+    }
+    if extra:
+        doc.update(extra)
+    await db.verification_codes.replace_one({"user_id": user_id, "channel": channel}, doc, upsert=True)
+
+async def _check_send_rate(user_id: str, channel: str):
+    rec = await db.verification_codes.find_one({"user_id": user_id, "channel": channel}, {"_id": 0})
+    if rec:
+        created = rec.get("created_at")
+        if isinstance(created, datetime):
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - created).total_seconds() < 60:
+                raise HTTPException(status_code=429, detail="Wait 60s before requesting another code")
+
+async def _consume_code(user_id: str, channel: str, code: str) -> dict:
+    rec = await db.verification_codes.find_one({"user_id": user_id, "channel": channel})
+    if not rec:
+        raise HTTPException(status_code=400, detail="No code requested — send one first")
+    exp = rec.get("expires_at")
+    if isinstance(exp, datetime):
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="Code expired — request a new one")
+    if rec.get("attempts", 0) >= 5:
+        raise HTTPException(status_code=400, detail="Too many attempts — request a new code")
+    if code.strip() != rec["code"]:
+        await db.verification_codes.update_one({"_id": rec["_id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(status_code=400, detail="Invalid code")
+    await db.verification_codes.delete_one({"_id": rec["_id"]})
+    return rec
+
+@api_router.post("/verify/email/send")
+async def verify_email_send(user=Depends(get_current_user)):
+    if user.get("email_verified"):
+        raise HTTPException(status_code=400, detail="Email already verified")
+    await _check_send_rate(user["user_id"], "email")
+    code = gen_verify_code()
+    await _store_code(user["user_id"], "email", code)
+    name = user.get("display_name", "Athlete")
+    html = (
+        f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;'
+        f'background:#0a0a12;color:#e8f4ff">'
+        f'<h2 style="color:#22d3ee;letter-spacing:2px;margin:0 0 16px">{escape(EMAIL_FROM_NAME.upper())}</h2>'
+        f'<p>Hey {escape(name)}, your verification code is:</p>'
+        f'<p style="font-size:34px;font-weight:bold;letter-spacing:8px;color:#22d3ee;margin:16px 0">{code}</p>'
+        f'<p>Enter it in the app within {VERIFY_TTL_MIN} minutes to verify your email and unlock media sharing.</p>'
+        f'<p style="font-size:12px;color:#888">Sent by {escape(EMAIL_FROM_NAME)}. We never ask for your password by email. '
+        f'If you didn\'t request this, ignore it.</p>'
+        f'</td></tr></table>'
+    )
+    await send_email(to=user["email"], subject=f"{code} is your verification code", html=html)
+    return {"status": "sent", "email": user["email"]}
+
+@api_router.post("/verify/email/confirm")
+async def verify_email_confirm(inp: CodeConfirmIn, user=Depends(get_current_user)):
+    await _consume_code(user["user_id"], "email", inp.code)
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"email_verified": True}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return fresh
+
+@api_router.post("/verify/phone/send")
+async def verify_phone_send(inp: PhoneSendIn, user=Depends(get_current_user)):
+    digits = re.sub(r"\D", "", inp.phone)
+    if not (7 <= len(digits) <= 15):
+        raise HTTPException(status_code=400, detail="Enter a valid phone number")
+    await _check_send_rate(user["user_id"], "phone")
+    code = gen_verify_code()
+    await _store_code(user["user_id"], "phone", code, {"phone": inp.phone.strip()})
+    # MOCK SMS: Twilio keys not configured yet — code is returned so the app can show it on screen.
+    logger.info(f"[MOCK SMS] verification code {code} for {inp.phone}")
+    return {"status": "sent", "mock": True, "code": code}
+
+@api_router.post("/verify/phone/confirm")
+async def verify_phone_confirm(inp: CodeConfirmIn, user=Depends(get_current_user)):
+    rec = await _consume_code(user["user_id"], "phone", inp.code)
+    await db.users.update_one({"user_id": user["user_id"]},
+                              {"$set": {"phone_verified": True, "phone": rec.get("phone")}})
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     fresh["rank"] = rank_from_xp(fresh["xp"])
     return fresh
@@ -392,25 +832,452 @@ async def list_programs(user=Depends(get_current_user)):
     return DEFAULT_PROGRAMS
 
 
+# ---------- Exercise Library + Split Templates ----------
+EXERCISE_LIBRARY = [
+    # Chest
+    {"name": "Barbell Bench Press", "category": "Chest"},
+    {"name": "Incline Barbell Bench Press", "category": "Chest"},
+    {"name": "Decline Barbell Bench Press", "category": "Chest"},
+    {"name": "Dumbbell Bench Press", "category": "Chest"},
+    {"name": "Incline Dumbbell Press", "category": "Chest"},
+    {"name": "Machine Chest Press", "category": "Chest"},
+    {"name": "Cable Fly", "category": "Chest"},
+    {"name": "Pec Deck", "category": "Chest"},
+    {"name": "Dumbbell Fly", "category": "Chest"},
+    {"name": "Push-Up", "category": "Chest"},
+    {"name": "Weighted Dip", "category": "Chest"},
+    # Back
+    {"name": "Deadlift", "category": "Back"},
+    {"name": "Barbell Row", "category": "Back"},
+    {"name": "Pendlay Row", "category": "Back"},
+    {"name": "T-Bar Row", "category": "Back"},
+    {"name": "Chest-Supported Row", "category": "Back"},
+    {"name": "Seated Cable Row", "category": "Back"},
+    {"name": "Lat Pulldown", "category": "Back"},
+    {"name": "Pulldowns", "category": "Back"},
+    {"name": "Pull-Up", "category": "Back"},
+    {"name": "Chin-Up", "category": "Back"},
+    {"name": "Dumbbell Row", "category": "Back"},
+    {"name": "Face Pull", "category": "Back"},
+    {"name": "Straight-Arm Pulldown", "category": "Back"},
+    {"name": "Rack Pull", "category": "Back"},
+    # Shoulders
+    {"name": "Overhead Press", "category": "Shoulders"},
+    {"name": "Seated Dumbbell Press", "category": "Shoulders"},
+    {"name": "Arnold Press", "category": "Shoulders"},
+    {"name": "Lateral Raise", "category": "Shoulders"},
+    {"name": "Cable Lateral Raise", "category": "Shoulders"},
+    {"name": "Rear Delt Fly", "category": "Shoulders"},
+    {"name": "Front Raise", "category": "Shoulders"},
+    {"name": "Upright Row", "category": "Shoulders"},
+    {"name": "Shrug", "category": "Shoulders"},
+    # Legs
+    {"name": "Back Squat", "category": "Legs"},
+    {"name": "Front Squat", "category": "Legs"},
+    {"name": "Hack Squat", "category": "Legs"},
+    {"name": "Leg Press", "category": "Legs"},
+    {"name": "Romanian Deadlift", "category": "Legs"},
+    {"name": "Bulgarian Split Squat", "category": "Legs"},
+    {"name": "Walking Lunge", "category": "Legs"},
+    {"name": "Leg Extension", "category": "Legs"},
+    {"name": "Leg Curl", "category": "Legs"},
+    {"name": "Seated Leg Curl", "category": "Legs"},
+    {"name": "Standing Calf Raise", "category": "Legs"},
+    {"name": "Seated Calf Raise", "category": "Legs"},
+    {"name": "Hip Thrust", "category": "Legs"},
+    {"name": "Goblet Squat", "category": "Legs"},
+    # Arms
+    {"name": "Barbell Curl", "category": "Arms"},
+    {"name": "EZ-Bar Curl", "category": "Arms"},
+    {"name": "Dumbbell Curl", "category": "Arms"},
+    {"name": "Hammer Curl", "category": "Arms"},
+    {"name": "Preacher Curl", "category": "Arms"},
+    {"name": "Incline Dumbbell Curl", "category": "Arms"},
+    {"name": "Cable Curl", "category": "Arms"},
+    {"name": "Tricep Pushdown", "category": "Arms"},
+    {"name": "Overhead Tricep Extension", "category": "Arms"},
+    {"name": "Skull Crusher", "category": "Arms"},
+    {"name": "Close-Grip Bench Press", "category": "Arms"},
+    {"name": "Cable Overhead Extension", "category": "Arms"},
+    {"name": "Wrist Curl", "category": "Arms"},
+    # Core
+    {"name": "Hanging Leg Raise", "category": "Core"},
+    {"name": "Cable Crunch", "category": "Core"},
+    {"name": "Plank", "category": "Core"},
+    {"name": "Ab Wheel Rollout", "category": "Core"},
+    {"name": "Russian Twist", "category": "Core"},
+    {"name": "Weighted Sit-Up", "category": "Core"},
+    {"name": "Decline Sit-Up", "category": "Core"},
+    # Olympic / Power
+    {"name": "Power Clean", "category": "Olympic"},
+    {"name": "Clean and Jerk", "category": "Olympic"},
+    {"name": "Snatch", "category": "Olympic"},
+    {"name": "Push Press", "category": "Olympic"},
+    {"name": "Clean Pull", "category": "Olympic"},
+]
+
+# Aliases so PR tracking still recognizes the big lifts if a library variant is used
+_PR_ALIASES = {
+    "Barbell Bench Press": "bench", "Bench Press": "bench",
+    "Back Squat": "squat", "Deadlift": "deadlift", "Overhead Press": "ohp",
+}
+
+WORKOUT_TEMPLATES = [
+    {"id": "push", "name": "Push", "focus": "Chest · Shoulders · Triceps",
+     "exercises": ["Barbell Bench Press", "Overhead Press", "Incline Dumbbell Press", "Lateral Raise", "Tricep Pushdown"]},
+    {"id": "pull", "name": "Pull", "focus": "Back · Biceps · Rear Delts",
+     "exercises": ["Deadlift", "Barbell Row", "Lat Pulldown", "Face Pull", "Barbell Curl"]},
+    {"id": "legs", "name": "Legs", "focus": "Quads · Hams · Calves",
+     "exercises": ["Back Squat", "Romanian Deadlift", "Leg Press", "Leg Curl", "Standing Calf Raise"]},
+    {"id": "upper", "name": "Upper", "focus": "Chest · Back · Shoulders · Arms",
+     "exercises": ["Barbell Bench Press", "Barbell Row", "Overhead Press", "Pull-Up", "Barbell Curl", "Tricep Pushdown"]},
+    {"id": "lower", "name": "Lower", "focus": "Quads · Hams · Glutes · Calves",
+     "exercises": ["Back Squat", "Romanian Deadlift", "Bulgarian Split Squat", "Leg Extension", "Standing Calf Raise"]},
+    {"id": "arms", "name": "Arms", "focus": "Biceps · Triceps · Forearms",
+     "exercises": ["Barbell Curl", "Close-Grip Bench Press", "Hammer Curl", "Skull Crusher", "Cable Curl", "Tricep Pushdown", "Wrist Curl"]},
+    {"id": "core", "name": "Core", "focus": "Abs · Obliques · Stability",
+     "exercises": ["Hanging Leg Raise", "Cable Crunch", "Ab Wheel Rollout", "Russian Twist", "Weighted Sit-Up", "Plank"]},
+    {"id": "back", "name": "Back", "focus": "Lats · Traps · Erectors",
+     "exercises": ["Deadlift", "Barbell Row", "Pull-Up", "Lat Pulldown", "Seated Cable Row", "Shrug"]},
+    {"id": "fullbody", "name": "Full Body", "focus": "Total body compound day",
+     "exercises": ["Back Squat", "Barbell Bench Press", "Barbell Row", "Overhead Press", "Barbell Curl", "Hanging Leg Raise"]},
+    {"id": "custom", "name": "Custom", "focus": "Start blank · build your own",
+     "exercises": []},
+]
+
+
+class CustomExerciseIn(BaseModel):
+    name: str
+    category: Optional[str] = "Custom"
+
+
+@api_router.get("/workout/templates")
+async def workout_templates(user=Depends(get_current_user)):
+    return WORKOUT_TEMPLATES
+
+
+# ---------- Monthly training programs (auto-scheduled) ----------
+MONTHLY_SPLITS = {
+    "ppl": {"name": "Push/Pull/Legs", "days_per_week": 6,
+            "pattern": ["push", "pull", "legs", "push", "pull", "legs", "rest"]},
+    "upper_lower": {"name": "Upper/Lower", "days_per_week": 4,
+                    "pattern": ["upper", "lower", "rest", "upper", "lower", "rest", "rest"]},
+    "fullbody": {"name": "Full Body", "days_per_week": 3,
+                 "pattern": ["fullbody", "rest", "fullbody", "rest", "fullbody", "rest", "rest"]},
+    "bro": {"name": "Bro Split", "days_per_week": 5,
+            "pattern": ["push", "back", "legs", "arms", "core", "rest", "rest"]},
+}
+
+def _template_by_id(tid: str) -> Optional[dict]:
+    return next((t for t in WORKOUT_TEMPLATES if t["id"] == tid), None)
+
+@api_router.post("/programs/monthly/generate")
+async def monthly_generate(inp: MonthlyGenIn, user=Depends(get_current_user)):
+    split = MONTHLY_SPLITS.get(inp.split)
+    if not split:
+        raise HTTPException(status_code=400, detail="Unknown split")
+    today = datetime.now(timezone.utc).date()
+    days = []
+    for i in range(28):
+        tid = split["pattern"][i % 7]
+        tpl = _template_by_id(tid) if tid != "rest" else None
+        days.append({
+            "day": i + 1,
+            "date": (today + timedelta(days=i)).isoformat(),
+            "template_id": tid,
+            "name": tpl["name"] if tpl else "Rest",
+        })
+    # one active program at a time
+    await db.monthly_programs.update_many({"user_id": user["user_id"], "active": True}, {"$set": {"active": False}})
+    doc = {
+        "monthly_id": new_id("mp"),
+        "user_id": user["user_id"],
+        "split": inp.split,
+        "split_name": split["name"],
+        "start_date": today.isoformat(),
+        "days": days,
+        "completed_days": [],
+        "active": True,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.monthly_programs.insert_one(doc)
+    doc.pop("_id", None)
+    doc["created_at"] = doc["created_at"].isoformat()
+    return doc
+
+@api_router.get("/programs/monthly/current")
+async def monthly_current(user=Depends(get_current_user)):
+    prog = await db.monthly_programs.find_one({"user_id": user["user_id"], "active": True}, {"_id": 0})
+    if not prog:
+        return {"active": False}
+    if isinstance(prog.get("created_at"), datetime):
+        prog["created_at"] = prog["created_at"].isoformat()
+    today = datetime.now(timezone.utc).date()
+    start = datetime.fromisoformat(prog["start_date"]).date()
+    idx = (today - start).days
+    prog["active"] = True
+    prog["finished"] = idx >= 28
+    prog["today_index"] = min(max(idx, 0), 27)
+    if 0 <= idx < 28:
+        entry = prog["days"][idx]
+        tpl = _template_by_id(entry["template_id"]) if entry["template_id"] != "rest" else None
+        prog["today"] = {**entry, "exercises": tpl["exercises"] if tpl else []}
+    else:
+        prog["today"] = None
+    return prog
+
+@api_router.delete("/programs/monthly/current")
+async def monthly_cancel(user=Depends(get_current_user)):
+    await db.monthly_programs.update_many({"user_id": user["user_id"], "active": True}, {"$set": {"active": False}})
+    return {"active": False}
+
+
+# ---------- Personal goal quests (AI-curated, real-life) ----------
+def _fallback_personal_quests(goals: str) -> List[dict]:
+    return [
+        {"title": "Commit It To Paper", "description": f"Write down your goal ({goals[:60]}) and pin it where you train. Visible goals get chased.", "xp": 100, "timeframe": "This week"},
+        {"title": "Baseline Check", "description": "Record your current stats — bodyweight, main lifts, or mile time. You can't improve what you don't measure.", "xp": 150, "timeframe": "This week"},
+        {"title": "Meal Prep Mission", "description": "Prep 3 days of meals aligned with your goal. Nutrition is half the battle.", "xp": 200, "timeframe": "This week"},
+        {"title": "Accountability Post", "description": "Share your goal in the Circle chat. Public goals are 2x more likely to get done.", "xp": 150, "timeframe": "Anytime"},
+        {"title": "Four-Week Checkpoint", "description": "Re-test your baseline after 4 weeks of consistent work and log the difference.", "xp": 400, "timeframe": "This month"},
+    ]
+
+@api_router.get("/quests/personal")
+async def personal_quests(user=Depends(get_current_user)):
+    rows = await db.personal_quests.find(
+        {"user_id": user["user_id"], "status": {"$in": ["active", "completed"]}}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    for r in rows:
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+        if isinstance(r.get("completed_at"), datetime):
+            r["completed_at"] = r["completed_at"].isoformat()
+    return {"needs_setup": not user.get("goals_set"), "goals": user.get("goals", ""), "quests": rows}
+
+@api_router.post("/quests/goals")
+async def set_goals(inp: GoalsIn, user=Depends(get_current_user)):
+    goals = inp.goals.strip()
+    if len(goals) < 3:
+        raise HTTPException(status_code=400, detail="Tell Coach what you're chasing first")
+
+    quests = None
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        import json as _json
+        system_msg = (
+            "You are Coach Hutch, an elite strength coach in a hardcore powerlifting app. "
+            "The athlete tells you their real-life goals. Curate 4-6 concrete, REAL-LIFE quests they can complete "
+            "outside the app — e.g. 'Lose 5 lb', 'Sign up for a powerlifting meet', 'Hit 10k steps daily for a week', "
+            "'Add 25 lb to your deadlift'. Each quest must be specific, measurable and tied to their stated goals. "
+            "Return ONLY a JSON array, no markdown fences, of objects with keys: "
+            "title (short, punchy), description (1-2 sentences, direct coach tone), "
+            "xp (integer 100-500, harder = more), timeframe (e.g. 'This week', 'This month', '90 days')."
+        )
+        athlete_ctx = (
+            f"Athlete stats: rank {rank_from_xp(user.get('xp', 0))}, bodyweight {user.get('bodyweight_lb', 180)} lb, "
+            f"age {user.get('age', 25)}, sex {user.get('sex', 'male')}, PRs {user.get('prs', {})}. "
+            f"Goals: {goals}"
+        )
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"goals_{user['user_id']}_{uuid.uuid4().hex[:6]}",
+            system_message=system_msg,
+        ).with_model("anthropic", "claude-sonnet-4-6")
+        resp = await chat.send_message(UserMessage(text=athlete_ctx))
+        raw = str(resp).strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(json)?\s*|\s*```$", "", raw, flags=re.S)
+        start, end = raw.find("["), raw.rfind("]")
+        if start != -1 and end != -1:
+            parsed = _json.loads(raw[start:end + 1])
+            quests = [
+                {"title": str(q.get("title", "Quest"))[:80],
+                 "description": str(q.get("description", ""))[:300],
+                 "xp": max(50, min(500, int(q.get("xp", 150)))),
+                 "timeframe": str(q.get("timeframe", "This month"))[:40]}
+                for q in parsed if isinstance(q, dict)
+            ][:6] or None
+    except Exception as e:
+        logger.warning(f"AI goal quest generation failed, using fallback: {e}")
+
+    if not quests:
+        quests = _fallback_personal_quests(goals)
+
+    # Archive previous active personal quests, insert the new batch
+    await db.personal_quests.update_many(
+        {"user_id": user["user_id"], "status": "active"}, {"$set": {"status": "archived"}}
+    )
+    now = datetime.now(timezone.utc)
+    docs = [{
+        "quest_id": new_id("pq"),
+        "user_id": user["user_id"],
+        "status": "active",
+        "created_at": now,
+        **q,
+    } for q in quests]
+    if docs:
+        await db.personal_quests.insert_many(docs)
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"goals_set": True, "goals": goals}})
+    for d in docs:
+        d.pop("_id", None)
+        d["created_at"] = d["created_at"].isoformat()
+    return {"goals": goals, "quests": docs}
+
+@api_router.post("/quests/personal/complete")
+async def complete_personal_quest(inp: PersonalCompleteIn, user=Depends(get_current_user)):
+    q = await db.personal_quests.find_one(
+        {"quest_id": inp.quest_id, "user_id": user["user_id"], "status": "active"}, {"_id": 0}
+    )
+    if not q:
+        raise HTTPException(status_code=404, detail="Quest not found or already completed")
+    await db.personal_quests.update_one(
+        {"quest_id": inp.quest_id}, {"$set": {"status": "completed", "completed_at": datetime.now(timezone.utc)}}
+    )
+    await award_xp(user["user_id"], q["xp"])
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return {"xp_gained": q["xp"], "quest_id": inp.quest_id, "user": fresh}
+
+
+@api_router.get("/exercises")
+async def list_exercises(user=Depends(get_current_user)):
+    custom = user.get("custom_exercises", []) or []
+    return {"library": EXERCISE_LIBRARY, "custom": custom}
+
+
+@api_router.post("/exercises/custom")
+async def add_custom_exercise(inp: CustomExerciseIn, user=Depends(get_current_user)):
+    name = inp.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required")
+    entry = {"name": name, "category": (inp.category or "Custom").strip() or "Custom"}
+    await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"custom_exercises": entry}})
+    custom = (await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "custom_exercises": 1})).get("custom_exercises", [])
+    return {"custom": custom, "added": entry}
+
+
+def _range_start(rng: str, now: datetime):
+    if rng == "1w":
+        return now - timedelta(days=7)
+    if rng == "1m":
+        return now - timedelta(days=30)
+    if rng == "3m":
+        return now - timedelta(days=90)
+    return None  # all
+
+
+async def _exercise_sessions(user_id: str, name: str, rng: str):
+    """Returns list of {date, sets:[{reps,weight_lb,rpe}], workout_name} for one exercise."""
+    now = datetime.now(timezone.utc)
+    start = _range_start(rng, now)
+    rows = await db.workouts.find({"user_id": user_id}, {"_id": 0}).sort("logged_at", -1).to_list(1000)
+    sessions = []
+    target = name.strip().lower()
+    for r in rows:
+        ts = r.get("logged_at")
+        if isinstance(ts, str):
+            try: ts = datetime.fromisoformat(ts)
+            except Exception: ts = None
+        if isinstance(ts, datetime) and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if start and isinstance(ts, datetime) and ts < start:
+            continue
+        for ex in r.get("exercises", []) or []:
+            if (ex.get("name", "").strip().lower()) == target:
+                sets = [{"reps": s.get("reps", 0) or 0, "weight_lb": s.get("weight_lb", 0) or 0, "rpe": s.get("rpe", 0) or 0} for s in ex.get("sets", []) or []]
+                sessions.append({"date": ts.isoformat() if isinstance(ts, datetime) else None, "sets": sets, "workout_name": r.get("workout_name", "")})
+    return sessions
+
+
+@api_router.get("/exercise/stats")
+async def exercise_stats(name: str, rng: str = "1m", user=Depends(get_current_user)):
+    sessions = await _exercise_sessions(user["user_id"], name, rng)
+    total_sets = total_reps = 0
+    total_weight = total_volume = 0.0
+    max_weight = max_reps = max_volume = 0.0
+    max_weight_date = max_reps_date = max_volume_date = None
+    wmaxes_w = []; wmaxes_r = []; wmaxes_v = []
+    for s in sessions:
+        sw = sr = sv = 0.0
+        for st in s["sets"]:
+            w = st["weight_lb"]; reps = st["reps"]; vol = w * reps
+            total_sets += 1; total_reps += reps
+            total_weight += w; total_volume += vol
+            if w > max_weight: max_weight, max_weight_date = w, s["date"]
+            if reps > max_reps: max_reps, max_reps_date = reps, s["date"]
+            if vol > max_volume: max_volume, max_volume_date = vol, s["date"]
+            sw = max(sw, w); sr = max(sr, reps); sv = max(sv, vol)
+        if s["sets"]:
+            wmaxes_w.append(sw); wmaxes_r.append(sr); wmaxes_v.append(sv)
+    n = max(1, total_sets)
+    nw = max(1, len(wmaxes_w))
+    return {
+        "name": name,
+        "range": rng,
+        "total_sets": total_sets,
+        "total_workouts": len(sessions),
+        "total_weight": round(total_weight, 1),
+        "total_reps": total_reps,
+        "total_volume": round(total_volume, 1),
+        "avg_weight": round(total_weight / n, 1),
+        "avg_reps": round(total_reps / n, 1),
+        "avg_volume": round(total_volume / n, 1),
+        "max_weight": round(max_weight, 1), "max_weight_date": max_weight_date,
+        "max_reps": int(max_reps), "max_reps_date": max_reps_date,
+        "max_volume": round(max_volume, 1), "max_volume_date": max_volume_date,
+        "avg_max_weight": round(sum(wmaxes_w) / nw, 1),
+        "avg_max_reps": round(sum(wmaxes_r) / nw, 1),
+        "avg_max_volume": round(sum(wmaxes_v) / nw, 1),
+    }
+
+
+@api_router.get("/exercise/log")
+async def exercise_log(name: str, rng: str = "all", user=Depends(get_current_user)):
+    return {"name": name, "sessions": await _exercise_sessions(user["user_id"], name, rng)}
+
+
+@api_router.get("/exercise/graph")
+async def exercise_graph(name: str, rng: str = "3m", user=Depends(get_current_user)):
+    sessions = await _exercise_sessions(user["user_id"], name, rng)
+    points = []
+    for s in reversed(sessions):  # oldest first
+        if not s["sets"]:
+            continue
+        top_w = max(st["weight_lb"] for st in s["sets"])
+        vol = sum(st["weight_lb"] * st["reps"] for st in s["sets"])
+        points.append({"date": s["date"], "weight": round(top_w, 1), "volume": round(vol, 1)})
+    return {"name": name, "points": points}
+
+
 # ---------- Unlockables (XP/level rewards) ----------
 BACKGROUNDS = [
     {"id": "bg_default", "name": "Midnight Steel", "level": 1, "colors": ["#002A55", "#12141A"]},
-    {"id": "bg_cyber", "name": "Cyber Grid", "level": 3, "colors": ["#001A33", "#003A5C"]},
-    {"id": "bg_toxic", "name": "Toxic Surge", "level": 6, "colors": ["#0A2A00", "#12141A"]},
-    {"id": "bg_inferno", "name": "Inferno", "level": 10, "colors": ["#2A0010", "#12141A"]},
-    {"id": "bg_void", "name": "The Void", "level": 15, "colors": ["#1A0033", "#050508"]},
-    {"id": "bg_freak", "name": "Freak Mode", "level": 20, "colors": ["#330000", "#0A0000"]},
+    {"id": "bg_cyber", "name": "Cyber Grid", "level": 11, "colors": ["#001A33", "#003A5C"]},
+    {"id": "bg_toxic", "name": "Toxic Surge", "level": 16, "colors": ["#0A2A00", "#12141A"]},
+    {"id": "bg_inferno", "name": "Inferno", "level": 21, "colors": ["#2A0010", "#12141A"]},
+    {"id": "bg_vanguard", "name": "Vanguard Sapphire", "level": 31, "colors": ["#0A2A66", "#050914"]},
+    {"id": "bg_warrior", "name": "Warrior's Forge", "level": 41, "colors": ["#3A1E00", "#140A00"]},
+    {"id": "bg_boss", "name": "Boss Throne", "level": 51, "colors": ["#052A1A", "#04120C"]},
+    {"id": "bg_void", "name": "The Void", "level": 61, "colors": ["#1A0033", "#050508"]},
+    {"id": "bg_freak", "name": "Freak Mode", "level": 71, "colors": ["#330000", "#0A0000"]},
 ]
 WIDGETS = [
     {"id": "w_streak", "name": "Streak Tracker", "level": 2, "desc": "Live consecutive-day counter"},
     {"id": "w_volume", "name": "Volume Meter", "level": 5, "desc": "Weekly tonnage moved"},
     {"id": "w_nextrank", "name": "Rank Progress", "level": 8, "desc": "XP-to-next-rank gauge"},
     {"id": "w_quote", "name": "War Cry", "level": 12, "desc": "Daily motivation banner"},
+    {"id": "w_pr_radar", "name": "PR Radar", "level": 22, "desc": "Flags a lift primed for a new PR"},
+    {"id": "w_class", "name": "Class Insignia", "level": 32, "desc": "Combat class crest on your player card"},
+    {"id": "w_heatmap", "name": "Training Heatmap", "level": 42, "desc": "Yearly training-density grid"},
+    {"id": "w_aura", "name": "Rank Aura", "level": 52, "desc": "Animated aura around your avatar"},
 ]
 
 RANK_PERK_BG = {
     "Intermediate": "bg_cyber",
     "Advanced": "bg_inferno",
+    "Vanguard": "bg_vanguard",
+    "Warrior": "bg_warrior",
+    "Boss": "bg_boss",
     "Elite": "bg_void",
     "Freak": "bg_freak",
 }
@@ -564,7 +1431,7 @@ async def get_unlockables(user=Depends(get_current_user)):
     lvl = user.get("level", 1)
     active = user.get("active_background", "bg_default")
     rank = rank_from_xp(user.get("xp", 0))
-    rank_order = ["Beginner", "Intermediate", "Advanced", "Elite", "Freak"]
+    rank_order = RANK_ORDER
     earned_perks = set()
     for r in rank_order[: rank_order.index(rank) + 1]:
         if r in RANK_PERK_BG:
@@ -585,7 +1452,7 @@ async def set_background(inp: BackgroundSet, user=Depends(get_current_user)):
     if not bg:
         raise HTTPException(status_code=400, detail="Unknown background")
     rank = rank_from_xp(user.get("xp", 0))
-    rank_order = ["Beginner", "Intermediate", "Advanced", "Elite", "Freak"]
+    rank_order = RANK_ORDER
     earned_perks = {RANK_PERK_BG[r] for r in rank_order[: rank_order.index(rank) + 1] if r in RANK_PERK_BG}
     if user.get("level", 1) < bg["level"] and bg["id"] not in earned_perks:
         raise HTTPException(status_code=403, detail=f"Unlocks at level {bg['level']}")
@@ -606,9 +1473,11 @@ async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
         "logged_at": datetime.now(timezone.utc),
     }
 
-    # Update PRs from main lifts
+    # Update PRs from main lifts (accepts library aliases)
     lift_map = {
-        "Bench Press": "bench", "Back Squat": "squat", "Deadlift": "deadlift", "Overhead Press": "ohp",
+        "Bench Press": "bench", "Barbell Bench Press": "bench",
+        "Back Squat": "squat", "Deadlift": "deadlift",
+        "Overhead Press": "ohp",
     }
     prs = user.get("prs", {"bench": 0, "squat": 0, "deadlift": 0, "ohp": 0})
     new_badges = set(user.get("badges", []))
@@ -635,6 +1504,13 @@ async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
     doc["xp_gained"] = xp_gain
     doc["pr_details"] = pr_details
     await db.workouts.insert_one(doc)
+
+    # Tick off the day in the active monthly program
+    if inp.source == "monthly" and inp.monthly_day:
+        await db.monthly_programs.update_one(
+            {"user_id": user["user_id"], "active": True},
+            {"$addToSet": {"completed_days": inp.monthly_day}},
+        )
 
     await db.users.update_one(
         {"user_id": user["user_id"]},
@@ -729,9 +1605,10 @@ async def weekly_recap(user=Depends(get_current_user)):
 async def next_suggestion(user=Depends(get_current_user)):
     rank = rank_from_xp(user["xp"])
     # Pick program appropriate to rank
-    if rank in ("Advanced", "Elite", "Freak"):
+    idx = RANK_ORDER.index(rank)
+    if idx >= 2:
         program = next(p for p in DEFAULT_PROGRAMS if p["program_id"] == "prog_ppl_advanced")
-    elif rank == "Intermediate":
+    elif idx == 1:
         program = next(p for p in DEFAULT_PROGRAMS if p["program_id"] == "prog_ppl_intermediate")
     else:
         program = next(p for p in DEFAULT_PROGRAMS if p["program_id"] == "prog_upper_lower")
@@ -816,7 +1693,7 @@ async def leaderboard(board_type: str, user=Depends(get_current_user)):
 async def get_messages(room: str, user=Depends(get_current_user)):
     if room not in ("main", "the_room"):
         raise HTTPException(status_code=400, detail="Invalid room")
-    if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak"):
+    if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak") and not user.get("all_rooms_access"):
         raise HTTPException(status_code=403, detail="The Room requires Elite rank")
     rows = await db.chat_messages.find({"room": room}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
     rows.reverse()
@@ -829,8 +1706,16 @@ async def get_messages(room: str, user=Depends(get_current_user)):
 async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_user)):
     if room not in ("main", "the_room"):
         raise HTTPException(status_code=400, detail="Invalid room")
-    if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak"):
+    if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak") and not user.get("all_rooms_access"):
         raise HTTPException(status_code=403, detail="The Room requires Elite rank")
+    text = (inp.text or "").strip()
+    media = None
+    if inp.media_id:
+        media = await db.chat_media.find_one({"media_id": inp.media_id, "user_id": user["user_id"]}, {"_id": 0})
+        if not media:
+            raise HTTPException(status_code=400, detail="Invalid media attachment")
+    if not text and not media:
+        raise HTTPException(status_code=400, detail="Message is empty")
     msg = {
         "message_id": new_id("msg"),
         "room": room,
@@ -839,7 +1724,9 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         "avatar_id": user.get("avatar_id", "avatar_ronin"),
         "rank": rank_from_xp(user["xp"]),
         "skool_verified": user.get("skool_verified", False),
-        "text": inp.text[:500],
+        "text": text[:500],
+        "media_id": media["media_id"] if media else None,
+        "media_type": media["media_type"] if media else None,
         "created_at": datetime.now(timezone.utc),
     }
     await db.chat_messages.insert_one(msg)
@@ -848,10 +1735,83 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
     return msg
 
 
+# ---------- Chat media (Emergent Object Storage) ----------
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"}
+ALLOWED_VIDEO_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/3gpp", "video/x-matroska"}
+MAX_IMAGE_BYTES = 15 * 1024 * 1024   # 15 MB
+MAX_VIDEO_BYTES = 80 * 1024 * 1024   # 80 MB (~1 min of phone video)
+_EXT_MAP = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+            "image/heic": "heic", "image/heif": "heif", "video/mp4": "mp4", "video/quicktime": "mov",
+            "video/webm": "webm", "video/3gpp": "3gp", "video/x-matroska": "mkv"}
+
+@api_router.post("/chat/upload")
+async def chat_upload(file: UploadFile = File(...), user=Depends(get_current_user)):
+    if not (user.get("email_verified") or user.get("phone_verified")):
+        raise HTTPException(status_code=403, detail="Verify your email or phone to share media")
+    ct = (file.content_type or "").lower().split(";")[0].strip()
+    if ct in ALLOWED_IMAGE_TYPES:
+        media_type, cap = "image", MAX_IMAGE_BYTES
+    elif ct in ALLOWED_VIDEO_TYPES:
+        media_type, cap = "video", MAX_VIDEO_BYTES
+    else:
+        raise HTTPException(status_code=400, detail="Only photos and videos are allowed")
+    data = await file.read()
+    if len(data) == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > cap:
+        limit_mb = cap // (1024 * 1024)
+        raise HTTPException(status_code=400, detail=f"File too large (max {limit_mb}MB). Videos are capped at 1 minute.")
+    ext = _EXT_MAP.get(ct, "bin")
+    path = f"{STORAGE_APP_NAME}/uploads/{user['user_id']}/{uuid.uuid4().hex}.{ext}"
+    try:
+        await storage_put(path, data, ct)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 402:
+            raise HTTPException(status_code=402, detail="Storage credits exhausted — try again later")
+        logger.error(f"Storage upload failed: {e.response.status_code} {e.response.text[:200]}")
+        raise HTTPException(status_code=502, detail="Upload failed — try again")
+    media_id = new_id("med")
+    await db.chat_media.insert_one({
+        "media_id": media_id,
+        "user_id": user["user_id"],
+        "storage_path": path,
+        "content_type": ct,
+        "media_type": media_type,
+        "size": len(data),
+        "original_name": file.filename,
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {"media_id": media_id, "media_type": media_type}
+
+@api_router.get("/chat/media/{media_id}")
+async def chat_media_get(media_id: str, token: Optional[str] = None,
+                         authorization: Optional[str] = Header(None)):
+    # Auth via Bearer header (native) or ?token= query (web <img>/<video> tags)
+    tok = None
+    if authorization and authorization.startswith("Bearer "):
+        tok = authorization.split(" ", 1)[1]
+    elif token:
+        tok = token
+    if not tok:
+        raise HTTPException(status_code=401, detail="Missing token")
+    session = await db.user_sessions.find_one({"session_token": tok}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    rec = await db.chat_media.find_one({"media_id": media_id}, {"_id": 0})
+    if not rec:
+        raise HTTPException(status_code=404, detail="Media not found")
+    try:
+        content = await storage_get(rec["storage_path"])
+    except httpx.HTTPStatusError:
+        raise HTTPException(status_code=502, detail="Media unavailable")
+    return Response(content=content, media_type=rec["content_type"],
+                    headers={"Cache-Control": "private, max-age=86400"})
+
+
 # ---------- AI Athlete's Center ----------
 @api_router.post("/ai/build-workout")
 async def ai_build(inp: AIWorkoutRequest, user=Depends(get_current_user)):
-    if rank_from_xp(user["xp"]) in ("Beginner", "Intermediate"):
+    if rank_from_xp(user["xp"]) in ("Beginner", "Intermediate") and not user.get("all_rooms_access") and not user.get("athletes_center_access"):
         raise HTTPException(status_code=403, detail="Athlete's Center unlocks at Advanced rank")
 
     from emergentintegrations.llm.chat import LlmChat, UserMessage
@@ -928,20 +1888,292 @@ async def my_ai_programs(user=Depends(get_current_user)):
     return rows
 
 
+# ---------- 1-on-1 Custom Program ($200 lifetime) ----------
+@api_router.post("/custom-program/unlock")
+async def custom_program_unlock(user=Depends(get_current_user)):
+    """Called by the client after a successful RevenueCat lifetime purchase.
+    Grants instant Athlete's Center access and flags the one-time purchase."""
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {
+            "custom_program_purchased": True,
+            "athletes_center_access": True,
+            "custom_program_purchased_at": datetime.now(timezone.utc),
+        }},
+    )
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return fresh
+
+@api_router.post("/custom-program/intake")
+async def custom_program_intake(inp: CustomProgramIntake, user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    if not fresh.get("custom_program_purchased"):
+        raise HTTPException(status_code=403, detail="Purchase the 1-on-1 custom program first")
+    doc = {
+        "request_id": new_id("cprog"),
+        "user_id": user["user_id"],
+        "email": fresh.get("email"),
+        "display_name": fresh.get("display_name"),
+        **inp.dict(),
+        "status": "submitted",
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.custom_program_requests.insert_one(doc)
+    doc.pop("_id", None)
+    doc["created_at"] = doc["created_at"].isoformat()
+    return {"ok": True, "request": doc}
+
+@api_router.get("/custom-program")
+async def custom_program_status(user=Depends(get_current_user)):
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    intake = await db.custom_program_requests.find_one(
+        {"user_id": user["user_id"]}, {"_id": 0}, sort=[("created_at", -1)]
+    )
+    if intake and isinstance(intake.get("created_at"), datetime):
+        intake["created_at"] = intake["created_at"].isoformat()
+    return {
+        "purchased": bool(fresh.get("custom_program_purchased")),
+        "athletes_center_access": bool(fresh.get("athletes_center_access")),
+        "intake": intake,
+    }
+
+
+# ---------- Founders (first 100 members + development backers) ----------
+FOUNDER_LIMIT = 100
+
+@api_router.get("/founders")
+async def founders_list(user=Depends(get_current_user)):
+    # First 100 real members (exclude leaderboard bots), earliest signups first
+    rows = await db.users.find(
+        {"is_bot": {"$ne": True}},
+        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "created_at": 1, "founder_backer": 1},
+    ).sort("created_at", 1).limit(FOUNDER_LIMIT).to_list(FOUNDER_LIMIT)
+
+    founders = []
+    my_number = None
+    for i, r in enumerate(rows):
+        num = i + 1
+        if r["user_id"] == user["user_id"]:
+            my_number = num
+        founders.append({
+            "number": num,
+            "display_name": r.get("display_name", "Athlete"),
+            "avatar_id": r.get("avatar_id", "avatar_ronin"),
+            "rank": rank_from_xp(r.get("xp", 0)),
+            "is_backer": bool(r.get("founder_backer")),
+        })
+
+    backer_rows = await db.users.find(
+        {"founder_backer": True, "is_bot": {"$ne": True}},
+        {"_id": 0, "display_name": 1, "avatar_id": 1, "xp": 1, "backed_at": 1},
+    ).sort("backed_at", 1).to_list(500)
+    backers = [{
+        "display_name": b.get("display_name", "Athlete"),
+        "avatar_id": b.get("avatar_id", "avatar_ronin"),
+        "rank": rank_from_xp(b.get("xp", 0)),
+    } for b in backer_rows]
+
+    return {
+        "founders": founders,
+        "backers": backers,
+        "founder_limit": FOUNDER_LIMIT,
+        "me": {
+            "number": my_number,
+            "is_founder": my_number is not None,
+            "is_backer": bool(user.get("founder_backer")),
+        },
+    }
+
+@api_router.post("/founders/back")
+async def founders_back(user=Depends(get_current_user)):
+    """Called by the client after a successful RevenueCat 'Backer' purchase."""
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"founder_backer": True, "backed_at": datetime.now(timezone.utc)}},
+    )
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return fresh
+
+
+# ---------- The Judge (AI physique critique + member comments) ----------
+JUDGE_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_JUDGE_BYTES = 15 * 1024 * 1024
+
+JUDGE_SYSTEM = (
+    "You are 'The Judge', a world-class IFBB head bodybuilding judge with decades on the Olympia "
+    "panel. You are tough, precise, and fair. Critique the physique shown in the photo. Score each "
+    "category from 1.0 to 10.0 (one decimal). Return ONLY a single valid JSON object, no markdown, "
+    'with EXACTLY these keys: {"overall": number, "symmetry": number, "conditioning": number, '
+    '"size": number, "posing": number, "notes": string}. "notes" must be 2-4 sentences in a blunt '
+    "but constructive pro-judge voice, naming specific strengths and what to bring up next. If the "
+    "image does not clearly show a human physique, set all scores to 0 and use notes to ask for a "
+    "clear, well-lit physique photo."
+)
+
+class JudgeComment(BaseModel):
+    text: str
+
+def _parse_judge_json(text: str):
+    import json as _json, re as _re
+    m = _re.search(r"\{.*\}", text or "", _re.DOTALL)
+    if not m:
+        return None
+    try:
+        d = _json.loads(m.group(0))
+    except Exception:
+        return None
+    def num(k):
+        try:
+            return max(0.0, min(10.0, round(float(d.get(k, 0)), 1)))
+        except Exception:
+            return 0.0
+    return {
+        "overall": num("overall"),
+        "symmetry": num("symmetry"),
+        "conditioning": num("conditioning"),
+        "size": num("size"),
+        "posing": num("posing"),
+        "notes": str(d.get("notes", ""))[:800],
+    }
+
+@api_router.post("/judge/submit")
+async def judge_submit(file: UploadFile = File(...), caption: Optional[str] = Form(None),
+                       user=Depends(get_current_user)):
+    import base64
+    ct = (file.content_type or "").lower().split(";")[0].strip()
+    if ct not in JUDGE_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Upload a JPEG, PNG, or WEBP photo")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > MAX_JUDGE_BYTES:
+        raise HTTPException(status_code=400, detail="Photo too large (max 15MB)")
+    ext = _EXT_MAP.get(ct, "jpg")
+    path = f"{STORAGE_APP_NAME}/judge/{user['user_id']}/{uuid.uuid4().hex}.{ext}"
+    try:
+        await storage_put(path, data, ct)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 402:
+            raise HTTPException(status_code=402, detail="Storage credits exhausted — try again later")
+        logger.error(f"Judge storage upload failed: {e.response.status_code}")
+        raise HTTPException(status_code=502, detail="Upload failed — try again")
+    media_id = new_id("med")
+    await db.chat_media.insert_one({
+        "media_id": media_id, "user_id": user["user_id"], "storage_path": path,
+        "content_type": ct, "media_type": "image", "size": len(data),
+        "original_name": file.filename, "created_at": datetime.now(timezone.utc),
+    })
+
+    critique = None
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"judge_{user['user_id']}_{uuid.uuid4().hex[:6]}",
+            system_message=JUDGE_SYSTEM,
+        ).with_model("openai", "gpt-5.6-terra")
+        img = ImageContent(image_base64=base64.b64encode(data).decode())
+        resp = await chat.send_message(UserMessage(
+            text="Judge this physique. Return only the JSON object.",
+            file_contents=[img],
+        ))
+        critique = _parse_judge_json(resp)
+    except Exception:
+        logger.exception("Judge AI critique failed")
+        critique = None
+
+    sub_id = new_id("judge")
+    doc = {
+        "submission_id": sub_id,
+        "user_id": user["user_id"],
+        "display_name": user.get("display_name", "Athlete"),
+        "avatar_id": user.get("avatar_id", "avatar_ronin"),
+        "rank": rank_from_xp(user["xp"]),
+        "media_id": media_id,
+        "caption": (caption or "")[:300],
+        "critique": critique,
+        "comment_count": 0,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.judge_submissions.insert_one(doc)
+    doc.pop("_id", None)
+    doc["created_at"] = doc["created_at"].isoformat()
+    return doc
+
+@api_router.get("/judge/feed")
+async def judge_feed(user=Depends(get_current_user)):
+    rows = await db.judge_submissions.find({}, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
+    for r in rows:
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+    return rows
+
+@api_router.get("/judge/{submission_id}/comments")
+async def judge_comments(submission_id: str, user=Depends(get_current_user)):
+    rows = await db.judge_comments.find({"submission_id": submission_id}, {"_id": 0}).sort("created_at", 1).to_list(300)
+    for r in rows:
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+    return rows
+
+@api_router.post("/judge/{submission_id}/comments")
+async def judge_comment_add(submission_id: str, inp: JudgeComment, user=Depends(get_current_user)):
+    sub = await db.judge_submissions.find_one({"submission_id": submission_id}, {"_id": 0})
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    text = (inp.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Comment is empty")
+    doc = {
+        "comment_id": new_id("jc"),
+        "submission_id": submission_id,
+        "user_id": user["user_id"],
+        "display_name": user.get("display_name", "Athlete"),
+        "avatar_id": user.get("avatar_id", "avatar_ronin"),
+        "rank": rank_from_xp(user["xp"]),
+        "text": text[:500],
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.judge_comments.insert_one(doc)
+    await db.judge_submissions.update_one({"submission_id": submission_id}, {"$inc": {"comment_count": 1}})
+    doc.pop("_id", None)
+    doc["created_at"] = doc["created_at"].isoformat()
+    return doc
+
+
 # ---------- Seed ----------
+# Owner accounts get full access to every chatroom regardless of rank/subscription
+OWNER_EMAILS = ["the9hutch@gmail.com"]
+
 async def seed():
+    # Grant owner accounts full room access (persists across restarts)
+    await db.users.update_many(
+        {"email": {"$in": OWNER_EMAILS}},
+        {"$set": {"all_rooms_access": True, "skool_verified": True}},
+    )
     # Indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("user_id", unique=True)
     await db.user_sessions.create_index("session_token", unique=True)
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.chat_messages.create_index([("room", 1), ("created_at", -1)])
+    await db.chat_media.create_index("media_id", unique=True)
+    await db.verification_codes.create_index([("user_id", 1), ("channel", 1)], unique=True)
+
+    # Warm up object storage (non-fatal if it fails at boot)
+    try:
+        await init_storage()
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.warning(f"Object storage init failed at startup (will retry lazily): {e}")
 
     # Seed test users
     seeds = [
-        {"email": "athlete@test.com", "name": "Ronin", "xp": 1200, "prs": {"bench": 225, "squat": 315, "deadlift": 405, "ohp": 135}, "bw": 180, "avatar": "avatar_ronin"},
-        {"email": "elite@test.com", "name": "Kaido", "xp": 4200, "prs": {"bench": 315, "squat": 455, "deadlift": 545, "ohp": 185}, "bw": 200, "avatar": "avatar_kaido"},
-        {"email": "freak@test.com", "name": "Titan", "xp": 9500, "prs": {"bench": 405, "squat": 585, "deadlift": 675, "ohp": 245}, "bw": 240, "avatar": "avatar_titan"},
+        {"email": "athlete@test.com", "name": "Ronin", "xp": 3000, "prs": {"bench": 225, "squat": 315, "deadlift": 405, "ohp": 135}, "bw": 180, "avatar": "avatar_ronin"},
+        {"email": "elite@test.com", "name": "Kaido", "xp": 15500, "prs": {"bench": 315, "squat": 455, "deadlift": 545, "ohp": 185}, "bw": 200, "avatar": "avatar_kaido"},
+        {"email": "freak@test.com", "name": "Titan", "xp": 18500, "prs": {"bench": 405, "squat": 585, "deadlift": 675, "ohp": 245}, "bw": 240, "avatar": "avatar_titan"},
     ]
     for s in seeds:
         badges = set()
@@ -978,6 +2210,63 @@ async def seed():
             **canonical,
         }
         await db.users.insert_one(doc)
+    # Seed 10 permanent "milestone" bot athletes so leaderboards are always populated
+    BOTS = [
+        {"name": "Plate Prophet", "xp": 620, "prs": {"bench": 185, "squat": 275, "deadlift": 315, "ohp": 115}, "bw": 175, "avatar": "avatar_ronin", "sprints": {"40yd": 5.3, "100m": 14.1}, "cardio": [("run", 5.2, 1620), ("run", 3.1, 960)]},
+        {"name": "Iron Sentinel", "xp": 1350, "prs": {"bench": 225, "squat": 315, "deadlift": 405, "ohp": 135}, "bw": 190, "avatar": "avatar_titan", "sprints": {"40yd": 5.0, "100m": 13.4}, "cardio": [("bike", 22.0, 3600)]},
+        {"name": "Gravitas", "xp": 2100, "prs": {"bench": 275, "squat": 365, "deadlift": 455, "ohp": 155}, "bw": 205, "avatar": "avatar_kaido", "sprints": {"40yd": 4.9, "100m": 13.0}, "cardio": [("run", 10.0, 2820)]},
+        {"name": "Warhound", "xp": 2800, "prs": {"bench": 315, "squat": 405, "deadlift": 500, "ohp": 175}, "bw": 198, "avatar": "avatar_demon", "sprints": {"40yd": 4.7, "100m": 12.5}, "cardio": [("run", 8.0, 2160), ("bike", 30.0, 4500)]},
+        {"name": "Vanguard", "xp": 3600, "prs": {"bench": 335, "squat": 455, "deadlift": 545, "ohp": 185}, "bw": 210, "avatar": "avatar_saiyan", "sprints": {"40yd": 4.6, "100m": 12.2}, "cardio": [("run", 12.0, 3300)]},
+        {"name": "Colossus", "xp": 4500, "prs": {"bench": 365, "squat": 495, "deadlift": 585, "ohp": 205}, "bw": 235, "avatar": "avatar_titan", "sprints": {"40yd": 4.9, "100m": 13.1}, "cardio": [("bike", 40.0, 5400)]},
+        {"name": "Nightfall", "xp": 5400, "prs": {"bench": 385, "squat": 515, "deadlift": 605, "ohp": 215}, "bw": 215, "avatar": "avatar_reaper", "sprints": {"40yd": 4.5, "100m": 11.9}, "cardio": [("run", 15.0, 3900)]},
+        {"name": "Bastion", "xp": 6600, "prs": {"bench": 405, "squat": 545, "deadlift": 635, "ohp": 225}, "bw": 228, "avatar": "avatar_shinobi", "sprints": {"40yd": 4.6, "100m": 12.0}, "cardio": [("run", 10.0, 2640), ("bike", 35.0, 4800)]},
+        {"name": "Overkill", "xp": 8200, "prs": {"bench": 455, "squat": 585, "deadlift": 675, "ohp": 245}, "bw": 245, "avatar": "avatar_phoenix", "sprints": {"40yd": 4.5, "100m": 11.7}, "cardio": [("run", 6.0, 1560)]},
+        {"name": "Apex Prime", "xp": 11000, "prs": {"bench": 495, "squat": 635, "deadlift": 725, "ohp": 275}, "bw": 250, "avatar": "avatar_saiyan", "sprints": {"40yd": 4.4, "100m": 11.4}, "cardio": [("run", 21.1, 5400), ("bike", 50.0, 6300)]},
+    ]
+    for i, b in enumerate(BOTS):
+        email = f"bot{i+1}@circle.ai"
+        badges = set()
+        for lk, w in b["prs"].items():
+            for m in milestones_for(w):
+                badges.add(f"{lk}_{m}")
+        canonical = {
+            "display_name": b["name"],
+            "avatar_id": b["avatar"],
+            "bodyweight_lb": b["bw"],
+            "age": 26,
+            "sex": "male",
+            "xp": b["xp"],
+            "level": level_from_xp(b["xp"]),
+            "prs": b["prs"],
+            "badges": list(badges) + ["pr_hunter"],
+            "workouts_logged": 30 + i * 4,
+            "streak_days": 6 + i,
+            "skool_verified": i % 2 == 0,
+            "active_background": "bg_default",
+            "sprints": b.get("sprints", {}),
+            "is_bot": True,
+        }
+        existing = await db.users.find_one({"email": email})
+        if existing:
+            uid = existing["user_id"]
+            await db.users.update_one({"email": email}, {"$set": canonical})
+        else:
+            uid = new_id("usr")
+            await db.users.insert_one({
+                "user_id": uid, "email": email, "picture": "", "password_hash": "",
+                "created_at": datetime.now(timezone.utc), **canonical,
+            })
+        # Reset bot cardio each startup so cardio boards stay deterministic
+        await db.cardio.delete_many({"user_id": uid})
+        for act, km, dur in b.get("cardio", []):
+            await db.cardio.insert_one({
+                "cardio_id": new_id("cardio"), "user_id": uid, "activity_type": act,
+                "distance_km": km, "duration_s": dur, "elevation_gain_m": 0, "temperature_c": None,
+                "avg_pace_min_km": round((dur / 60) / km, 2) if km else 0,
+                "avg_speed_kmh": round(km / (dur / 3600), 2) if dur else 0,
+                "route": [], "logged_at": datetime.now(timezone.utc),
+            })
+
     # Seed a couple of welcome chat messages
     existing_msg = await db.chat_messages.count_documents({"room": "main"})
     if existing_msg == 0:

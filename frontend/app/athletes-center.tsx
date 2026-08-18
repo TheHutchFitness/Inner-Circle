@@ -1,22 +1,37 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius } from "@/src/lib/theme";
+import { rankIndex } from "@/src/lib/theme";
 import { setPendingWorkout } from "@/src/lib/pendingWorkout";
+
+const POPULAR_SPLITS = [
+  "Push/Pull/Legs",
+  "Upper/Lower",
+  "Full Body",
+  "Bro Split (Body Part)",
+  "Arnold Split",
+  "Push/Pull",
+  "PHUL (Power Hypertrophy Upper Lower)",
+  "PHAT (Power Hypertrophy Adaptive Training)",
+  "5/3/1 Powerlifting",
+  "Hybrid Athlete (Lift + Cardio)",
+];
 
 export default function AthletesCenter() {
   const insets = useSafeAreaInsets();
   const { token, user } = useAuth();
   const { isSubscribed } = useSubscription();
   const router = useRouter();
-  const canAI = isSubscribed || user?.skool_verified;
-  const canRank = ["Advanced","Elite","Freak"].includes(user?.rank || "");
+  const canAI = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.athletes_center_access;
+  const canRank = rankIndex(user?.rank) >= 2 || user?.all_rooms_access || user?.athletes_center_access;
 
   const [goal, setGoal] = useState("Powerbuilding");
   const [split, setSplit] = useState("Push/Pull/Legs");
+  const [splitOpen, setSplitOpen] = useState(false);
   const [days, setDays] = useState("5");
   const [experience, setExperience] = useState("Advanced");
   const [notes, setNotes] = useState("");
@@ -59,7 +74,7 @@ export default function AthletesCenter() {
       <View style={[styles.gate, { paddingTop: insets.top + spacing.xl }]}>
         <Text style={styles.eyebrow}>ACCESS DENIED</Text>
         <Text style={styles.gateTitle}>ADVANCED RANK REQUIRED</Text>
-        <Text style={styles.gateSub}>Athlete's Center unlocks at Advanced (1500 XP). Keep grinding, log workouts, chase PRs.</Text>
+        <Text style={styles.gateSub}>Athlete&apos;s Center unlocks at Advanced (1500 XP). Keep grinding, log workouts, chase PRs.</Text>
         <Pressable onPress={() => router.back()} style={styles.gateBtn}><Text style={styles.gateBtnText}>BACK</Text></Pressable>
       </View>
     );
@@ -81,7 +96,7 @@ export default function AthletesCenter() {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, padding: spacing.lg, paddingBottom: 60 }}>
         <Pressable onPress={() => router.back()}><Text style={styles.back}>← BACK</Text></Pressable>
         <Text style={styles.eyebrow}>AI COMMAND</Text>
-        <Text style={styles.h1}>ATHLETE'S CENTER</Text>
+        <Text style={styles.h1}>ATHLETE&apos;S CENTER</Text>
         <Text style={styles.helper}>Coach Hutch builds a custom protocol based on your stats.</Text>
 
         <View style={styles.tabRow}>
@@ -96,7 +111,12 @@ export default function AthletesCenter() {
         {tab === "build" ? (
           <>
         <Field label="GOAL"><TextInput testID="ai-goal" value={goal} onChangeText={setGoal} style={styles.input} placeholderTextColor={colors.textDim}/></Field>
-        <Field label="SPLIT PREFERENCE"><TextInput testID="ai-split" value={split} onChangeText={setSplit} style={styles.input} /></Field>
+        <Field label="SPLIT PREFERENCE">
+          <Pressable testID="ai-split" onPress={() => setSplitOpen(true)} style={[styles.input, styles.dropdown]}>
+            <Text style={styles.dropdownValue}>{split}</Text>
+            <Text style={styles.dropdownCaret}>▾</Text>
+          </Pressable>
+        </Field>
         <Field label="DAYS PER WEEK"><TextInput testID="ai-days" value={days} onChangeText={setDays} keyboardType="numeric" style={styles.input}/></Field>
         <Field label="EXPERIENCE"><TextInput testID="ai-exp" value={experience} onChangeText={setExperience} style={styles.input}/></Field>
         <Field label="NOTES / INJURIES"><TextInput testID="ai-notes" value={notes} onChangeText={setNotes} style={[styles.input, { minHeight: 70, textAlignVertical: "top" }]} multiline placeholder="Anything Coach should know" placeholderTextColor={colors.textDim}/></Field>
@@ -156,6 +176,27 @@ export default function AthletesCenter() {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={splitOpen} transparent animationType="fade" onRequestClose={() => setSplitOpen(false)}>
+        <Pressable style={styles.modalWrap} onPress={() => setSplitOpen(false)}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>SELECT SPLIT</Text>
+            <ScrollView style={{ maxHeight: 420 }}>
+              {POPULAR_SPLITS.map((s) => (
+                <Pressable
+                  testID={`split-opt-${s}`}
+                  key={s}
+                  onPress={() => { setSplit(s); setSplitOpen(false); }}
+                  style={[styles.splitOpt, split === s && styles.splitOptActive]}
+                >
+                  <Text style={[styles.splitOptText, split === s && { color: colors.brandPrimary }]}>{s}</Text>
+                  {split === s && <Text style={{ color: colors.brandPrimary }}>✓</Text>}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -208,4 +249,13 @@ const styles = StyleSheet.create({
   output: { marginTop: spacing.xl, backgroundColor: colors.surface2, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong },
   outputTitle: { color: colors.brandPrimary, letterSpacing: 3, fontWeight: "800", marginBottom: spacing.md },
   outputBody: { color: colors.text, lineHeight: 22, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  dropdown: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", minHeight: 44 },
+  dropdownValue: { color: colors.text },
+  dropdownCaret: { color: colors.brandPrimary, fontSize: 14 },
+  modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", padding: spacing.lg },
+  modalCard: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md },
+  modalTitle: { color: colors.brandPrimary, letterSpacing: 3, fontWeight: "800", fontSize: 12, marginBottom: spacing.sm, paddingHorizontal: spacing.sm },
+  splitOpt: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, minHeight: 44 },
+  splitOptActive: { backgroundColor: "rgba(34,211,238,0.06)" },
+  splitOptText: { color: colors.textMid, fontWeight: "700" },
 });
