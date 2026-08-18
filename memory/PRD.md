@@ -96,3 +96,8 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - PROGRESSION screen (HOME → RANKS button): full 8-tier ladder with frame previews + perks + level-gated background/widget rewards.
 - HOME tab: renamed HQ→HOME; removed terminal/online status line; centered RECAP/INVENTORY/RANKS HUD buttons.
 - Login cover: animated glitch (RGB-split displaced slices + scan sweep) + TV static overlay.
+
+## Implemented (2026-06 — AI Coach)
+- AI COACH chat (Home CTA -> /coach): multi-turn training & nutrition assistant on OpenAI GPT-5.4 via emergentintegrations (EMERGENT_LLM_KEY). History persisted per user in `coach_messages`; recent transcript replayed for context. Backend: GET/POST/DELETE /api/coach/messages. Replies constrained to plain text (no markdown) for clean chat bubbles.
+- The Judge upload now requires email/phone verification (same gate as chat media).
+- Login cover: glitch removed; kept TV static + Pip-Boy scan-line sweep.

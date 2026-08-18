@@ -2274,6 +2274,74 @@ async def judge_comment_add(submission_id: str, inp: JudgeComment, user=Depends(
     return doc
 
 
+# ---------- AI Coach (GPT-5.4 conversational training/nutrition assistant) ----------
+COACH_SYSTEM = (
+    "You are the AI Coach for 'Hutch's Inner Circle', an elite strength & performance training app. "
+    "You are an expert strength coach — powerlifting, hypertrophy, athletic performance, conditioning, "
+    "mobility, and sports nutrition. Voice: blunt, motivating, no-fluff, like a hardcore but caring coach. "
+    "Give concise, actionable answers (a few short paragraphs or tight bullet points max). Prescribe real "
+    "sets/reps/loads and concrete nutrition numbers when asked. You are not a medical professional — if a "
+    "user mentions pain, injury, or medical issues, add one short line advising them to consult a professional. "
+    "Stay on training, nutrition, recovery, and mindset; politely redirect off-topic questions back to fitness. "
+    "Format for a mobile chat bubble: PLAIN TEXT ONLY — no markdown symbols (do not use *, **, #, or ##). "
+    "Use short lines, simple '-' bullets, and 1) 2) 3) numbering when listing."
+)
+
+class CoachMessageIn(BaseModel):
+    text: str
+
+@api_router.get("/coach/messages")
+async def coach_messages(user=Depends(get_current_user)):
+    rows = await db.coach_messages.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", 1).limit(200).to_list(200)
+    for r in rows:
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+    return rows
+
+@api_router.post("/coach/messages")
+async def coach_send(inp: CoachMessageIn, user=Depends(get_current_user)):
+    text = (inp.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Message is empty")
+    now = datetime.now(timezone.utc)
+    await db.coach_messages.insert_one({
+        "msg_id": new_id("coach"), "user_id": user["user_id"], "role": "user", "text": text[:1500], "created_at": now,
+    })
+
+    # Build recent transcript for context (last 16 turns)
+    prior = await db.coach_messages.find({"user_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).limit(17).to_list(17)
+    prior = list(reversed(prior))[:-1]  # drop the just-added user msg
+    transcript = "\n".join(f"{'Athlete' if m['role']=='user' else 'Coach'}: {m['text']}" for m in prior[-16:])
+    profile = f"Athlete profile — display name: {user.get('display_name','Athlete')}, rank: {rank_from_xp(user['xp'])}, level: {level_from_xp(user['xp'])}."
+    sys = COACH_SYSTEM + "\n\n" + profile + ("\n\nRecent conversation:\n" + transcript if transcript else "")
+
+    reply_text = ""
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"coach_{user['user_id']}",
+            system_message=sys,
+        ).with_model("openai", "gpt-5.4")
+        reply_text = await chat.send_message(UserMessage(text=text))
+    except Exception:
+        logger.exception("AI Coach failed")
+        raise HTTPException(status_code=502, detail="Coach is catching their breath — try again in a moment.")
+
+    reply = {
+        "msg_id": new_id("coach"), "user_id": user["user_id"], "role": "assistant",
+        "text": reply_text.strip(), "created_at": datetime.now(timezone.utc),
+    }
+    await db.coach_messages.insert_one(dict(reply))
+    reply["created_at"] = reply["created_at"].isoformat()
+    return reply
+
+@api_router.delete("/coach/messages")
+async def coach_clear(user=Depends(get_current_user)):
+    await db.coach_messages.delete_many({"user_id": user["user_id"]})
+    return {"ok": True}
+
+
 # ---------- Seed ----------
 # Owner accounts get full access to every chatroom regardless of rank/subscription
 OWNER_EMAILS = ["the9hutch@gmail.com"]

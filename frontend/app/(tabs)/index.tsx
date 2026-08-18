@@ -172,6 +172,14 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
 
+      <Pressable testID="open-coach" onPress={() => router.push("/coach")} style={styles.ctaCard}>
+        <View>
+          <Text style={styles.ctaTitle}>AI COACH · CHAT</Text>
+          <Text style={styles.ctaSub}>Ask training & nutrition questions · GPT-5.4</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
+
       <Pressable testID="open-founders" onPress={() => router.push("/founders")} style={styles.ctaCard}>
         <View>
           <Text style={styles.ctaTitle}>FOUNDERS</Text>
