@@ -24,6 +24,8 @@ export default function Profile() {
   const { isSubscribed } = useSubscription();
   const router = useRouter();
   const [avatarOpen, setAvatarOpen] = useState(false);
+  const [frameOpen, setFrameOpen] = useState(false);
+  const [unlockedFrames, setUnlockedFrames] = useState<string[]>([]);
   const [chart, setChart] = useState<any>(null);
   const [attrs, setAttrs] = useState<any>(null);
   const [liftTab, setLiftTab] = useState("bench");
@@ -48,7 +50,17 @@ export default function Profile() {
   const rankColor = RANK_COLORS[rank];
   const portrait = avatarImage(user.avatar_id);
   const bossFrameUnlocked = (user.extra_unlocks || []).includes("frame_boss");
-  const frame = (bossFrameUnlocked && rankIndex(rank) < 5) ? CARD_FRAMES.Boss : frameFor(rank);
+  const frame = CARD_FRAMES[user.active_frame]
+    || ((bossFrameUnlocked && rankIndex(rank) < 5) ? CARD_FRAMES.Boss : frameFor(rank));
+
+  const openFrames = async () => {
+    setFrameOpen(true);
+    try { const r = await apiFetch(token, "/api/profile/frames"); setUnlockedFrames(r.unlocked || []); } catch {}
+  };
+  const pickFrame = async (f: string) => {
+    try { await apiFetch(token, "/api/profile/set-frame", { method: "POST", body: JSON.stringify({ frame: f }) }); await refresh(); } catch {}
+    setFrameOpen(false);
+  };
   const tierColor = CLASS_TIER_COLORS[attrs?.class_tier] || rankColor;
   const totalLift = (user.prs?.bench || 0) + (user.prs?.squat || 0) + (user.prs?.deadlift || 0) + (user.prs?.ohp || 0);
 
@@ -110,7 +122,7 @@ export default function Profile() {
                   </View>
                   <Text style={[styles.playerClass, { color: rankColor }]}>{attrs?.class_title || `${av.label.toUpperCase()} CLASS`}</Text>
                 </View>
-                <Text style={styles.frameName}>◈ {frame.name}</Text>
+                <Pressable testID="open-frame-vault" onPress={openFrames}><Text style={styles.frameName}>◈ {frame.name}  ▾</Text></Pressable>
                 <View style={styles.pillRow}>
                   {isSubscribed && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ PREMIUM</Text></View>}
                   {user.skool_verified && <View style={[styles.pill, { backgroundColor: colors.success }]}><Text style={styles.pillText}>✓ SKOOL</Text></View>}
@@ -229,6 +241,35 @@ export default function Profile() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={frameOpen} transparent animationType="fade" onRequestClose={() => setFrameOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>FRAME VAULT</Text>
+            <Text style={{ color: colors.textDim, fontSize: 12, marginBottom: spacing.sm }}>Equip any frame you&apos;ve unlocked.</Text>
+            <ScrollView style={{ maxHeight: 420 }}>
+              {unlockedFrames.map((fk) => {
+                const cf = CARD_FRAMES[fk];
+                const activeKey = user.active_frame || frame.name;
+                const isActive = (user.active_frame ? user.active_frame === fk : frame.name === cf.name);
+                return (
+                  <Pressable testID={`frame-${fk}`} key={fk} onPress={() => pickFrame(fk)} style={[styles.frameOpt, isActive && { borderColor: cf.border }]}>
+                    <LinearGradient colors={cf.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.frameSwatch, { borderColor: cf.border }]}>
+                      <Text style={{ color: cf.glow, fontSize: 18 }}>◆</Text>
+                    </LinearGradient>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.frameOptName}>{cf.name}</Text>
+                      <Text style={styles.frameOptRank}>{fk.toUpperCase()} TIER</Text>
+                    </View>
+                    {isActive && <Text style={{ color: cf.border, fontWeight: "900" }}>✓</Text>}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Pressable onPress={() => setFrameOpen(false)} style={styles.modalClose}><Text style={{ color: colors.textDim, letterSpacing: 2 }}>CLOSE</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
     </SwipeTabs>
   );
@@ -326,4 +367,8 @@ const styles = StyleSheet.create({
   artTag: { position: "absolute", top: 8, right: 8, backgroundColor: colors.brandPrimary, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 },
   artTagText: { color: "#001122", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   modalClose: { alignItems: "center", marginTop: spacing.lg },
+  frameOpt: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.border, marginBottom: spacing.sm, backgroundColor: colors.surface2 },
+  frameSwatch: { width: 42, height: 56, borderRadius: radius.sm, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  frameOptName: { color: colors.text, fontWeight: "900", letterSpacing: 1 },
+  frameOptRank: { color: colors.textDim, fontSize: 10, letterSpacing: 2, marginTop: 2, fontWeight: "700" },
 });

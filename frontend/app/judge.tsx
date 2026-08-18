@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import Svg, { Polyline, Circle, Line as SvgLine } from "react-native-svg";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
+import { VerifyPanel } from "@/src/components/VerifyPanel";
 import { colors, spacing, radius, RANK_COLORS, avatarFor } from "@/src/lib/theme";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -48,6 +50,56 @@ function Critique({ c }: { c: any }) {
   );
 }
 
+function JudgeHistory({ hist, mediaUrl }: { hist: any; mediaUrl: (id: string) => string }) {
+  if (!hist || hist.count === 0) {
+    return <Text style={st.empty}>No scored submissions yet. Submit a physique to start your history.</Text>;
+  }
+  const pts: any[] = hist.history;
+  const W = 300, H = 120, pad = 14;
+  const n = pts.length;
+  const xFor = (i: number) => n <= 1 ? W / 2 : pad + (i * (W - pad * 2)) / (n - 1);
+  const yFor = (v: number) => H - pad - (v / 10) * (H - pad * 2);
+  const poly = pts.map((p, i) => `${xFor(i)},${yFor(p.overall)}`).join(" ");
+  const latest = pts[n - 1]?.overall ?? 0;
+  const first = pts[0]?.overall ?? 0;
+  const trend = latest - first;
+  return (
+    <View>
+      <View style={st.histStats}>
+        <View style={st.histStat}><Text style={st.histStatVal}>{hist.best.toFixed(1)}</Text><Text style={st.histStatLabel}>BEST</Text></View>
+        <View style={st.histStat}><Text style={st.histStatVal}>{latest.toFixed(1)}</Text><Text style={st.histStatLabel}>LATEST</Text></View>
+        <View style={st.histStat}>
+          <Text style={[st.histStatVal, { color: trend >= 0 ? colors.success : colors.error }]}>{trend >= 0 ? "▲" : "▼"}{Math.abs(trend).toFixed(1)}</Text>
+          <Text style={st.histStatLabel}>TREND</Text>
+        </View>
+        <View style={st.histStat}><Text style={st.histStatVal}>{hist.count}</Text><Text style={st.histStatLabel}>JUDGED</Text></View>
+      </View>
+      <View style={st.trendWrap}>
+        <Text style={st.trendTitle}>OVERALL SCORE OVER TIME</Text>
+        <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
+          {[0, 5, 10].map((g) => (
+            <SvgLine key={g} x1={pad} y1={yFor(g)} x2={W - pad} y2={yFor(g)} stroke="#1E2430" strokeWidth={1} />
+          ))}
+          {n > 1 && <Polyline points={poly} fill="none" stroke={colors.brandPrimary} strokeWidth={2.5} />}
+          {pts.map((p, i) => (
+            <Circle key={i} cx={xFor(i)} cy={yFor(p.overall)} r={3.5} fill={colors.warning} />
+          ))}
+        </Svg>
+      </View>
+      {[...pts].reverse().map((p) => (
+        <View key={p.submission_id} testID={`hist-${p.submission_id}`} style={st.histRow}>
+          <Image source={{ uri: mediaUrl(p.media_id) }} style={st.histThumb} contentFit="cover" />
+          <View style={{ flex: 1 }}>
+            <Text style={st.histDate}>{new Date(p.created_at).toLocaleDateString()}</Text>
+            <Text style={st.histCats}>S {p.symmetry.toFixed(0)} · C {p.conditioning.toFixed(0)} · Sz {p.size.toFixed(0)} · P {p.posing.toFixed(0)}</Text>
+          </View>
+          <Text style={[st.histScore, { color: scoreColor(p.overall) }]}>{p.overall.toFixed(1)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function Judge() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -55,10 +107,13 @@ export default function Judge() {
   const { isSubscribed } = useSubscription();
 
   const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access;
+  const isVerified = !!(user?.email_verified || user?.phone_verified);
+  const [verifyOpen, setVerifyOpen] = useState(false);
 
   const [feed, setFeed] = useState<any[]>([]);
   const [board, setBoard] = useState<any[]>([]);
-  const [view, setView] = useState<"feed" | "board">("feed");
+  const [hist, setHist] = useState<any>(null);
+  const [view, setView] = useState<"feed" | "board" | "mine">("feed");
   const [pending, setPending] = useState<any>(null);
   const [caption, setCaption] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -72,7 +127,8 @@ export default function Judge() {
 
   const load = async () => { try { setFeed(await apiFetch(token, "/api/judge/feed")); } catch {} };
   const loadBoard = async () => { try { setBoard(await apiFetch(token, "/api/judge/leaderboard")); } catch {} };
-  useEffect(() => { if (canJudge) { load(); loadBoard(); } /* eslint-disable-next-line */ }, [canJudge]);
+  const loadHist = async () => { try { setHist(await apiFetch(token, "/api/judge/my-history")); } catch {} };
+  useEffect(() => { if (canJudge) { load(); loadBoard(); loadHist(); } /* eslint-disable-next-line */ }, [canJudge]);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
 
@@ -97,6 +153,7 @@ export default function Judge() {
 
   const pick = async (source: "camera" | "gallery") => {
     setErr(null);
+    if (!isVerified) { setVerifyOpen(true); return; }
     if (!(await ensurePermission(source))) return;
     const opts: any = { mediaTypes: ["images"], quality: 0.7 };
     let res;
@@ -131,6 +188,7 @@ export default function Judge() {
       setPending(null); setCaption("");
       await load();
       await loadBoard();
+      await loadHist();
       setTimeout(() => scrollRef.current?.scrollTo({ y: 0, animated: true }), 60);
     } catch (e: any) { setErr(e.message); }
     setSubmitting(false);
@@ -211,14 +269,19 @@ export default function Judge() {
 
         <View style={st.viewToggle}>
           <Pressable testID="judge-view-feed" onPress={() => setView("feed")} style={[st.viewBtn, view === "feed" && st.viewBtnActive]}>
-            <Text style={[st.viewBtnText, view === "feed" && st.viewBtnTextActive]}>THE LINEUP</Text>
+            <Text style={[st.viewBtnText, view === "feed" && st.viewBtnTextActive]}>LINEUP</Text>
           </Pressable>
           <Pressable testID="judge-view-board" onPress={() => { setView("board"); loadBoard(); }} style={[st.viewBtn, view === "board" && st.viewBtnActive]}>
-            <Text style={[st.viewBtnText, view === "board" && st.viewBtnTextActive]}>🏆 TOP THIS WEEK</Text>
+            <Text style={[st.viewBtnText, view === "board" && st.viewBtnTextActive]}>🏆 TOP</Text>
+          </Pressable>
+          <Pressable testID="judge-view-mine" onPress={() => { setView("mine"); loadHist(); }} style={[st.viewBtn, view === "mine" && st.viewBtnActive]}>
+            <Text style={[st.viewBtnText, view === "mine" && st.viewBtnTextActive]}>MY SCORES</Text>
           </Pressable>
         </View>
 
-        {view === "board" ? (
+        {view === "mine" ? (
+          <JudgeHistory hist={hist} mediaUrl={mediaUrl} />
+        ) : view === "board" ? (
           board.length === 0 ? (
             <Text style={st.empty}>No scored physiques this week yet. Submit one to top the board.</Text>
           ) : (
@@ -295,6 +358,19 @@ export default function Judge() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal visible={verifyOpen} transparent animationType="slide" onRequestClose={() => setVerifyOpen(false)}>
+        <View style={st.modalWrap}>
+          <View style={[st.modalCard, { paddingBottom: spacing.md + insets.bottom }]}>
+            <Text style={st.modalTitle}>VERIFY TO SUBMIT</Text>
+            <Text style={st.verifySub}>Submitting a physique to The Judge is locked until you verify your email or phone. Takes under a minute.</Text>
+            <VerifyPanel onVerified={() => setVerifyOpen(false)} />
+            <Pressable testID="judge-verify-close" onPress={() => setVerifyOpen(false)} style={st.commentBtn}>
+              <Text style={st.commentBtnText}>CLOSE</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -332,6 +408,17 @@ const st = StyleSheet.create({
   boardThumb: { width: 46, height: 46, borderRadius: radius.sm, backgroundColor: colors.surface3 },
   boardName: { color: colors.text, fontWeight: "800", letterSpacing: 1 },
   boardScore: { fontSize: 22, fontWeight: "900" },
+  histStats: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  histStat: { flex: 1, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.sm, alignItems: "center" },
+  histStatVal: { color: colors.text, fontSize: 18, fontWeight: "900" },
+  histStatLabel: { color: colors.textDim, fontSize: 9, letterSpacing: 1, marginTop: 2, fontWeight: "700" },
+  trendWrap: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.md },
+  trendTitle: { color: colors.brandPrimary, letterSpacing: 2, fontSize: 10, fontWeight: "800", marginBottom: spacing.sm },
+  histRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
+  histThumb: { width: 46, height: 46, borderRadius: radius.sm, backgroundColor: colors.surface3 },
+  histDate: { color: colors.text, fontWeight: "800", letterSpacing: 1 },
+  histCats: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  histScore: { fontSize: 22, fontWeight: "900" },
   empty: { color: colors.textDim, textAlign: "center", marginVertical: spacing.lg },
   card: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.lg },
   cardHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
@@ -358,6 +445,7 @@ const st = StyleSheet.create({
   modalCard: { backgroundColor: colors.surface2, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.lg },
   modalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
   modalTitle: { color: colors.text, fontWeight: "900", letterSpacing: 3, fontSize: 15 },
+  verifySub: { color: colors.textDim, marginTop: spacing.sm, marginBottom: spacing.md, lineHeight: 19 },
   modalX: { color: colors.textDim, fontSize: 20, fontWeight: "900" },
   comment: { paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   commentHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

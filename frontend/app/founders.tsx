@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -46,6 +46,7 @@ export default function Founders() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"founders" | "backers">("founders");
   const [msg, setMsg] = useState<string | null>(null);
+  const [celebrate, setCelebrate] = useState(false);
 
   const pkg = findBackerPkg(offerings);
   const price = pkg?.product?.priceString || BACKER_FALLBACK_PRICE;
@@ -65,7 +66,7 @@ export default function Founders() {
       await refresh();
       await load();
       setTab("backers");
-      setMsg("You're a backer — thank you for fueling the build.");
+      setCelebrate(true);
     } catch (e: any) {
       if (!String(e?.message || e).includes("userCancelled")) setMsg(e?.message || "Purchase failed");
     }
@@ -162,6 +163,19 @@ export default function Founders() {
 
         {msg && <Text testID="founders-msg" style={styles.msg}>{msg}</Text>}
       </ScrollView>
+
+      <Modal visible={celebrate} transparent animationType="fade" onRequestClose={() => setCelebrate(false)}>
+        <View style={styles.celebrateWrap}>
+          <View style={styles.celebrateCard}>
+            <Text style={styles.celebrateStar}>★</Text>
+            <Text style={styles.celebrateTitle}>YOU&apos;RE A BACKER</Text>
+            <Text style={styles.celebrateBody}>Thank you for fueling the build. Your name is now etched into the Backers hall — forever.</Text>
+            <Pressable testID="celebrate-close" onPress={() => setCelebrate(false)} style={styles.celebrateBtn}>
+              <Text style={styles.celebrateBtnText}>LET&apos;S GO</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -200,4 +214,11 @@ const styles = StyleSheet.create({
   thanksCard: { marginTop: spacing.xl, padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.success, alignItems: "center" },
   thanksText: { color: "#002200", fontWeight: "900", letterSpacing: 1, fontSize: 12, textAlign: "center" },
   msg: { color: colors.warning, textAlign: "center", marginTop: spacing.md, letterSpacing: 1 },
+  celebrateWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  celebrateCard: { width: "100%", backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.warning, padding: spacing.xl, alignItems: "center" },
+  celebrateStar: { color: colors.warning, fontSize: 64, fontWeight: "900" },
+  celebrateTitle: { color: colors.text, fontSize: 26, fontWeight: "900", letterSpacing: 3, marginTop: spacing.sm, textAlign: "center" },
+  celebrateBody: { color: colors.textMid, textAlign: "center", marginTop: spacing.md, lineHeight: 21 },
+  celebrateBtn: { marginTop: spacing.xl, backgroundColor: colors.warning, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.sm },
+  celebrateBtnText: { color: "#221900", fontWeight: "900", letterSpacing: 3 },
 });

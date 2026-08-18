@@ -1471,8 +1471,30 @@ async def set_background(inp: BackgroundSet, user=Depends(get_current_user)):
     fresh["rank"] = rank_from_xp(fresh["xp"])
     return fresh
 
+def unlocked_frames_for(user) -> list:
+    """Every card frame the athlete has earned: all frames up to their rank + quest-unlocked frames."""
+    rank = rank_from_xp(user.get("xp", 0))
+    frames = list(RANK_ORDER[: RANK_ORDER.index(rank) + 1])
+    for u in (user.get("extra_unlocks") or []):
+        if isinstance(u, str) and u.startswith("frame_"):
+            fname = u[len("frame_"):].capitalize()
+            if fname in RANK_ORDER and fname not in frames:
+                frames.append(fname)
+    return frames
 
-# ---------- Workouts ----------
+@api_router.get("/profile/frames")
+async def profile_frames(user=Depends(get_current_user)):
+    return {"unlocked": unlocked_frames_for(user), "active": user.get("active_frame")}
+
+@api_router.post("/profile/set-frame")
+async def set_frame(payload: dict, user=Depends(get_current_user)):
+    frame = payload.get("frame", "")
+    if frame not in unlocked_frames_for(user):
+        raise HTTPException(status_code=403, detail="Frame not unlocked")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_frame": frame}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return fresh
 @api_router.post("/workouts/log")
 async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
     workout_id = new_id("wk")
@@ -2102,6 +2124,8 @@ def _parse_judge_json(text: str):
 async def judge_submit(file: UploadFile = File(...), caption: Optional[str] = Form(None),
                        user=Depends(get_current_user)):
     import base64
+    if not (user.get("email_verified") or user.get("phone_verified")):
+        raise HTTPException(status_code=403, detail="Verify your email or phone to submit to The Judge")
     ct = (file.content_type or "").lower().split(";")[0].strip()
     if ct not in JUDGE_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Upload a JPEG, PNG, or WEBP photo")
@@ -2170,6 +2194,28 @@ async def judge_feed(user=Depends(get_current_user)):
         if isinstance(r.get("created_at"), datetime):
             r["created_at"] = r["created_at"].isoformat()
     return rows
+
+@api_router.get("/judge/my-history")
+async def judge_my_history(user=Depends(get_current_user)):
+    rows = await db.judge_submissions.find(
+        {"user_id": user["user_id"], "critique.overall": {"$gt": 0}}, {"_id": 0}
+    ).sort("created_at", 1).to_list(200)
+    out = []
+    for r in rows:
+        c = r.get("critique") or {}
+        ts = r.get("created_at")
+        out.append({
+            "submission_id": r["submission_id"],
+            "media_id": r.get("media_id"),
+            "overall": c.get("overall", 0),
+            "symmetry": c.get("symmetry", 0),
+            "conditioning": c.get("conditioning", 0),
+            "size": c.get("size", 0),
+            "posing": c.get("posing", 0),
+            "created_at": ts.isoformat() if isinstance(ts, datetime) else ts,
+        })
+    best = max((r["overall"] for r in out), default=0)
+    return {"history": out, "best": best, "count": len(out)}
 
 @api_router.get("/judge/leaderboard")
 async def judge_leaderboard(user=Depends(get_current_user)):

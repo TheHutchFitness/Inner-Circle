@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 13 (FRONTEND-ONLY, 390x844). All 3 requested features PASS end-to-end on Expo web. (1) FRAME VAULT ✅ — as freak@test.com, tapping testID open-frame-vault opens the FRAME VAULT modal listing 8 unlocked frames. NOTE: E1's expected testID 'frame-Cobalt' DOES NOT EXIST — the modal uses the rank-key as testID (frame-Beginner/Intermediate/Advanced/Vanguard/Warrior/Boss/Elite/Freak). 'COBALT FRAME' is the display name of the Advanced-tier frame → testID is 'frame-Advanced'. Clicking frame-Advanced closes the modal and POSTs /api/profile/set-frame; after page reload the player card renders '◈ COBALT FRAME' (blue border replaces the crimson Freak border) — persistence confirmed. Re-opening the vault shows the ✓ active marker on the Advanced/Cobalt row. (2) JUDGE HISTORY ✅ — as elite@test.com (skool_verified), uploaded a real physique JPEG via the web gallery file input; The Judge returned overall 6.4/10 (S 6.2, C 6.5, Sz 6.6, P 4.8) in ~6s via /api/judge/submit. Tapping testID judge-view-mine renders MY SCORES with all four stat tiles: BEST 6.4, LATEST 6.4, TREND ▲0.0, JUDGED 1; the 'OVERALL SCORE OVER TIME' chart renders with a warning-yellow dot (polyline only renders for n>1 per code — correct); a history row testID hist-judge_988f78fbb00c shows date 8/18/2026, category summary 'S 6 · C 7 · Sz 7 · P 5', and numeric overall '6.4' in success color. (3) BOSS ALERT ✅ — cycled through all 6 tabs (index/workout/leaderboard/quests/community/profile) — the custom tab bar renders on every screen with all 6 items visible; no red screen or crash. testID boss-alert-dot is correctly ABSENT (no claimable boss quests on elite or freak). One earlier submission of /tmp/physique.jpg scored 0.0/10 and correctly did NOT populate history (backend filters unscored subs), which also validates the empty-state text 'No scored submissions yet. Submit a physique to start your history.' Console noise: textShadow*, shadow*, pointerEvents deprecation warnings still present (carried over from iterations 10–12, cosmetic).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "profile.tsx Frame Vault modal (line 256)",
+        "issue": "E1's review request specified testID 'frame-Cobalt' but the code uses the rank-key as suffix: `testID={`frame-${fk}`}` where fk is from CARD_FRAMES (Beginner/Intermediate/Advanced/Vanguard/Warrior/Boss/Elite/Freak). 'Cobalt' is the display name of the ADVANCED-tier frame, so the actual testID is 'frame-Advanced'. Not a functional bug — just a spec/testID naming mismatch that broke E1's expected selector. Either rename the testID to the frame's display name (e.g. frame-Cobalt) or update the spec/testID map so E1 and QA are aligned.",
+        "testID": "frame-Advanced (should be frame-Cobalt per spec)",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "textShadow* style props (carried over)", "issue": "Console warning: '\"textShadow*\" style props are deprecated. Use \"textShadow\".' Reference: /app/frontend/app/(tabs)/_layout.tsx line 87 (iconFocus)."},
+      {"component": "shadow* style props (carried over)", "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Reference: /app/frontend/app/(tabs)/profile.tsx cardGlow (line 293)."},
+      {"component": "props.pointerEvents (carried over)", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/src/components/ScanlineOverlay.tsx."}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_13.json"],
+  "action_items": [
+    "LOW: Align Frame Vault testIDs with the spec. Either change profile.tsx line 256 to `testID={`frame-${CARD_FRAMES[fk].name.split(' ')[0]}`}` so the ADVANCED frame becomes `frame-Cobalt`, OR document the rank-key mapping so future review requests use frame-Advanced (etc.). Note this affected only the selector, not the flow.",
+    "OPTIONAL (carried over): migrate textShadow*, shadow*, pointerEvents to their non-deprecated equivalents — cosmetic warnings only."
+  ],
+  "critical_code_review_comments": [
+    "profile.tsx pickFrame (line 60-63) correctly POSTs /api/profile/set-frame and calls refresh() before closing the modal. On web the shared `user` state is updated by refresh() but React may need a re-mount to reflect it in the memoized `frame` — after full reload the persisted active_frame is loaded from /api/me and the correct COBALT FRAME renders, so persistence is solid.",
+    "judge.tsx JudgeHistory (line 52-100) correctly renders empty state when hist.count===0, and stat tiles + SVG chart + hist rows when count>0. Polyline is guarded behind n>1 which is correct — a single submission just shows the dot, verified on-screen.",
+    "(tabs)/_layout.tsx CustomTabBar (line 17-57) polls /api/quests?scope=boss every 30s and only sets bossAlert when some quest has complete && !claimed — safe. testID `boss-alert-dot` is only rendered inside the quests tab item so it does not affect other tabs; no crash observed across all 6 tabs.",
+    "judge.tsx line 128 useEffect depends on canJudge, so history + feed + board reload after auth hydrates — good pattern (contrasts with the iteration-12 custom-program.tsx token race)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "not tested (frontend-only run; sanity-verified via UI: /api/judge/submit returned 6.4/10, /api/judge/my-history returned 1 entry, /api/profile/set-frame persisted)",
+    "frontend": "3 / 3 features PASS. Frame Vault ✅ (with testID naming caveat), Judge History ✅ (all 4 stat tiles + chart + numeric overall render), Boss Alert / tab bar ✅ (no crash on any tab, dot correctly absent)."
+  },
+  "seed_data_creation": "One real Judge submission created for elite@test.com (submission_id judge_988f78fbb00c, overall 6.4/10) using an Unsplash physique photo. active_frame flipped from default (rank-derived) to 'Advanced' on freak@test.com; not restored (feature under test — persistence was the point). No other DB state changed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login button is 'ENTER'; login inputs are 2 plain <input>s. On web the gallery button opens a hidden file chooser — use page.expect_file_chooser() with a click on [data-testid=judge-gallery], or check for an existing input[type=file]. For a JUDGE submission to actually score >0 you need a real physique-like photo (e.g. Unsplash id 1571019614242-c5c5dee9f50b). Zero-score subs are filtered out of /api/judge/my-history so the trend view stays empty until at least one scored sub exists. Frame Vault testIDs use rank keys (frame-Beginner..frame-Freak), not frame display names — the ADVANCED-tier frame is 'COBALT FRAME' (testID frame-Advanced). freak@test.com starts with all 8 frames unlocked.",
+  "rca_of_issue": "Cobalt selector mismatch: /app/frontend/app/(tabs)/profile.tsx line 256 renders `<Pressable testID={`frame-${fk}`}...>` where fk is a rank key from CARD_FRAMES. The mapping in theme.ts pairs rank 'Advanced' with display name 'COBALT FRAME'. E1's review request referenced testID 'frame-Cobalt' — that testID does not exist. Reproduction: log in freak@test.com, tap open-frame-vault, run `document.querySelectorAll('[data-testid^=\"frame-\"]')` — returns frame-Beginner..frame-Freak, no frame-Cobalt. Mitigation options: (a) key the testID off the display name (`frame-${CARD_FRAMES[fk].name.split(' ')[0]}`), (b) leave code as-is and update the spec/QA reference to `frame-Advanced` for Cobalt."
+}

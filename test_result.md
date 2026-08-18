@@ -518,3 +518,77 @@ frontend:
 agent_communication:
     -agent: "main"
     -message: "THIRD batch. Backend already verified by main via python (boss quests list, judge leaderboard, program deliver full flow with temp owner grant, backer flags). Please FRONTEND-test: (1) Quests -> ☠ BOSS tab shows 2 boss quests (SLAY THE GATEKEEPER, CLAIM THE THRONE) with big rewards; ALL tab also includes a BOSS section. (2) The Judge (login elite@test.com, skool_verified) -> toggle 'TOP THIS WEEK' renders leaderboard (may be empty if no scored subs in last 7 days — empty state text is OK; if you submit a real physique JPEG it should appear). (3) Player card (ME tab): to see ★ BACKER pill, set founder_backer=true on elite via mongo then reload. (4) Coach inbox: set all_rooms_access=true on elite via mongo, open /custom-program -> COACH INBOX button -> /coach-programs lists requests + upload a file (web file chooser) -> delivers; then buyer download button appears in custom-program confirmation. Revert temp mongo flags after. Do NOT attempt RevenueCat purchases. Do NOT retest prior batches."
+
+#==================== SESSION: Frame Vault + Judge History + Backer Thank-You + Boss Alert ====================
+backend:
+  - task: "Frame Vault endpoints (GET /api/profile/frames, POST /api/profile/set-frame)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "frames returns all frames up to rank + quest-unlocked (frame_boss). set-frame validates unlocked (200 valid Elite, 403 invalid). Verified via python."
+  - task: "Judge personal history (GET /api/judge/my-history)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Returns {history[asc by date with all category scores], best, count}. Verified 200."
+frontend:
+  - task: "Frame Vault (equip any unlocked card frame on player card)"
+    implemented: true
+    working: true
+    file: "frontend/app/(tabs)/profile.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: true
+        -agent: "main"
+        -comment: "Tap ◈ frame name on player card -> FRAME VAULT modal lists all unlocked frames with swatches. Verified modal renders via screenshot. Selecting a frame POSTs set-frame + refresh; card uses user.active_frame."
+  - task: "Judge History MY SCORES (trend line + per-submission list)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/judge.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "3rd toggle 'MY SCORES' shows stat tiles (best/latest/trend/judged) + react-native-svg trend polyline of overall scores + list. Needs a scored submission to populate."
+  - task: "Backer Thank-You celebration modal"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/founders.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Full-screen celebration modal shown once immediately after a successful Backer purchase (back() success). Tied to RevenueCat purchase; cannot complete on web — verify modal markup only if triggerable."
+  - task: "Boss Alert dot on Quests tab"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/_layout.tsx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Tab bar polls /api/quests?scope=boss every 30s; shows a warning dot (testID boss-alert-dot) on QUESTS when any boss quest is complete && !claimed. Boss quests have huge objectives so hard to complete in test; verify tab bar renders normally without the dot (no crash)."
+
+agent_communication:
+    -agent: "main"
+    -message: "FOURTH batch. Backend verified by main (frames/set-frame/my-history). FRONTEND-test the two testable ones: (1) Frame Vault: login freak@test.com (all frames unlocked), ME tab, tap the frame name under the player card (testID open-frame-vault) -> modal lists frames -> tap testID frame-Cobalt -> modal closes and player card frame border/name update; reload and confirm it persisted. (2) Judge History: login elite@test.com (skool_verified), open THE JUDGE, submit a real physique JPEG (per /app/image_testing.md), then tap 'MY SCORES' (testID judge-view-mine) -> a trend line + a history row with the score appears. For Boss Alert: just confirm the bottom tab bar renders fine (no crash) — the warning dot only appears when a boss quest is claimable (huge grind, skip). For Backer Thank-You: purchase can't complete on web, skip E2E. Do NOT retest prior batches."

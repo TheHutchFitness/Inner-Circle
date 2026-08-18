@@ -1,8 +1,8 @@
 import { Tabs, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@/src/lib/auth";
+import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors } from "@/src/lib/theme";
 
 const TABS = [
@@ -16,6 +16,22 @@ const TABS = [
 
 function CustomTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { token } = useAuth();
+  const [bossAlert, setBossAlert] = useState(false);
+  useEffect(() => {
+    if (!token) return;
+    let live = true;
+    const check = async () => {
+      try {
+        const d = await apiFetch(token, "/api/quests?scope=boss");
+        const arr = d.boss || [];
+        if (live) setBossAlert(arr.some((q: any) => q.complete && !q.claimed));
+      } catch {}
+    };
+    check();
+    const id = setInterval(check, 30000);
+    return () => { live = false; clearInterval(id); };
+  }, [token]);
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {state.routes.map((route: any, i: number) => {
@@ -31,6 +47,7 @@ function CustomTabBar({ state, navigation }: any) {
           >
             <Text style={[styles.icon, focused && styles.iconFocus]}>{meta.icon}</Text>
             <Text style={[styles.label, focused && styles.labelFocus]}>{meta.label}</Text>
+            {meta.name === "quests" && bossAlert && <View testID="boss-alert-dot" style={styles.badge} />}
             {focused && <View style={styles.underline} />}
           </Pressable>
         );
@@ -71,4 +88,5 @@ const styles = StyleSheet.create({
   label: { color: colors.textDim, fontSize: 9, letterSpacing: 1, fontWeight: "700" },
   labelFocus: { color: colors.brandPrimary },
   underline: { position: "absolute", top: 0, height: 2, width: 24, backgroundColor: colors.brandPrimary },
+  badge: { position: "absolute", top: 0, right: "30%", width: 9, height: 9, borderRadius: 5, backgroundColor: colors.warning, borderWidth: 1, borderColor: colors.surface2 },
 });
