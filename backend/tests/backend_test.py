@@ -27,6 +27,17 @@ def elite_token():
     return _login(ELITE)
 
 
+@pytest.fixture(scope="module")
+def fresh_token():
+    # Isolated brand-new user for workout-mutating tests so shared seed
+    # accounts don't drift in XP/rank across the suite.
+    import uuid as _uuid
+    email = f"fresh_{_uuid.uuid4().hex[:10]}@test.com"
+    r = requests.post(f"{API}/auth/register", json={"email": email, "password": "Passw0rd!", "display_name": "Fresh"}, timeout=15)
+    assert r.status_code == 200, r.text
+    return r.json()["session_token"]
+
+
 def auth_h(tok):
     return {"Authorization": f"Bearer {tok}"}
 
@@ -67,9 +78,9 @@ class TestPrograms:
 
 # Workouts
 class TestWorkouts:
-    def test_log_workout_awards_milestone_and_xp(self, athlete_token):
+    def test_log_workout_awards_milestone_and_xp(self, fresh_token):
         # Get pre-state
-        pre = requests.get(f"{API}/auth/me", headers=auth_h(athlete_token), timeout=15).json()
+        pre = requests.get(f"{API}/auth/me", headers=auth_h(fresh_token), timeout=15).json()
         pre_xp = pre["xp"]
         pre_workouts = pre["workouts_logged"]
 
@@ -84,7 +95,7 @@ class TestWorkouts:
             ],
             "rating": 5,
         }
-        r = requests.post(f"{API}/workouts/log", json=payload, headers=auth_h(athlete_token), timeout=20)
+        r = requests.post(f"{API}/workouts/log", json=payload, headers=auth_h(fresh_token), timeout=20)
         assert r.status_code == 200, r.text
         body = r.json()
         assert body["xp_gained"] > 0
@@ -233,8 +244,8 @@ class TestWeeklyRecap:
         assert isinstance(d["workouts"], int)
         assert isinstance(d["total_volume_lb"], int)
 
-    def test_recap_reflects_new_workout(self, athlete_token):
-        pre = requests.get(f"{API}/recap/weekly", headers=auth_h(athlete_token), timeout=15).json()
+    def test_recap_reflects_new_workout(self, fresh_token):
+        pre = requests.get(f"{API}/recap/weekly", headers=auth_h(fresh_token), timeout=15).json()
         payload = {
             "workout_name": "TEST_Recap Push",
             "split_type": "ppl_push",
@@ -246,10 +257,10 @@ class TestWeeklyRecap:
             ],
             "rating": 5,
         }
-        r = requests.post(f"{API}/workouts/log", json=payload, headers=auth_h(athlete_token), timeout=20)
+        r = requests.post(f"{API}/workouts/log", json=payload, headers=auth_h(fresh_token), timeout=20)
         assert r.status_code == 200, r.text
         gain = r.json()["xp_gained"]
-        post = requests.get(f"{API}/recap/weekly", headers=auth_h(athlete_token), timeout=15).json()
+        post = requests.get(f"{API}/recap/weekly", headers=auth_h(fresh_token), timeout=15).json()
         assert post["workouts"] == pre["workouts"] + 1
         assert post["xp_gained"] == pre["xp_gained"] + gain
         # 5*245 + 3*255 = 1225 + 765 = 1990
@@ -260,3 +271,80 @@ class TestWeeklyRecap:
     def test_recap_requires_auth(self):
         r = requests.get(f"{API}/recap/weekly", timeout=15)
         assert r.status_code in (401, 403)
+
+
+# NEW: AI sessions payload for Program-to-Logger
+class TestAISessions:
+    def test_build_workout_returns_clean_program_text_and_sessions(self, elite_token):
+        # Ensure elite is skool-verified
+        requests.post(f"{API}/profile/skool-verify", json={"code": "HUTCH-INNER-CIRCLE-2026"},
+                      headers=auth_h(elite_token), timeout=15)
+        payload = {"goal": "strength", "split": "ppl", "days_per_week": 5, "experience": "elite", "notes": "TEST_sessions"}
+        r = requests.post(f"{API}/ai/build-workout", json=payload, headers=auth_h(elite_token), timeout=120)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # program_text must NOT contain the delimiter
+        assert "===SESSIONS_JSON===" not in body["program_text"], "delimiter leaked into program_text"
+        # sessions array present and non-empty
+        assert "sessions" in body
+        sessions = body["sessions"]
+        assert isinstance(sessions, list) and len(sessions) >= 1, f"sessions missing/empty: {sessions}"
+        s0 = sessions[0]
+        assert "name" in s0 and isinstance(s0["name"], str)
+        assert "split_key" in s0
+        assert "exercises" in s0 and isinstance(s0["exercises"], list) and len(s0["exercises"]) >= 1
+        ex = s0["exercises"][0]
+        for key in ("name", "sets", "reps", "rpe", "weight_lb"):
+            assert key in ex, f"exercise missing {key}: {ex}"
+
+    def test_programs_list_includes_sessions_field(self, elite_token):
+        r = requests.get(f"{API}/ai/programs", headers=auth_h(elite_token), timeout=15)
+        assert r.status_code == 200
+        rows = r.json()
+        assert isinstance(rows, list) and len(rows) >= 1
+        top = rows[0]
+        assert "sessions" in top, f"sessions missing from list item keys={list(top.keys())}"
+        assert isinstance(top["sessions"], list)
+
+
+# NEW: Rank-up on workout log
+class TestRankUp:
+    def test_finish_workout_returns_rank_and_promotion(self):
+        # Fresh user starts as Beginner (0 XP). Threshold Intermediate = 500 XP.
+        import uuid as _uuid
+        email = f"rankup_{_uuid.uuid4().hex[:8]}@test.com"
+        reg = requests.post(f"{API}/auth/register",
+                            json={"email": email, "password": "Passw0rd!", "display_name": "RankUp"}, timeout=15)
+        assert reg.status_code == 200, reg.text
+        tok = reg.json()["session_token"]
+        me = requests.get(f"{API}/auth/me", headers=auth_h(tok), timeout=15).json()
+        assert me["rank"] == "Beginner", f"fresh user rank not Beginner: {me['rank']}"
+
+        # Heavy sessions ~ each awards good XP; log until we cross 500
+        heavy = {
+            "workout_name": "TEST_RankUp",
+            "split_type": "ppl_push",
+            "exercises": [
+                {"name": "Bench Press", "sets": [
+                    {"reps": 5, "weight_lb": 225, "rpe": 8.0},
+                    {"reps": 5, "weight_lb": 235, "rpe": 8.5},
+                    {"reps": 5, "weight_lb": 245, "rpe": 9.0},
+                ]},
+                {"name": "Overhead Press", "sets": [
+                    {"reps": 5, "weight_lb": 135, "rpe": 8.0},
+                ]},
+            ],
+            "rating": 5,
+        }
+        prev_rank = "Beginner"
+        rank_after = None
+        for _ in range(12):
+            r = requests.post(f"{API}/workouts/log", json=heavy, headers=auth_h(tok), timeout=20)
+            assert r.status_code == 200, r.text
+            body = r.json()
+            # Response must include updated user w/ rank + xp
+            assert "user" in body and "rank" in body["user"] and "xp" in body["user"]
+            rank_after = body["user"]["rank"]
+            if body["user"]["xp"] >= 500:
+                break
+        assert rank_after == "Intermediate", f"user should have crossed to Intermediate, got {rank_after}"

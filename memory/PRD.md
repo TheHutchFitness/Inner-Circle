@@ -48,6 +48,13 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Unlockable backgrounds/widgets tied to level.
 - Adaptive next-workout suggestion.
 
+## Implemented (2026-06 — later)
+- Program-to-Logger: AI build now returns a structured `sessions[]` (parsed from a delimited JSON block); "SEND TO LOGGER" button on generated + saved programs pushes a pre-filled active session into the workout logger (module store + useFocusEffect).
+- Rank-Up Fanfare: full-screen animated RankUpCelebration modal fires when a logged workout crosses a rank threshold (shown after any PR modal).
+- Leaderboard backgrounds: each board (Consistency/Strength/BW Ratio) has its own full-bleed lifter image with a dark gradient overlay.
+- Seed accounts now reset to canonical stats on every startup (deterministic demo + tests). Tests use fresh registered users for mutation cases.
+- Tests: 26/26 pytest passing.
+
 ## Implemented (2026-06)
 - Login screen uses user-provided branded backdrop (assets/images/login-bg.png).
 - Annual subscription plan on paywall: Monthly $5.00 + Annual $39.99 (SAVE 33%, ~$3.33/mo). Plan selector toggles the purchase button. RC products: monthly prodf8cdb8e2a3, annual prod850a4129b3.

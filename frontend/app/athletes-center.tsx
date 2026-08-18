@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius } from "@/src/lib/theme";
+import { setPendingWorkout } from "@/src/lib/pendingWorkout";
 
 export default function AthletesCenter() {
   const insets = useSafeAreaInsets();
@@ -21,6 +22,7 @@ export default function AthletesCenter() {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [program, setProgram] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [tab, setTab] = useState<"build" | "history">("build");
@@ -33,16 +35,23 @@ export default function AthletesCenter() {
   }, [canRank, canAI]);
 
   const build = async () => {
-    setLoading(true); setErr(null); setProgram(null);
+    setLoading(true); setErr(null); setProgram(null); setSessions([]);
     try {
       const res = await apiFetch(token, "/api/ai/build-workout", {
         method: "POST",
         body: JSON.stringify({ goal, split, days_per_week: parseInt(days) || 4, experience, notes }),
       });
       setProgram(res.program_text);
+      setSessions(res.sessions || []);
       await loadHistory();
     } catch (e: any) { setErr(e.message); }
     setLoading(false);
+  };
+
+  const sendToLogger = (session: any) => {
+    if (!session) return;
+    setPendingWorkout(session);
+    router.push("/(tabs)/workout");
   };
 
   if (!canRank) {
@@ -102,6 +111,11 @@ export default function AthletesCenter() {
           <View style={styles.output}>
             <Text style={styles.outputTitle}>YOUR CUSTOM PROTOCOL</Text>
             <Text style={styles.outputBody}>{program}</Text>
+            {sessions.length > 0 && (
+              <Pressable testID="send-to-logger" onPress={() => sendToLogger(sessions[0])} style={styles.sendBtn}>
+                <Text style={styles.sendBtnText}>▲ SEND "{(sessions[0]?.name || "DAY 1").toUpperCase()}" TO LOGGER</Text>
+              </Pressable>
+            )}
           </View>
         )}
           </>
@@ -111,12 +125,19 @@ export default function AthletesCenter() {
               <Text style={styles.helper}>No saved protocols yet. Build one to see it here.</Text>
             ) : (
               history.map((h) => (
-                <Pressable testID={`ac-history-${h.program_id}`} key={h.program_id} onPress={() => { setProgram(h.program_text); setTab("build"); }} style={styles.histCard}>
-                  <Text style={styles.histTitle}>{h.request?.goal?.toUpperCase() || "PROTOCOL"} · {h.request?.split}</Text>
-                  <Text style={styles.histMeta}>{h.request?.days_per_week}x/wk · {new Date(h.created_at).toLocaleDateString()}</Text>
-                  <Text numberOfLines={2} style={styles.histPreview}>{h.program_text}</Text>
-                  <Text style={styles.histView}>TAP TO VIEW →</Text>
-                </Pressable>
+                <View testID={`ac-history-${h.program_id}`} key={h.program_id} style={styles.histCard}>
+                  <Pressable onPress={() => { setProgram(h.program_text); setSessions(h.sessions || []); setTab("build"); }}>
+                    <Text style={styles.histTitle}>{h.request?.goal?.toUpperCase() || "PROTOCOL"} · {h.request?.split}</Text>
+                    <Text style={styles.histMeta}>{h.request?.days_per_week}x/wk · {new Date(h.created_at).toLocaleDateString()}</Text>
+                    <Text numberOfLines={2} style={styles.histPreview}>{h.program_text}</Text>
+                    <Text style={styles.histView}>TAP TO VIEW →</Text>
+                  </Pressable>
+                  {(h.sessions || []).length > 0 && (
+                    <Pressable testID={`send-hist-${h.program_id}`} onPress={() => sendToLogger(h.sessions[0])} style={styles.sendBtnSm}>
+                      <Text style={styles.sendBtnText}>▲ SEND TO LOGGER</Text>
+                    </Pressable>
+                  )}
+                </View>
               ))
             )}
           </View>
@@ -155,6 +176,9 @@ const styles = StyleSheet.create({
   histMeta: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, marginTop: 2, fontWeight: "700" },
   histPreview: { color: colors.textDim, fontSize: 12, marginTop: spacing.sm, lineHeight: 17 },
   histView: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "800", marginTop: spacing.sm },
+  sendBtn: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm },
+  sendBtnSm: { marginTop: spacing.md, borderWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.sm, alignItems: "center", borderRadius: radius.sm },
+  sendBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
   label: { color: colors.textDim, letterSpacing: 3, fontSize: 10, fontWeight: "700" },
   input: { marginTop: 4, backgroundColor: colors.surface2, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 12, borderWidth: 1, borderColor: colors.border },
   primary: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm },

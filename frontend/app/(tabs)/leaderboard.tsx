@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, avatarFor, RANK_COLORS } from "@/src/lib/theme";
@@ -9,6 +11,12 @@ const BOARDS = [
   { key: "strength", label: "STRENGTH", desc: "Absolute Big 4" },
   { key: "ratio", label: "BW RATIO", desc: "Total / Bodyweight" },
 ];
+
+const BOARD_BG: Record<string, any> = {
+  xp: require("../../assets/images/board-xp.png"),
+  strength: require("../../assets/images/board-strength.png"),
+  ratio: require("../../assets/images/board-ratio.png"),
+};
 
 const PODIUM_COLORS = ["#FFD700", "#C0C0C0", "#CD7F32"];
 
@@ -31,7 +39,14 @@ export default function Leaderboards() {
   const rest = rows.slice(3);
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.surface }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
+      <Image source={BOARD_BG[board]} style={styles.bgImage} contentFit="cover" />
+      <LinearGradient
+        colors={["rgba(5,5,8,0.55)", "rgba(5,5,8,0.8)", colors.surface]}
+        locations={[0, 0.45, 0.8]}
+        style={StyleSheet.absoluteFill}
+      />
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <Text style={styles.eyebrow}>RANKINGS</Text>
       <Text style={styles.h1}>THE CIRCLE</Text>
 
@@ -85,10 +100,12 @@ export default function Leaderboards() {
         </>
       )}
     </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  bgImage: { position: "absolute", top: 0, left: 0, right: 0, height: 420 },
   eyebrow: { color: colors.brandPrimary, letterSpacing: 4, fontSize: 11, fontWeight: "700", paddingHorizontal: spacing.lg },
   h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: spacing.md, paddingHorizontal: spacing.lg },
   chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm },

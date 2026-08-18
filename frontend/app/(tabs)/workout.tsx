@@ -1,16 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { PRCelebration } from "@/src/components/PRCelebration";
+import { RankUpCelebration } from "@/src/components/RankUpCelebration";
+import { takePendingWorkout } from "@/src/lib/pendingWorkout";
 
 type SetT = { reps: number; weight_lb: number; rpe: number };
 type Exercise = { name: string; sets: SetT[] };
 
 export default function WorkoutScreen() {
   const insets = useSafeAreaInsets();
-  const { token, refresh } = useAuth();
+  const { token, user, refresh } = useAuth();
   const [programs, setPrograms] = useState<any[]>([]);
   const [active, setActive] = useState<{ program?: any; workoutName: string; splitKey: string; exercises: Exercise[] } | null>(null);
   const [rating, setRating] = useState<number>(0);
@@ -18,6 +21,23 @@ export default function WorkoutScreen() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<any>(null);
+  const [rankUp, setRankUp] = useState<any>(null);
+
+  // Accept an AI-built session sent from the Athlete's Center
+  useFocusEffect(
+    useCallback(() => {
+      const pending = takePendingWorkout();
+      if (pending) {
+        setActive({
+          program: { program_id: "ai_custom", split: "ai" },
+          workoutName: pending.name,
+          splitKey: pending.split_key || "custom",
+          exercises: pending.exercises,
+        });
+        setRating(0); setCritique(""); setNotice(null);
+      }
+    }, [])
+  );
 
   useEffect(() => {
     (async () => {
@@ -60,6 +80,7 @@ export default function WorkoutScreen() {
   const finish = async () => {
     if (!active) return;
     setSaving(true);
+    const prevRank = user?.rank;
     try {
       const res = await apiFetch(token, "/api/workouts/log", {
         method: "POST",
@@ -76,6 +97,9 @@ export default function WorkoutScreen() {
       setNotice(`+${res.xp_gained} XP${res.pr_hit ? " · NEW PR!" : ""}`);
       if (res.pr_hit && res.pr_details?.length) {
         setCelebration({ prs: res.pr_details, user: res.user });
+      }
+      if (res.user?.rank && prevRank && res.user.rank !== prevRank) {
+        setRankUp({ from: prevRank, to: res.user.rank });
       }
       setActive(null);
     } catch (e: any) {
@@ -176,6 +200,12 @@ export default function WorkoutScreen() {
       prs={celebration?.prs || []}
       user={celebration?.user}
       onClose={() => setCelebration(null)}
+    />
+    <RankUpCelebration
+      visible={!!rankUp && !celebration}
+      fromRank={rankUp?.from}
+      toRank={rankUp?.to}
+      onClose={() => setRankUp(null)}
     />
     </>
   );

@@ -606,7 +606,13 @@ async def ai_build(inp: AIWorkoutRequest, user=Depends(get_current_user)):
         "Design a highly structured, adaptive weekly training program based on the athlete's stats. "
         "Return a concise markdown program with: (1) Weekly split table, (2) Exact sets/reps/RPE per exercise, "
         "(3) Progression scheme (linear or double-progression), (4) Notes on RPE + technique. "
-        "Be aggressive, use lifting-culture language, but be technically sound. Max 500 words."
+        "Be aggressive, use lifting-culture language, but be technically sound. Max 450 words.\n\n"
+        "AFTER the human-readable program, output on its own line the exact delimiter ===SESSIONS_JSON=== "
+        "followed by ONLY a valid JSON object of the FIRST training day, in this schema: "
+        '{\"sessions\":[{\"name\":\"Day name\",\"split_key\":\"push|pull|legs|upper|lower\",'
+        '\"exercises\":[{\"name\":\"Exercise\",\"sets\":3,\"reps\":5,\"rpe\":8,\"weight_lb\":135}]}]}. '
+        "Use realistic starting weights derived from the athlete's PRs (e.g. 70-85% for main lifts). "
+        "Do not write anything after the JSON."
     )
     prs = user.get("prs", {})
     user_text = (
@@ -631,16 +637,32 @@ async def ai_build(inp: AIWorkoutRequest, user=Depends(get_current_user)):
         logger.exception("AI build failed")
         raise HTTPException(status_code=500, detail=f"AI error: {e}")
 
+    # Split human text from structured JSON
+    program_text = response
+    sessions = []
+    if "===SESSIONS_JSON===" in response:
+        program_text, _, json_part = response.partition("===SESSIONS_JSON===")
+        program_text = program_text.strip()
+        import json as _json, re as _re
+        m = _re.search(r"\{.*\}", json_part, _re.DOTALL)
+        if m:
+            try:
+                parsed = _json.loads(m.group(0))
+                sessions = parsed.get("sessions", [])
+            except Exception:
+                sessions = []
+
     prog_id = new_id("aiprog")
     doc = {
         "program_id": prog_id,
         "user_id": user["user_id"],
         "request": inp.dict(),
-        "program_text": response,
+        "program_text": program_text,
+        "sessions": sessions,
         "created_at": datetime.now(timezone.utc),
     }
     await db.ai_programs.insert_one(doc)
-    return {"program_id": prog_id, "program_text": response}
+    return {"program_id": prog_id, "program_text": program_text, "sessions": sessions}
 
 @api_router.get("/ai/programs")
 async def my_ai_programs(user=Depends(get_current_user)):
@@ -667,18 +689,14 @@ async def seed():
         {"email": "freak@test.com", "name": "Titan", "xp": 9500, "prs": {"bench": 405, "squat": 585, "deadlift": 675, "ohp": 245}, "bw": 240, "avatar": "avatar_titan"},
     ]
     for s in seeds:
-        existing = await db.users.find_one({"email": s["email"]})
-        if existing:
-            continue
         badges = set()
         for lift_key, w in s["prs"].items():
             for m in milestones_for(w):
                 badges.add(f"{lift_key}_{m}")
-        doc = {
-            "user_id": new_id("usr"),
-            "email": s["email"],
+        existing = await db.users.find_one({"email": s["email"]})
+        # Canonical stats reset on every startup so demo + tests stay deterministic
+        canonical = {
             "display_name": s["name"],
-            "picture": "",
             "avatar_id": s["avatar"],
             "bodyweight_lb": s["bw"],
             "age": 27,
@@ -689,11 +707,20 @@ async def seed():
             "badges": list(badges) + ["pr_hunter", "consistency_week1"],
             "workouts_logged": 45,
             "streak_days": 12,
-            "last_workout_date": datetime.now(timezone.utc).isoformat(),
             "skool_verified": s["email"] == "elite@test.com",
             "active_background": "bg_default",
+        }
+        if existing:
+            await db.users.update_one({"email": s["email"]}, {"$set": canonical})
+            continue
+        doc = {
+            "user_id": new_id("usr"),
+            "email": s["email"],
+            "picture": "",
+            "last_workout_date": datetime.now(timezone.utc).isoformat(),
             "password_hash": hash_password("TestPass123!"),
             "created_at": datetime.now(timezone.utc),
+            **canonical,
         }
         await db.users.insert_one(doc)
     # Seed a couple of welcome chat messages
