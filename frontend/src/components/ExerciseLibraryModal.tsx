@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, StyleSheet, Modal, ScrollView, Pressable, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Modal, ScrollView, Pressable, TextInput, ActivityIndicator, Share } from "react-native";
 import { Image } from "expo-image";
 import { apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
@@ -208,29 +208,39 @@ export function ExerciseLibraryModal({
               <Pressable testID="demo-close" onPress={() => setDetail(null)}><Text style={styles.close}>✕</Text></Pressable>
             </View>
             {!!detail?.category && <Text style={styles.detailCat}>{detail.category.toUpperCase()}</Text>}
-            <View style={styles.detailBody}>
-              <View style={styles.demoBox}>
-                {demoLoading ? (
-                  <View style={styles.demoCenter}>
-                    <ActivityIndicator color={colors.brandPrimary} />
-                    <Text style={styles.demoHint}>{"Generating form demo..."}</Text>
-                  </View>
-                ) : demoErr ? (
-                  <View style={styles.demoCenter}><Text style={styles.demoHint}>{"Couldn't load a demo. Tap regenerate to retry."}</Text></View>
-                ) : demoUri ? (
-                  <Image source={{ uri: demoUri }} style={styles.demoImg} contentFit="cover" transition={200} />
-                ) : null}
-              </View>
-              <MuscleMap category={detail?.category} />
+            <View style={styles.demoBox}>
+              {demoLoading ? (
+                <View style={styles.demoCenter}>
+                  <ActivityIndicator color={colors.brandPrimary} />
+                  <Text style={styles.demoHint}>{"Generating form demo..."}</Text>
+                </View>
+              ) : demoErr ? (
+                <View style={styles.demoCenter}><Text style={styles.demoHint}>{"Couldn't load a demo. Tap regenerate to retry."}</Text></View>
+              ) : demoUri ? (
+                <Image source={{ uri: demoUri }} style={styles.demoImg} contentFit="cover" transition={200} />
+              ) : null}
             </View>
-            <Pressable
-              testID="demo-regen"
-              onPress={() => detail && openDemo(detail, true)}
-              disabled={demoLoading}
-              style={[styles.regenBtn, demoLoading && { opacity: 0.5 }]}
-            >
-              <Text style={styles.regenText}>{"\u21BB REGENERATE ART"}</Text>
-            </Pressable>
+            <MuscleMap category={detail?.category} />
+            <View style={styles.actionRow}>
+              <Pressable
+                testID="demo-regen"
+                onPress={() => detail && openDemo(detail, true)}
+                disabled={demoLoading}
+                style={[styles.smallBtn, demoLoading && { opacity: 0.5 }]}
+              >
+                <Text style={styles.smallBtnText}>{"\u21BB REGENERATE"}</Text>
+              </Pressable>
+              <Pressable
+                testID="demo-share"
+                onPress={() => {
+                  if (!detail) return;
+                  Share.share({ message: `${detail.name} (${detail.category})\n\n${detail.desc || ""}\n\n— shared from Hutch's Inner Circle` }).catch(() => {});
+                }}
+                style={styles.smallBtn}
+              >
+                <Text style={styles.smallBtnText}>{"\u2934 SHARE"}</Text>
+              </Pressable>
+            </View>
             {!!detail?.desc && <Text style={styles.detailDesc}>{detail.desc}</Text>}
             <Pressable
               testID="demo-add"
@@ -283,13 +293,13 @@ const styles = StyleSheet.create({
   detailCard: { backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.lg },
   detailTitle: { color: colors.text, fontWeight: "900", fontSize: 18, flex: 1, paddingRight: spacing.sm },
   detailCat: { color: colors.brandPrimary, letterSpacing: 2, fontWeight: "800", fontSize: 10, marginBottom: spacing.sm },
-  detailBody: { flexDirection: "row", gap: spacing.md, alignItems: "center", marginBottom: spacing.sm },
-  demoBox: { flex: 1, height: 200, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
+  demoBox: { height: 200, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: "hidden", marginBottom: spacing.sm },
   demoCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.lg },
   demoHint: { color: colors.textDim, fontSize: 12, textAlign: "center" },
   demoImg: { width: "100%", height: "100%" },
-  regenBtn: { alignSelf: "flex-start", borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 8, marginBottom: spacing.md },
-  regenText: { color: colors.brandPrimary, fontWeight: "800", fontSize: 11, letterSpacing: 1 },
+  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.md },
+  smallBtn: { flex: 1, borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 9, alignItems: "center" },
+  smallBtnText: { color: colors.brandPrimary, fontWeight: "800", fontSize: 11, letterSpacing: 1 },
   detailDesc: { color: colors.textMid, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
   detailAdd: { backgroundColor: colors.brandPrimary, paddingVertical: 14, alignItems: "center", borderRadius: radius.sm },
   detailAddText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },

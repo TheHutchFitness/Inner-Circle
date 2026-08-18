@@ -214,3 +214,8 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - DEMO REGENERATE: GET /api/exercises/demo?name=&force=1 deletes the cached demo and regenerates with a randomized style variant (angle/lighting) so the art differs. Demo detail card has a "↻ REGENERATE ART" button (testID demo-regen); image URL cache-busted with &v=timestamp.
 - MUSCLE MAP: new src/components/MuscleMap.tsx (react-native-svg front-body silhouette) highlights the target group by category (Chest/Back/Shoulders/Arms/Core/Legs/Olympic) with a "TARGET: <CATEGORY>" caption; shown beside the demo image on the detail card.
 - Verified: favourite toggle on/off via curl; screenshot of demo card showing bench-press art + muscle map (CHEST highlighted) + regenerate button + row stars. Lint clean.
+
+## Implemented (2026-06 — Front/Back Muscle Map + Share Demo)
+- FRONT/BACK MAP: MuscleMap.tsx now renders BOTH a FRONT and a BACK silhouette (react-native-svg) side by side, each with its own highlight set so pulls/posterior work light up the BACK view (e.g. Back → traps/lats/lower-back on the back diagram; Legs → quads front + hams/glutes back; Chest → front only). Back silhouette adds a spine line. "TARGET: <CATEGORY>" caption retained.
+- SHARE DEMO: exercise detail card has a "⤴ SHARE" button (testID demo-share) next to "↻ REGENERATE" that opens the native share sheet with the exercise name, category and how-to description ("shared from Hutch's Inner Circle"). Detail card relaid out: demo image on top, front/back maps below, action row, description, add button.
+- Verified via screenshot (Barbell Row → BACK view highlighted, FRONT dim; Regenerate + Share row). Lint clean.
