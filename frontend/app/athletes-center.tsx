@@ -112,9 +112,18 @@ export default function AthletesCenter() {
             <Text style={styles.outputTitle}>YOUR CUSTOM PROTOCOL</Text>
             <Text style={styles.outputBody}>{program}</Text>
             {sessions.length > 0 && (
-              <Pressable testID="send-to-logger" onPress={() => sendToLogger(sessions[0])} style={styles.sendBtn}>
-                <Text style={styles.sendBtnText}>▲ SEND "{(sessions[0]?.name || "DAY 1").toUpperCase()}" TO LOGGER</Text>
-              </Pressable>
+              <View style={{ marginTop: spacing.lg }}>
+                <Text style={styles.daysHeader}>PUSH A DAY TO THE LOGGER</Text>
+                {sessions.map((s: any, i: number) => (
+                  <Pressable testID={`send-day-${i}`} key={i} onPress={() => sendToLogger(s)} style={styles.dayBtn}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.dayName}>{(s.name || `DAY ${i + 1}`).toUpperCase()}</Text>
+                      <Text style={styles.dayMeta}>{(s.exercises || []).length} exercises</Text>
+                    </View>
+                    <Text style={styles.daySend}>▲ SEND</Text>
+                  </Pressable>
+                ))}
+              </View>
             )}
           </View>
         )}
@@ -133,9 +142,13 @@ export default function AthletesCenter() {
                     <Text style={styles.histView}>TAP TO VIEW →</Text>
                   </Pressable>
                   {(h.sessions || []).length > 0 && (
-                    <Pressable testID={`send-hist-${h.program_id}`} onPress={() => sendToLogger(h.sessions[0])} style={styles.sendBtnSm}>
-                      <Text style={styles.sendBtnText}>▲ SEND TO LOGGER</Text>
-                    </Pressable>
+                    <View style={styles.histDays}>
+                      {h.sessions.map((s: any, i: number) => (
+                        <Pressable testID={`send-hist-${h.program_id}-${i}`} key={i} onPress={() => sendToLogger(s)} style={styles.histDayChip}>
+                          <Text style={styles.histDayChipText}>▲ {(s.name || `DAY ${i + 1}`).toUpperCase()}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
                   )}
                 </View>
               ))
@@ -179,6 +192,14 @@ const styles = StyleSheet.create({
   sendBtn: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm },
   sendBtnSm: { marginTop: spacing.md, borderWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.sm, alignItems: "center", borderRadius: radius.sm },
   sendBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
+  daysHeader: { color: colors.brandPrimary, letterSpacing: 3, fontSize: 11, fontWeight: "800", marginBottom: spacing.sm },
+  dayBtn: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong, marginBottom: spacing.sm },
+  dayName: { color: colors.text, fontWeight: "800", letterSpacing: 1, fontSize: 13 },
+  dayMeta: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  daySend: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2 },
+  histDays: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: spacing.sm },
+  histDayChip: { borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 6 },
+  histDayChipText: { color: colors.brandPrimary, fontWeight: "800", letterSpacing: 1, fontSize: 10 },
   label: { color: colors.textDim, letterSpacing: 3, fontSize: 10, fontWeight: "700" },
   input: { marginTop: 4, backgroundColor: colors.surface2, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 12, borderWidth: 1, borderColor: colors.border },
   primary: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm },

@@ -28,6 +28,17 @@ export const AVATARS: { id: string; label: string; emoji: string; url?: string }
   { id: "avatar_ghost", label: "Ghost", emoji: "👻" },
   { id: "avatar_dragon", label: "Dragon", emoji: "🔥" },
   { id: "avatar_hutch", label: "Coach", emoji: "👑" },
+  { id: "avatar_shinobi", label: "Shinobi", emoji: "🗡️" },
+  { id: "avatar_berserker", label: "Berserker", emoji: "⚔️" },
+  { id: "avatar_phoenix", label: "Phoenix", emoji: "🦅" },
+  { id: "avatar_oni", label: "Oni", emoji: "😈" },
+  { id: "avatar_samurai", label: "Samurai", emoji: "🎌" },
+  { id: "avatar_mecha", label: "Mecha", emoji: "🤖" },
+  { id: "avatar_reaper", label: "Reaper", emoji: "💀" },
+  { id: "avatar_thunder", label: "Thunder God", emoji: "🌩️" },
+  { id: "avatar_kraken", label: "Kraken", emoji: "🐙" },
+  { id: "avatar_ace", label: "Ace", emoji: "🃏" },
+  { id: "avatar_star", label: "Star Saint", emoji: "🌟" },
 ];
 
 export function avatarFor(id: string) {
@@ -58,4 +69,18 @@ export const BACKGROUNDS: Record<string, string[]> = {
 export function bgColors(id?: string): [string, string] {
   const c = BACKGROUNDS[id || "bg_default"] || BACKGROUNDS.bg_default;
   return [c[0], c[1]];
+}
+
+// AI-generated anime hero / gym background art (one per tier)
+export const BG_IMAGES: Record<string, any> = {
+  bg_default: require("@/assets/images/bg_default.png"),
+  bg_cyber: require("@/assets/images/bg_cyber.png"),
+  bg_toxic: require("@/assets/images/bg_toxic.png"),
+  bg_inferno: require("@/assets/images/bg_inferno.png"),
+  bg_void: require("@/assets/images/bg_void.png"),
+  bg_freak: require("@/assets/images/bg_freak.png"),
+};
+
+export function bgImage(id?: string) {
+  return BG_IMAGES[id || "bg_default"] || BG_IMAGES.bg_default;
 }

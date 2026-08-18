@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius } from "@/src/lib/theme";
+import { colors, spacing, radius, bgImage } from "@/src/lib/theme";
 
 export default function Vault() {
   const insets = useSafeAreaInsets();
@@ -43,10 +44,13 @@ export default function Vault() {
           <View style={styles.grid}>
             {data.backgrounds.map((bg: any) => (
               <Pressable testID={`bg-${bg.id}`} key={bg.id} onPress={() => apply(bg)} style={[styles.bgCard, bg.active && styles.bgActive, !bg.unlocked && styles.bgLocked]}>
-                <LinearGradient colors={bg.colors} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.bgPreview}>
+                <View style={styles.bgPreview}>
+                  <Image source={bgImage(bg.id)} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  <LinearGradient colors={["transparent", "rgba(5,5,8,0.5)"]} style={StyleSheet.absoluteFill} />
                   {!bg.unlocked && <Text style={styles.lock}>🔒</Text>}
                   {bg.active && <View style={styles.activeTag}><Text style={styles.activeTagText}>ACTIVE</Text></View>}
-                </LinearGradient>
+                  {bg.perk_rank && <View style={styles.perkTag}><Text style={styles.perkTagText}>{bg.perk_rank.toUpperCase()} PERK</Text></View>}
+                </View>
                 <Text style={styles.bgName}>{bg.name}</Text>
                 <Text style={styles.bgLvl}>{bg.unlocked ? "UNLOCKED" : `LVL ${bg.level}`}</Text>
               </Pressable>
@@ -80,10 +84,12 @@ const styles = StyleSheet.create({
   bgCard: { width: "47%", borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, overflow: "hidden", backgroundColor: colors.surface2 },
   bgActive: { borderColor: colors.brandPrimary, borderWidth: 2 },
   bgLocked: { opacity: 0.6 },
-  bgPreview: { height: 80, alignItems: "center", justifyContent: "center" },
+  bgPreview: { height: 110, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   lock: { fontSize: 24 },
   activeTag: { position: "absolute", top: 6, right: 6, backgroundColor: colors.brandPrimary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm },
   activeTagText: { color: "#001122", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  perkTag: { position: "absolute", bottom: 6, left: 6, backgroundColor: colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm },
+  perkTagText: { color: "#332200", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   bgName: { color: colors.text, fontWeight: "800", paddingHorizontal: spacing.sm, paddingTop: spacing.sm, fontSize: 13 },
   bgLvl: { color: colors.textDim, fontSize: 10, letterSpacing: 2, paddingHorizontal: spacing.sm, paddingBottom: spacing.sm, marginTop: 2 },
   widgetRow: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },

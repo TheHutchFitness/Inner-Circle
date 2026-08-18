@@ -340,10 +340,29 @@ WIDGETS = [
     {"id": "w_quote", "name": "War Cry", "level": 12, "desc": "Daily motivation banner"},
 ]
 
+RANK_PERK_BG = {
+    "Intermediate": "bg_cyber",
+    "Advanced": "bg_inferno",
+    "Elite": "bg_void",
+    "Freak": "bg_freak",
+}
+
 @api_router.get("/unlockables")
 async def get_unlockables(user=Depends(get_current_user)):
     lvl = user.get("level", 1)
-    backgrounds = [{**b, "unlocked": lvl >= b["level"], "active": user.get("active_background", "bg_default") == b["id"]} for b in BACKGROUNDS]
+    active = user.get("active_background", "bg_default")
+    rank = rank_from_xp(user.get("xp", 0))
+    rank_order = ["Beginner", "Intermediate", "Advanced", "Elite", "Freak"]
+    earned_perks = set()
+    for r in rank_order[: rank_order.index(rank) + 1]:
+        if r in RANK_PERK_BG:
+            earned_perks.add(RANK_PERK_BG[r])
+    backgrounds = [{
+        **b,
+        "unlocked": lvl >= b["level"] or b["id"] in earned_perks or b["id"] == active,
+        "active": active == b["id"],
+        "perk_rank": next((r for r, bid in RANK_PERK_BG.items() if bid == b["id"]), None),
+    } for b in BACKGROUNDS]
     widgets = [{**w, "unlocked": lvl >= w["level"]} for w in WIDGETS]
     return {"level": lvl, "backgrounds": backgrounds, "widgets": widgets}
 
@@ -352,7 +371,10 @@ async def set_background(inp: BackgroundSet, user=Depends(get_current_user)):
     bg = next((b for b in BACKGROUNDS if b["id"] == inp.background_id), None)
     if not bg:
         raise HTTPException(status_code=400, detail="Unknown background")
-    if user.get("level", 1) < bg["level"]:
+    rank = rank_from_xp(user.get("xp", 0))
+    rank_order = ["Beginner", "Intermediate", "Advanced", "Elite", "Freak"]
+    earned_perks = {RANK_PERK_BG[r] for r in rank_order[: rank_order.index(rank) + 1] if r in RANK_PERK_BG}
+    if user.get("level", 1) < bg["level"] and bg["id"] not in earned_perks:
         raise HTTPException(status_code=403, detail=f"Unlocks at level {bg['level']}")
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_background": inp.background_id}})
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
@@ -412,9 +434,26 @@ async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
     fresh["level"] = level_from_xp(fresh["xp"])
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"level": fresh["level"]}})
     fresh["rank"] = rank_from_xp(fresh["xp"])
+
+    # Rank Perk: auto-equip a fresh background the instant the athlete ranks up
+    prev_rank = rank_from_xp(user.get("xp", 0))
+    ranked_up = fresh["rank"] != prev_rank
+    unlocked_background = None
+    if ranked_up:
+        perk = RANK_PERK_BG.get(fresh["rank"])
+        if perk:
+            await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"active_background": perk}})
+            fresh["active_background"] = perk
+            bg_meta = next((b for b in BACKGROUNDS if b["id"] == perk), None)
+            unlocked_background = {"id": perk, "name": bg_meta["name"] if bg_meta else perk}
+
     doc.pop("_id", None)
     doc["logged_at"] = doc["logged_at"].isoformat()
-    return {"workout": doc, "user": fresh, "xp_gained": xp_gain, "pr_hit": pr_hit, "pr_details": pr_details}
+    return {
+        "workout": doc, "user": fresh, "xp_gained": xp_gain,
+        "pr_hit": pr_hit, "pr_details": pr_details,
+        "ranked_up": ranked_up, "prev_rank": prev_rank, "unlocked_background": unlocked_background,
+    }
 
 @api_router.get("/workouts/history")
 async def workout_history(user=Depends(get_current_user)):
@@ -545,7 +584,9 @@ async def leaderboard(board_type: str, user=Depends(get_current_user)):
         u["ratio"] = round(u["total_lift"] / bw, 2)
     if board_type == "xp":
         users.sort(key=lambda x: x.get("xp", 0), reverse=True)
-        for u in users: u["metric"] = u["xp"]; u["metric_label"] = "XP"
+        for u in users:
+            u["metric"] = level_from_xp(u.get("xp", 0))
+            u["metric_label"] = "LEVEL"
     elif board_type == "strength":
         users.sort(key=lambda x: x["total_lift"], reverse=True)
         for u in users: u["metric"] = u["total_lift"]; u["metric_label"] = "Total (lb)"
@@ -608,9 +649,10 @@ async def ai_build(inp: AIWorkoutRequest, user=Depends(get_current_user)):
         "(3) Progression scheme (linear or double-progression), (4) Notes on RPE + technique. "
         "Be aggressive, use lifting-culture language, but be technically sound. Max 450 words.\n\n"
         "AFTER the human-readable program, output on its own line the exact delimiter ===SESSIONS_JSON=== "
-        "followed by ONLY a valid JSON object of the FIRST training day, in this schema: "
+        "followed by ONLY a valid JSON object covering EVERY training day of the week, in this schema: "
         '{\"sessions\":[{\"name\":\"Day name\",\"split_key\":\"push|pull|legs|upper|lower\",'
         '\"exercises\":[{\"name\":\"Exercise\",\"sets\":3,\"reps\":5,\"rpe\":8,\"weight_lb\":135}]}]}. '
+        "Include one object in the sessions array for EACH training day in the program (match the requested days per week). "
         "Use realistic starting weights derived from the athlete's PRs (e.g. 70-85% for main lifts). "
         "Do not write anything after the JSON."
     )

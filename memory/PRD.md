@@ -48,6 +48,16 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Unlockable backgrounds/widgets tied to level.
 - Adaptive next-workout suggestion.
 
+## Implemented (2026-06 — HUD restyle + rank perks)
+- Recap/Vault moved to a top HUD toolbar on the dashboard (fixed low/right placement); 44px tap targets.
+- Pip-Boy / game-inventory HUD look: mono terminal status line, ▚ // section headers, corner-bracket HudFrame component, AI-generated anime hero/gym backgrounds behind dashboard + vault.
+- Leaderboard "Consistency" board replaced with overall LEVEL leaderboard (metric = level).
+- Circle tab renamed to SOCIAL (screen title "SOCIAL HUB").
+- 20 anime-hero avatars (added Shinobi, Berserker, Phoenix, Oni, Samurai, Mecha, Reaper, Thunder God, Kraken, Ace, Star Saint).
+- Multi-Day Send: AI returns full week; each day has its own SEND-to-logger button (build + history).
+- Rank Perks: promotion auto-equips a rank-specific AI background, shown in the rank-up celebration.
+- 6 anime backgrounds generated via Gemini Nano Banana (assets/images/bg_*.png). Tests: 28/28 pytest passing.
+
 ## Implemented (2026-06 — later)
 - Program-to-Logger: AI build now returns a structured `sessions[]` (parsed from a delimited JSON block); "SEND TO LOGGER" button on generated + saved programs pushes a pre-filled active session into the workout logger (module store + useFocusEffect).
 - Rank-Up Fanfare: full-screen animated RankUpCelebration modal fires when a logged workout crosses a rank threshold (shown after any PR modal).

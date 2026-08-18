@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgColors } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage } from "@/src/lib/theme";
+import { HudSectionHeader, HudFrame } from "@/src/components/Hud";
 
 function nextRankInfo(xp: number) {
   const thresholds = [
@@ -37,7 +39,6 @@ export default function Dashboard() {
   const rankColor = RANK_COLORS[rank] || colors.brandPrimary;
   const next = nextRankInfo(user.xp);
   const progress = next.name === "MAX" ? 1 : Math.min(1, user.xp / next.xp);
-  const bg = bgColors(user.active_background);
 
   const isPremium = isSubscribed || user.skool_verified;
   const canAthletesCenter = rank === "Advanced" || rank === "Elite" || rank === "Freak";
@@ -45,23 +46,27 @@ export default function Dashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
-      <LinearGradient colors={[bg[0], colors.surface]} style={StyleSheet.absoluteFill} />
+      <Image source={bgImage(user.active_background)} style={styles.bgArt} contentFit="cover" />
+      <LinearGradient
+        colors={["rgba(5,5,8,0.35)", "rgba(5,5,8,0.85)", colors.surface]}
+        locations={[0, 0.5, 0.82]}
+        style={StyleSheet.absoluteFill}
+      />
       <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
-      <View style={styles.header}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <View>
-            <Text style={styles.eyebrow}>MISSION BRIEFING</Text>
-            <Text style={styles.title}>WELCOME, {user.display_name?.toUpperCase()}</Text>
-          </View>
-          <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <Pressable testID="open-recap" onPress={() => router.push("/recap")} style={styles.vaultBtn}>
-              <Text style={styles.vaultBtnText}>▤ RECAP</Text>
-            </Pressable>
-            <Pressable testID="open-vault" onPress={() => router.push("/vault")} style={styles.vaultBtn}>
-              <Text style={styles.vaultBtnText}>◈ VAULT</Text>
-            </Pressable>
-          </View>
+      <View style={styles.topBar}>
+        <Text style={styles.hudTag}>⌁ HQ TERMINAL · ONLINE</Text>
+        <View style={styles.topBarBtns}>
+          <Pressable testID="open-recap" onPress={() => router.push("/recap")} style={styles.hudBtn}>
+            <Text style={styles.hudBtnText}>▤ RECAP</Text>
+          </Pressable>
+          <Pressable testID="open-vault" onPress={() => router.push("/vault")} style={styles.hudBtn}>
+            <Text style={styles.hudBtnText}>◈ VAULT</Text>
+          </Pressable>
         </View>
+      </View>
+      <View style={styles.header}>
+        <Text style={styles.eyebrow}>▚ MISSION BRIEFING //</Text>
+        <Text style={styles.title}>WELCOME, {user.display_name?.toUpperCase()}</Text>
       </View>
 
       <LinearGradient colors={[colors.brandTertiary, colors.surface2]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.heroCard}>
@@ -98,7 +103,7 @@ export default function Dashboard() {
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>PR VAULT</Text>
+      <HudSectionHeader label="PR VAULT" />
       <View style={styles.grid}>
         {[["BENCH","bench"],["SQUAT","squat"],["DEAD","deadlift"],["OHP","ohp"]].map(([label,key]) => (
           <View key={key} style={styles.prCard}>
@@ -108,7 +113,7 @@ export default function Dashboard() {
         ))}
       </View>
 
-      <Text style={styles.sectionTitle}>NEXT MISSION</Text>
+      <HudSectionHeader label="NEXT MISSION" />
       {suggestion ? (
         <Pressable testID="adaptive-suggestion" onPress={() => router.push("/(tabs)/workout")} style={styles.adaptiveCard}>
           <View style={styles.adaptiveHead}>
@@ -132,7 +137,7 @@ export default function Dashboard() {
         </Pressable>
       )}
 
-      <Text style={styles.sectionTitle}>PROTOCOLS</Text>
+      <HudSectionHeader label="PROTOCOLS" />
       <Pressable testID="open-athletes-center" onPress={() => router.push("/athletes-center")} style={[styles.ctaCard, !canAthletesCenter && styles.locked]}>
         <View>
           <Text style={styles.ctaTitle}>ATHLETE'S CENTER {canAthletesCenter ? "" : "🔒"}</Text>
@@ -162,7 +167,13 @@ export default function Dashboard() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "transparent" },
-  header: { paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  bgArt: { position: "absolute", top: 0, left: 0, right: 0, height: 520 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: "rgba(0,85,255,0.35)" },
+  hudTag: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "800", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  topBarBtns: { flexDirection: "row", gap: spacing.sm },
+  hudBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, backgroundColor: "rgba(0,42,85,0.5)" },
+  hudBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 11 },
+  header: { paddingHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md },
   vaultBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.sm },
   vaultBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
   adaptiveCard: { marginHorizontal: spacing.lg, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong },

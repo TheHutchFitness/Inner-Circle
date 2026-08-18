@@ -6,6 +6,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, avatarFor, AVATARS, RANK_COLORS, fmtWeight } from "@/src/lib/theme";
 import { StrengthChart } from "@/src/components/StrengthChart";
+import { HudSectionHeader } from "@/src/components/Hud";
 
 const LIFT_TABS = [["BENCH","bench"],["SQUAT","squat"],["DEAD","deadlift"],["OHP","ohp"]];
 
@@ -61,7 +62,7 @@ export default function Profile() {
         <View style={styles.info}><Text style={styles.infoL}>STREAK</Text><Text style={styles.infoV}>{user.streak_days}d</Text></View>
       </View>
 
-      <Text style={styles.section}>PR VAULT</Text>
+      <HudSectionHeader label="PR VAULT" />
       <View style={styles.grid}>
         {[["BENCH","bench"],["SQUAT","squat"],["DEADLIFT","deadlift"],["OHP","ohp"]].map(([label, key]) => (
           <View key={key} style={styles.prCard}>
@@ -71,7 +72,7 @@ export default function Profile() {
         ))}
       </View>
 
-      <Text style={styles.section}>STRENGTH CURVE</Text>
+      <HudSectionHeader label="STRENGTH CURVE" />
       <View style={styles.chartCard}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartTabs}>
           {LIFT_TABS.map(([label, key]) => (
@@ -83,7 +84,7 @@ export default function Profile() {
         <StrengthChart data={chart?.[liftTab] || []} color={colors.brandPrimary} />
       </View>
 
-      <Text style={styles.section}>MILESTONE BADGES</Text>
+      <HudSectionHeader label="MILESTONE BADGES" />
       <View style={styles.badgeGrid}>
         {(user.badges || []).length === 0 ? (
           <Text style={styles.emptyBadges}>Hit 135, 225, 315+ to earn badges.</Text>

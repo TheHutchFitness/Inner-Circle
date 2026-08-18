@@ -13,7 +13,7 @@ type Exercise = { name: string; sets: SetT[] };
 
 export default function WorkoutScreen() {
   const insets = useSafeAreaInsets();
-  const { token, user, refresh } = useAuth();
+  const { token, refresh } = useAuth();
   const [programs, setPrograms] = useState<any[]>([]);
   const [active, setActive] = useState<{ program?: any; workoutName: string; splitKey: string; exercises: Exercise[] } | null>(null);
   const [rating, setRating] = useState<number>(0);
@@ -80,7 +80,6 @@ export default function WorkoutScreen() {
   const finish = async () => {
     if (!active) return;
     setSaving(true);
-    const prevRank = user?.rank;
     try {
       const res = await apiFetch(token, "/api/workouts/log", {
         method: "POST",
@@ -98,8 +97,8 @@ export default function WorkoutScreen() {
       if (res.pr_hit && res.pr_details?.length) {
         setCelebration({ prs: res.pr_details, user: res.user });
       }
-      if (res.user?.rank && prevRank && res.user.rank !== prevRank) {
-        setRankUp({ from: prevRank, to: res.user.rank });
+      if (res.ranked_up) {
+        setRankUp({ from: res.prev_rank, to: res.user.rank, background: res.unlocked_background });
       }
       setActive(null);
     } catch (e: any) {
@@ -205,6 +204,7 @@ export default function WorkoutScreen() {
       visible={!!rankUp && !celebration}
       fromRank={rankUp?.from}
       toRank={rankUp?.to}
+      background={rankUp?.background}
       onClose={() => setRankUp(null)}
     />
     </>

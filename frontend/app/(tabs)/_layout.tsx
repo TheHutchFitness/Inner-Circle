@@ -9,7 +9,7 @@ const TABS = [
   { name: "index", label: "HQ", icon: "◆" },
   { name: "workout", label: "TRAIN", icon: "▲" },
   { name: "leaderboard", label: "RANK", icon: "☰" },
-  { name: "community", label: "CIRCLE", icon: "◍" },
+  { name: "community", label: "SOCIAL", icon: "◍" },
   { name: "profile", label: "ME", icon: "◉" },
 ];
 

@@ -64,8 +64,8 @@ export default function Community() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.surface }} keyboardVerticalOffset={80}>
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.lg }}>
-        <Text style={styles.eyebrow}>THE CIRCLE</Text>
-        <Text style={styles.h1}>COMMUNITY CHAT</Text>
+        <Text style={styles.eyebrow}>▚ THE CIRCLE //</Text>
+        <Text style={styles.h1}>SOCIAL HUB</Text>
       </View>
       <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 20 }}>
         {messages.map((m) => {

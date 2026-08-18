@@ -3,7 +3,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://a70a5bac-72b5-4fcc-aab5-732095e525cd.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "https://powerup-arena.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ATHLETE = {"email": "athlete@test.com", "password": "TestPass123!"}
@@ -220,9 +220,11 @@ class TestProgramHistory:
         post = requests.get(f"{API}/ai/programs", headers=auth_h(elite_token), timeout=15)
         assert post.status_code == 200
         post_rows = post.json()
-        # Note: other tests may also create programs in parallel, so use >= pre_len+1
-        assert len(post_rows) >= pre_len + 1
-        assert any(p.get("program_id") == pid for p in post_rows)
+        # Note: /api/ai/programs is capped at 20; verify the newly-created program is present at top instead
+        assert any(p.get("program_id") == pid for p in post_rows), f"new program {pid} missing from list"
+        # If we weren't already at cap, verify the list grew
+        if pre_len < 20:
+            assert len(post_rows) >= pre_len + 1
         # Fields
         top = post_rows[0]
         for key in ("program_id", "program_text", "created_at"):
@@ -348,3 +350,70 @@ class TestRankUp:
             if body["user"]["xp"] >= 500:
                 break
         assert rank_after == "Intermediate", f"user should have crossed to Intermediate, got {rank_after}"
+
+
+# NEW: Rank Perk background + LEVEL leaderboard label
+class TestRankPerkBackground:
+    def test_xp_leaderboard_metric_label_is_level(self, athlete_token):
+        r = requests.get(f"{API}/leaderboard/xp", headers=auth_h(athlete_token), timeout=15)
+        assert r.status_code == 200
+        rows = r.json()
+        assert len(rows) >= 1
+        assert rows[0]["metric_label"] == "LEVEL", f"expected LEVEL, got {rows[0]['metric_label']}"
+        # metric should be integer-ish (level)
+        assert isinstance(rows[0]["metric"], int)
+
+    def test_rank_up_unlocks_and_equips_perk_background(self):
+        import uuid as _uuid
+        email = f"perk_{_uuid.uuid4().hex[:8]}@test.com"
+        reg = requests.post(f"{API}/auth/register",
+                            json={"email": email, "password": "Passw0rd!", "display_name": "Perk"}, timeout=15)
+        assert reg.status_code == 200, reg.text
+        tok = reg.json()["session_token"]
+
+        # Confirm initial bg = default and rank = Beginner
+        me = requests.get(f"{API}/auth/me", headers=auth_h(tok), timeout=15).json()
+        assert me["rank"] == "Beginner"
+        assert me.get("active_background") == "bg_default"
+
+        heavy = {
+            "workout_name": "TEST_Perk",
+            "split_type": "ppl_push",
+            "exercises": [
+                {"name": "Bench Press", "sets": [
+                    {"reps": 5, "weight_lb": 225, "rpe": 8.0},
+                    {"reps": 5, "weight_lb": 235, "rpe": 8.5},
+                    {"reps": 5, "weight_lb": 245, "rpe": 9.0},
+                ]},
+                {"name": "Overhead Press", "sets": [
+                    {"reps": 5, "weight_lb": 135, "rpe": 8.0},
+                ]},
+            ],
+            "rating": 5,
+        }
+        ranked_up_body = None
+        for _ in range(12):
+            r = requests.post(f"{API}/workouts/log", json=heavy, headers=auth_h(tok), timeout=20)
+            assert r.status_code == 200, r.text
+            body = r.json()
+            # Every response must carry the new keys
+            for key in ("ranked_up", "prev_rank", "unlocked_background"):
+                assert key in body, f"missing {key} in workouts/log response"
+            if body["ranked_up"]:
+                ranked_up_body = body
+                break
+        assert ranked_up_body is not None, "did not rank up within 12 workouts"
+        assert ranked_up_body["prev_rank"] == "Beginner"
+        assert ranked_up_body["user"]["rank"] == "Intermediate"
+        unlocked = ranked_up_body["unlocked_background"]
+        assert unlocked is not None and unlocked["id"] == "bg_cyber", f"expected bg_cyber, got {unlocked}"
+        # active_background auto-equipped on user
+        assert ranked_up_body["user"]["active_background"] == "bg_cyber"
+
+        # /unlockables reflects the perk as unlocked + active
+        u = requests.get(f"{API}/unlockables", headers=auth_h(tok), timeout=15)
+        assert u.status_code == 200
+        bgs = {b["id"]: b for b in u.json()["backgrounds"]}
+        assert bgs["bg_cyber"]["unlocked"] is True
+        assert bgs["bg_cyber"]["active"] is True
+        assert bgs["bg_cyber"].get("perk_rank") == "Intermediate"

@@ -7,7 +7,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, avatarFor, RANK_COLORS } from "@/src/lib/theme";
 
 const BOARDS = [
-  { key: "xp", label: "CONSISTENCY", desc: "XP + Streak" },
+  { key: "xp", label: "LEVEL", desc: "Overall Level" },
   { key: "strength", label: "STRENGTH", desc: "Absolute Big 4" },
   { key: "ratio", label: "BW RATIO", desc: "Total / Bodyweight" },
 ];
