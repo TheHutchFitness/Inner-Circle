@@ -9,6 +9,8 @@ import * as Haptics from "expo-haptics";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { HeroSprite } from "@/src/components/HeroSprite";
+import { initSfx, playSfx, isSfxEnabled, setSfxEnabled } from "@/src/lib/sfx";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const MILESTONES = [135, 185, 225, 275, 315, 365, 405, 455, 495, 585, 675];
@@ -30,82 +32,119 @@ function DamageNumber({ value, crit }: { value: number; crit?: boolean }) {
 }
 
 function Combat({ node, stats, accent, onWin, onClose }: { node: any; stats: any; accent: string; onWin: () => void; onClose: () => void }) {
+  const isBoss = !!node?.boss;
   const [hp, setHp] = useState(100);
   const [dmgs, setDmgs] = useState<{ id: number; value: number; crit: boolean }[]>([]);
   const [victory, setVictory] = useState(false);
+  const [phase, setPhase] = useState(1);
+  const [banner, setBanner] = useState<string | null>(null);
   const heroX = useSharedValue(-40);
   const shake = useSharedValue(0);
   const slash = useSharedValue(0);
   const enemyX = useSharedValue(0);
+  const flash = useSharedValue(0);
   const timers = useRef<any[]>([]);
 
   const heroStyle = useAnimatedStyle(() => ({ transform: [{ translateX: heroX.value }] }));
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
-  const slashStyle = useAnimatedStyle(() => ({ opacity: slash.value, transform: [{ scale: 0.6 + slash.value * 0.9 }, { rotate: "-25deg" }] }));
+  const slashStyle = useAnimatedStyle(() => ({ opacity: slash.value, transform: [{ scale: 0.6 + slash.value * 1.1 }, { rotate: "-25deg" }] }));
   const enemyStyle = useAnimatedStyle(() => ({ transform: [{ translateX: enemyX.value }] }));
+  const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
 
   const power = Math.round((stats?.strength || 40) * 0.35 + (stats?.power || 40) * 0.3 + (stats?.grit || 40) * 0.15);
-  const hits = node?.boss ? 4 : 3;
+  const normalHits = isBoss ? 5 : 3;
+
+  const doHit = (i: number, total: number, finisher: boolean) => {
+    playSfx("slash");
+    const rmHit = setTimeout(() => playSfx("hit"), 90);
+    timers.current.push(rmHit);
+    try { Haptics.impactAsync(finisher ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    const crit = finisher || Math.random() < 0.35;
+    const base = Math.max(12, Math.round(power * (0.35 + Math.random() * 0.5)));
+    const value = finisher ? Math.round(base * 2.6) : crit ? Math.round(base * 1.6) : base;
+    heroX.value = withSequence(withTiming(finisher ? 40 : 26, { duration: finisher ? 90 : 110 }), withTiming(6, { duration: 180 }));
+    slash.value = withSequence(withTiming(1, { duration: finisher ? 60 : 90 }), withTiming(0, { duration: 240 }));
+    shake.value = withSequence(withTiming(-10, { duration: 45 }), withTiming(10, { duration: 60 }), withTiming(0, { duration: 60 }));
+    enemyX.value = withSequence(withTiming(finisher ? 24 : 14, { duration: 70 }), withTiming(0, { duration: 130 }));
+    if (finisher) flash.value = withSequence(withTiming(0.85, { duration: 70 }), withTiming(0, { duration: 400 }));
+    const did = Date.now() + i;
+    setDmgs((d) => [...d, { id: did, value, crit }]);
+    const rm = setTimeout(() => setDmgs((d) => d.filter((x) => x.id !== did)), 1000);
+    timers.current.push(rm);
+  };
 
   useEffect(() => {
     heroX.value = withTiming(0, { duration: 420, easing: Easing.out(Easing.cubic) });
-    let remaining = 100;
-    for (let i = 0; i < hits; i++) {
-      const t = setTimeout(() => {
-        try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
-        const crit = Math.random() < 0.35 || i === hits - 1;
-        const base = Math.max(12, Math.round(power * (0.35 + Math.random() * 0.5)));
-        const value = crit ? Math.round(base * 1.6) : base;
-        // lunge + slash + shake
-        heroX.value = withSequence(withTiming(26, { duration: 110 }), withTiming(6, { duration: 160 }));
-        slash.value = withSequence(withTiming(1, { duration: 90 }), withTiming(0, { duration: 220 }));
-        shake.value = withSequence(withTiming(-8, { duration: 45 }), withTiming(8, { duration: 60 }), withTiming(0, { duration: 60 }));
-        enemyX.value = withSequence(withTiming(14, { duration: 70 }), withTiming(0, { duration: 130 }));
-        const did = Date.now() + i;
-        setDmgs((d) => [...d, { id: did, value, crit }]);
-        const rm = setTimeout(() => setDmgs((d) => d.filter((x) => x.id !== did)), 1000);
-        timers.current.push(rm);
-        remaining = Math.max(0, remaining - Math.round(100 / hits) - (crit ? 4 : 0));
-        setHp(i === hits - 1 ? 0 : remaining);
-      }, 550 + i * 560);
-      timers.current.push(t);
+    let t = 500;
+    const step = 560;
+    const half = Math.ceil(normalHits / 2);
+    for (let i = 0; i < normalHits; i++) {
+      const at = t + i * step;
+      // Boss phase transition at halfway
+      if (isBoss && i === half) {
+        const pt = setTimeout(() => {
+          setPhase(2); setBanner("PHASE II — ENRAGED");
+          try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
+          flash.value = withSequence(withTiming(0.6, { duration: 120 }), withTiming(0, { duration: 300 }));
+          const clr = setTimeout(() => setBanner(null), 1100);
+          timers.current.push(clr);
+        }, at - 200);
+        timers.current.push(pt);
+      }
+      const hitAt = at + (isBoss && i >= half ? 400 : 0);
+      const th = setTimeout(() => {
+        doHit(i, normalHits, false);
+        const frac = (i + 1) / (normalHits + (isBoss ? 1 : 0));
+        setHp(Math.max(isBoss ? 12 : 0, Math.round(100 - frac * 100)));
+      }, hitAt);
+      timers.current.push(th);
     }
+    // Boss finisher
+    if (isBoss) {
+      const finAt = t + normalHits * step + 500;
+      const fb = setTimeout(() => { setBanner("FINISHER!"); }, finAt - 350);
+      const ft = setTimeout(() => { doHit(99, normalHits, true); setHp(0); setBanner(null); }, finAt);
+      timers.current.push(fb, ft);
+    }
+    const winAt = t + normalHits * step + (isBoss ? 1100 : 250);
     const done = setTimeout(() => {
       setVictory(true);
+      playSfx("victory");
       try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
       slash.value = withRepeat(withSequence(withTiming(1, { duration: 200 }), withTiming(0.3, { duration: 200 })), 2, false);
-    }, 550 + hits * 560 + 250);
+    }, winAt);
     timers.current.push(done);
     return () => { timers.current.forEach(clearTimeout); };
   }, []);
 
   return (
     <View style={styles.combatWrap}>
+      <Animated.View style={[styles.flashLayer, { backgroundColor: isBoss ? "#FFFFFF" : accent }, flashStyle]} pointerEvents="none" />
       <Animated.View style={[styles.combatStage, shakeStyle]}>
-        <Text style={styles.combatTitle}>{node?.boss ? "☠ BOSS BATTLE" : "⚔ ENCOUNTER"}</Text>
-        <Text style={styles.combatSub}>{node?.title}</Text>
+        <Text style={styles.combatTitle}>{isBoss ? "☠ BOSS BATTLE" : "⚔ ENCOUNTER"}</Text>
+        <Text style={styles.combatSub}>{node?.title}{isBoss ? `  ·  PHASE ${phase}` : ""}</Text>
 
-        {/* enemy HP */}
         <View style={styles.hpBar}>
           <View style={[styles.hpFill, { width: `${hp}%`, backgroundColor: hp > 40 ? accent : colors.error }]} />
+          {isBoss && <View style={styles.hpPhaseMark} />}
         </View>
 
         <View style={styles.arena}>
           <Animated.View style={[styles.fighter, heroStyle]}>
             <HeroSprite size={78} color={accent} facing={1} />
           </Animated.View>
-
           <Animated.View style={[styles.slash, slashStyle]} pointerEvents="none">
             <Text style={[styles.slashText, { color: accent }]}>⟋</Text>
           </Animated.View>
-
           <Animated.View style={[styles.enemy, enemyStyle]}>
-            <Text style={styles.enemyGlyph}>{node?.boss ? "👹" : "👾"}</Text>
+            <Text style={styles.enemyGlyph}>{isBoss ? (phase === 2 ? "😡" : "👹") : "👾"}</Text>
             <View style={styles.dmgHolder}>
               {dmgs.map((d) => <DamageNumber key={d.id} value={d.value} crit={d.crit} />)}
             </View>
           </Animated.View>
         </View>
+
+        {banner && <Text style={[styles.phaseBanner, { color: colors.error }]}>{banner}</Text>}
 
         {victory ? (
           <View style={styles.victoryBox}>
@@ -180,6 +219,32 @@ function MilestoneOverlay({ lift, value, accent, onClose, token }: { lift: strin
   );
 }
 
+function ZoneReveal({ zone, onClose }: { zone: any; onClose: () => void }) {
+  const s = useSharedValue(0);
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    playSfx("victory");
+    s.value = withSequence(withTiming(1.2, { duration: 400, easing: Easing.out(Easing.back(2)) }), withTiming(1, { duration: 200 }));
+    glow.value = withRepeat(withSequence(withTiming(1, { duration: 900 }), withTiming(0.3, { duration: 900 })), -1, false);
+    const t = setTimeout(onClose, 3800);
+    return () => clearTimeout(t);
+  }, []);
+  const st = useAnimatedStyle(() => ({ transform: [{ scale: s.value }], opacity: Math.min(1, s.value) }));
+  const glowSt = useAnimatedStyle(() => ({ opacity: glow.value }));
+  return (
+    <Pressable style={styles.combatWrap} onPress={onClose}>
+      <LinearGradient colors={[zone?.primary || "#000", "#050508"]} style={StyleSheet.absoluteFill} />
+      <Animated.View style={[st, { alignItems: "center" }]}>
+        <Animated.Text style={[styles.zoneRevealGlow, { color: zone?.accent }, glowSt]}>✦</Animated.Text>
+        <Text style={styles.zoneRevealKicker}>NEW ZONE UNLOCKED</Text>
+        <Text style={[styles.zoneRevealName, { color: zone?.accent }]}>{zone?.name}</Text>
+        <Text style={styles.zoneRevealTier}>TIER {zone?.tier} REACHED</Text>
+      </Animated.View>
+      <Text style={styles.zoneRevealTap}>tap to continue</Text>
+    </Pressable>
+  );
+}
+
 export default function Journey() {
   const { token, user } = useAuth();
   const insets = useSafeAreaInsets();
@@ -189,12 +254,27 @@ export default function Journey() {
   const [reward, setReward] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [milestone, setMilestone] = useState<{ lift: string; value: number } | null>(null);
+  const [zoneReveal, setZoneReveal] = useState<any>(null);
+  const [sfxOn, setSfxOn] = useState(true);
 
   const load = useCallback(async () => {
-    try { setData(await apiFetch(token, "/api/journey")); } catch {}
+    try {
+      const d = await apiFetch(token, "/api/journey");
+      setData(d);
+      // Zone unlock: reveal once when the player enters a higher tier zone
+      try {
+        const seen = await AsyncStorage.getItem("hic_zone_seen");
+        const idx = d?.zone?.index ?? 0;
+        if (seen === null) { await AsyncStorage.setItem("hic_zone_seen", String(idx)); }
+        else if (idx > parseInt(seen, 10)) { setZoneReveal(d.zone); await AsyncStorage.setItem("hic_zone_seen", String(idx)); }
+      } catch {}
+    } catch {}
     setLoading(false);
   }, [token]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { initSfx().then(() => setSfxOn(isSfxEnabled())); }, []);
+
+  const toggleSfx = async () => { const n = !sfxOn; setSfxOn(n); await setSfxEnabled(n); if (n) playSfx("slash"); };
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 1600); };
 
@@ -259,7 +339,10 @@ export default function Journey() {
           <Text style={[styles.zoneName, { color: accent }]}>{data?.zone?.name}</Text>
           <Text style={styles.zoneTier}>TIER {data?.zone?.tier} · RANK #{data?.me?.rank_position}/{data?.me?.total_players}</Text>
         </View>
-        <Pressable testID="journey-milestone" onPress={openTopMilestone} hitSlop={10}><Text style={[styles.prBtn, { color: accent }]}>PRs ✦</Text></Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          <Pressable testID="journey-sfx" onPress={toggleSfx} hitSlop={10}><Text style={[styles.prBtn, { color: sfxOn ? accent : colors.textDim }]}>{sfxOn ? "🔊" : "🔇"}</Text></Pressable>
+          <Pressable testID="journey-milestone" onPress={openTopMilestone} hitSlop={10}><Text style={[styles.prBtn, { color: accent }]}>PRs ✦</Text></Pressable>
+        </View>
       </View>
 
       {/* combat stats */}
@@ -324,6 +407,7 @@ export default function Journey() {
       {combatNode && <Combat node={combatNode} stats={data?.me?.stats} accent={accent} onWin={claim} onClose={() => setCombatNode(null)} />}
       {reward && <Reward label={reward} accent={accent} onClose={finishReward} />}
       {milestone && <MilestoneOverlay lift={milestone.lift} value={milestone.value} accent={accent} token={token} onClose={() => setMilestone(null)} />}
+      {zoneReveal && <ZoneReveal zone={zoneReveal} onClose={() => setZoneReveal(null)} />}
     </View>
   );
 }
@@ -359,11 +443,14 @@ const styles = StyleSheet.create({
   toastText: { color: colors.text, fontWeight: "700" },
   // combat
   combatWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(2,2,6,0.94)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  flashLayer: { ...StyleSheet.absoluteFillObject },
   combatStage: { width: "100%", alignItems: "center" },
   combatTitle: { color: colors.text, fontWeight: "900", letterSpacing: 3, fontSize: 18 },
   combatSub: { color: colors.textMid, marginTop: 4, marginBottom: spacing.lg, textAlign: "center", paddingHorizontal: spacing.lg },
   hpBar: { width: "80%", height: 10, borderRadius: 5, backgroundColor: colors.surface3, borderWidth: 1, borderColor: colors.border, overflow: "hidden", marginBottom: spacing.xl },
   hpFill: { height: "100%" },
+  hpPhaseMark: { position: "absolute", left: "50%", top: 0, bottom: 0, width: 2, backgroundColor: colors.surface },
+  phaseBanner: { fontWeight: "900", letterSpacing: 4, fontSize: 20, marginTop: spacing.md },
   arena: { width: "100%", height: 140, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.xxl },
   fighter: { width: 80 },
   slash: { position: "absolute", right: "34%", top: 20 },
@@ -397,4 +484,10 @@ const styles = StyleSheet.create({
   mRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.border, width: 260 },
   mName: { color: colors.text, fontWeight: "700" },
   mVal: { fontWeight: "900", fontVariant: ["tabular-nums"] },
+  // zone reveal
+  zoneRevealGlow: { fontSize: 60, marginBottom: spacing.md },
+  zoneRevealKicker: { color: colors.textMid, fontWeight: "800", letterSpacing: 4, fontSize: 12 },
+  zoneRevealName: { fontWeight: "900", letterSpacing: 4, fontSize: 30, marginTop: spacing.sm, textAlign: "center" },
+  zoneRevealTier: { color: colors.textDim, letterSpacing: 2, fontSize: 12, marginTop: spacing.sm },
+  zoneRevealTap: { position: "absolute", bottom: 60, color: colors.textDim, letterSpacing: 2, fontSize: 11 },
 });
