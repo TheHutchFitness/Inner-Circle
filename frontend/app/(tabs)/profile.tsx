@@ -451,6 +451,7 @@ export default function Profile() {
                       <Text style={styles.bookingDate}>{b.date} · {b.time}</Text>
                       {b.status === "approved" && <Text style={styles.bookingHint}>tap to reschedule</Text>}
                       {b.status === "pending" && b.proposed_by === "coach" && <Text style={styles.bookingHint}>coach proposed a new time</Text>}
+                      {b.status === "approved" && !!b.coach_note && <Text style={styles.bookingCoachNote}>📝 {b.coach_note}</Text>}
                     </View>
                     {b.status === "pending" && b.proposed_by === "coach" ? (
                       <Pressable testID={`profile-accept-${b.id}`} onPress={() => acceptSession(b.id)} style={styles.acceptBtn}>
@@ -723,6 +724,7 @@ const styles = StyleSheet.create({
   bookingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
   bookingDate: { color: colors.text, fontWeight: "800", fontSize: 13 },
   bookingHint: { color: colors.textDim, fontSize: 10, marginTop: 2 },
+  bookingCoachNote: { color: colors.brandPrimary, fontSize: 11, marginTop: 3, fontWeight: "700" },
   bookingPill: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1 },
   bookingApproved: { borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.08)" },
   bookingPending: { borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.08)" },

@@ -130,6 +130,7 @@ export default function InPersonRoom() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [bookingOpen, setBookingOpen] = useState(false);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const [apprNote, setApprNote] = useState<Record<string, string>>({});
   const scrollRef = useRef<ScrollView>(null);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
@@ -159,9 +160,11 @@ export default function InPersonRoom() {
     } catch (e: any) { setErr(e.message); }
   }, [token, isAdmin]);
 
-  const decideBooking = async (id: string, action: "approve" | "decline" | "accept") => {
+  const decideBooking = async (id: string, action: "approve" | "decline" | "accept", note?: string) => {
     try {
-      await apiFetch(token, `/api/inperson/booking/${id}/${action}`, { method: "POST" });
+      const opts: any = { method: "POST" };
+      if (action === "approve") opts.body = JSON.stringify({ note: note || "" });
+      await apiFetch(token, `/api/inperson/booking/${id}/${action}`, opts);
       if (selected) await loadThread(selected);
     } catch (e: any) { setErr(e.message); }
   };
@@ -446,13 +449,23 @@ export default function InPersonRoom() {
               <View style={{ marginTop: spacing.sm }}>
                 <Text style={styles.pendingLabel}>PENDING REQUESTS</Text>
                 {bookings.filter((b) => b.status === "pending").map((b) => (
-                  <View key={b.id} style={styles.pendingRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.pendingDate}>{b.date} · {b.time}</Text>
-                      {!!b.note && <Text style={styles.pendingNote} numberOfLines={1}>{b.note}</Text>}
+                  <View key={b.id} style={styles.pendingCol}>
+                    <View style={styles.pendingTopRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.pendingDate}>{b.date} · {b.time}</Text>
+                        {!!b.note && <Text style={styles.pendingNote} numberOfLines={1}>{b.note}</Text>}
+                      </View>
+                      <Pressable testID={`ip-approve-${b.id}`} onPress={() => decideBooking(b.id, "approve", apprNote[b.id])} style={styles.apprBtn}><Text style={styles.apprText}>APPROVE</Text></Pressable>
+                      <Pressable testID={`ip-decline-${b.id}`} onPress={() => decideBooking(b.id, "decline")} style={styles.declBtn}><Text style={styles.declText}>✕</Text></Pressable>
                     </View>
-                    <Pressable testID={`ip-approve-${b.id}`} onPress={() => decideBooking(b.id, "approve")} style={styles.apprBtn}><Text style={styles.apprText}>APPROVE</Text></Pressable>
-                    <Pressable testID={`ip-decline-${b.id}`} onPress={() => decideBooking(b.id, "decline")} style={styles.declBtn}><Text style={styles.declText}>✕</Text></Pressable>
+                    <TextInput
+                      testID={`ip-approve-note-${b.id}`}
+                      value={apprNote[b.id] || ""}
+                      onChangeText={(t) => setApprNote((s) => ({ ...s, [b.id]: t }))}
+                      placeholder="Optional note on approve (e.g. bring your belt)"
+                      placeholderTextColor={colors.textDim}
+                      style={styles.apprNoteInput}
+                    />
                   </View>
                 ))}
               </View>
@@ -483,6 +496,7 @@ export default function InPersonRoom() {
                     style={styles.apprvRow}
                   >
                     <Text style={styles.apprvText}>✓ CONFIRMED · {b.date} at {b.time}  ·  {isAdmin ? "tap to propose new time" : "tap to reschedule"}</Text>
+                    {!!b.coach_note && <Text style={styles.coachNoteText}>📝 Coach: {b.coach_note}</Text>}
                   </Pressable>
                 ))}
               </View>
@@ -990,6 +1004,10 @@ const styles = StyleSheet.create({
   sessionReqText: { color: "#001122", fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   pendingLabel: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginBottom: 6 },
   pendingRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 8, paddingHorizontal: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.08)", marginBottom: spacing.sm },
+  pendingCol: { paddingVertical: 8, paddingHorizontal: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.08)", marginBottom: spacing.sm },
+  pendingTopRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  apprNoteInput: { marginTop: 8, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 8, borderWidth: 1, borderColor: colors.border, fontSize: 12 },
+  coachNoteText: { color: colors.brandPrimary, fontSize: 11, marginTop: 4, fontWeight: "700" },
   pendingDate: { color: colors.text, fontWeight: "800", fontSize: 13 },
   pendingNote: { color: colors.textDim, fontSize: 11, marginTop: 1 },
   apprBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingVertical: 7, paddingHorizontal: 10 },

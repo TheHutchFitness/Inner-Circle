@@ -87,6 +87,11 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
                 {m.skool_verified && <View style={styles.bSkool}><Text style={styles.bSkoolText}>✓ SKOOL</Text></View>}
               </View>
 
+              <View style={styles.big4Band}>
+                <Text style={styles.big4Label}>🏋 BIG 4 TOTAL</Text>
+                <Text style={styles.big4Value}>{m.total_lift} <Text style={styles.big4Unit}>lb</Text></Text>
+              </View>
+
               <View style={styles.prGrid}>
                 {LIFTS.map(([k, label]) => (
                   <View key={k} style={styles.prCell}>
@@ -97,7 +102,7 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
               </View>
 
               <View style={styles.statRow}>
-                <Stat label="TOTAL" value={`${m.total_lift} lb`} />
+                <Stat label="LEVEL" value={`${m.level}`} />
                 <Stat label="LOGS" value={`${m.workouts_logged}`} />
                 <Stat label="BADGES" value={`${m.badges_count}`} />
               </View>
@@ -159,6 +164,10 @@ const styles = StyleSheet.create({
   bSkool: { backgroundColor: colors.success, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
   bSkoolText: { color: "#002200", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   prGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.lg, width: "100%" },
+  big4Band: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginTop: spacing.lg, paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  big4Label: { color: colors.text, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  big4Value: { color: colors.brandPrimary, fontWeight: "900", fontSize: 20, fontVariant: ["tabular-nums"] },
+  big4Unit: { color: colors.textDim, fontSize: 11, fontWeight: "800" },
   prCell: { flexBasis: "48%", flexGrow: 1, backgroundColor: colors.surface3, borderRadius: radius.sm, padding: spacing.md, borderLeftWidth: 3, borderLeftColor: colors.brandPrimary },
   prLabel: { color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "800" },
   prVal: { color: colors.text, fontSize: 20, fontWeight: "900", marginTop: 2 },

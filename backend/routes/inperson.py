@@ -593,6 +593,7 @@ def _booking_public(b: dict) -> dict:
         "note": b.get("note", ""),
         "status": b.get("status", "pending"),
         "proposed_by": b.get("proposed_by", "client"),
+        "coach_note": b.get("coach_note", ""),
         "created_at": b["created_at"].isoformat() if hasattr(b.get("created_at"), "isoformat") else b.get("created_at"),
     }
 
@@ -651,11 +652,13 @@ async def inperson_bookings(client_id: Optional[str] = None, user=Depends(get_cu
     return {"bookings": [_booking_public(b) for b in rows]}
 
 
-async def _set_booking_status(booking_id: str, status: str, user, system_text: str):
+async def _set_booking_status(booking_id: str, status: str, user, system_text: str, extra: Optional[dict] = None):
     b = await db.inperson_bookings.find_one({"id": booking_id})
     if not b:
         raise HTTPException(status_code=404, detail="Booking not found")
     updates = {"status": status}
+    if extra:
+        updates.update(extra)
     if status == "approved":
         updates["coach_id"] = user["user_id"]
         updates["approved_at"] = datetime.now(timezone.utc)
@@ -671,12 +674,14 @@ async def _set_booking_status(booking_id: str, status: str, user, system_text: s
 
 
 @api_router.post("/inperson/booking/{booking_id}/approve")
-async def inperson_booking_approve(booking_id: str, user=Depends(get_current_user)):
+async def inperson_booking_approve(booking_id: str, payload: dict = Body(default={}), user=Depends(get_current_user)):
     _require_admin_ip(user)
     b = await db.inperson_bookings.find_one({"id": booking_id})
     if not b:
         raise HTTPException(status_code=404, detail="Booking not found")
-    return await _set_booking_status(booking_id, "approved", user, f"✅ Session confirmed · {b['date']} at {b['time']}")
+    note = (str((payload or {}).get("note", "")) or "").strip()[:200]
+    text = f"✅ Session confirmed · {b['date']} at {b['time']}" + (f"\n📝 Coach: {note}" if note else "")
+    return await _set_booking_status(booking_id, "approved", user, text, extra={"coach_note": note})
 
 
 @api_router.post("/inperson/booking/{booking_id}/decline")
