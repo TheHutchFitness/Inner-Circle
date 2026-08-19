@@ -364,7 +364,7 @@ export const AURA_COLORS: Record<string, string> = {
 export const TITLE_TEXT: Record<string, string> = {
   ti_none: "", ti_iron: "IRON WILL", ti_beast: "BEAST MODE", ti_quest: "QUEST MASTER",
   ti_slayer: "BOSS SLAYER", ti_boss: "BOSS KILLER", ti_legend: "LIVING LEGEND",
-  ti_enhanced: "ENHANCED", ti_founder: "FOUNDER",
+  ti_enhanced: "ENHANCED", ti_founder: "FOUNDER", ti_theone: "THE ONE",
 };
 export function loadoutTitle(loadout?: any): string {
   return TITLE_TEXT[loadout?.title || "ti_none"] || "";

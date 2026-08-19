@@ -1327,6 +1327,7 @@ COSMETICS = {
         {"id": "ti_legend", "name": "Legend", "text": "LIVING LEGEND", "level": 25},
         {"id": "ti_enhanced", "name": "Enhanced", "text": "ENHANCED", "level": 999},
         {"id": "ti_founder", "name": "Founder", "text": "FOUNDER", "level": 999},
+        {"id": "ti_theone", "name": "The One", "text": "THE ONE", "level": 999},
     ],
 }
 _COSMETIC_BY_ID = {it["id"]: (slot, it) for slot, items in COSMETICS.items() for it in items}
