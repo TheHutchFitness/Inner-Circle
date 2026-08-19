@@ -11,6 +11,7 @@ import { colors, spacing, radius, bodyImage } from "@/src/lib/theme";
 import { HeroSprite } from "@/src/components/HeroSprite";
 import { PetCompanion } from "@/src/components/PetCompanion";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
+import { MemberSheet } from "@/src/components/MemberSheet";
 import { initSfx, playSfx, isSfxEnabled, setSfxEnabled, startZoneMusic, stopMusic } from "@/src/lib/sfx";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -286,6 +287,7 @@ export default function Journey() {
   const [zoneReveal, setZoneReveal] = useState<any>(null);
   const [sfxOn, setSfxOn] = useState(true);
   const [taunt, setTaunt] = useState<{ id: string; text: string } | null>(null);
+  const [peekUser, setPeekUser] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -470,9 +472,14 @@ export default function Journey() {
                   {nb.filler ? (
                     <Text style={styles.npcTag}>WANDERER</Text>
                   ) : (
-                    <Pressable testID={`challenge-${nb.user_id}`} onPress={() => sendChallenge(nb)} style={[styles.challengeBtn, { borderColor: accent }]}>
-                      <Text style={[styles.challengeText, { color: accent }]}>⚔ CATCH ME</Text>
-                    </Pressable>
+                    <View style={{ flexDirection: "row", gap: 6 }}>
+                      <Pressable testID={`peek-${nb.user_id}`} onPress={() => setPeekUser(nb.user_id)} style={[styles.challengeBtn, { borderColor: accent }]}>
+                        <Text style={[styles.challengeText, { color: accent }]}>👁 LOADOUT</Text>
+                      </Pressable>
+                      <Pressable testID={`challenge-${nb.user_id}`} onPress={() => sendChallenge(nb)} style={[styles.challengeBtn, { borderColor: accent }]}>
+                        <Text style={[styles.challengeText, { color: accent }]}>⚔ CATCH ME</Text>
+                      </Pressable>
+                    </View>
                   )}
                 </View>
               )}
@@ -510,6 +517,7 @@ export default function Journey() {
       {reward && <Reward label={reward.label} boss={reward.boss} accent={accent} onClose={finishReward} />}
       {milestone && <MilestoneOverlay lift={milestone.lift} value={milestone.value} accent={accent} token={token} onClose={() => setMilestone(null)} />}
       {zoneReveal && <ZoneReveal zone={zoneReveal} onClose={() => setZoneReveal(null)} />}
+      <MemberSheet userId={peekUser} visible={!!peekUser} onClose={() => setPeekUser(null)} />
     </View>
   );
 }

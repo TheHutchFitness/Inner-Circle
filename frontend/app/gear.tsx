@@ -6,7 +6,7 @@ import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, skinImage, weaponImage, RARITY, rarityColor, rarityLabel } from "@/src/lib/theme";
 
-const SOURCE_LABEL: Record<string, string> = { paid: "STORE", level: "LEVEL", quest: "QUEST" };
+const SOURCE_LABEL: Record<string, string> = { paid: "STORE", level: "LEVEL", quest: "QUEST", season: "SEASON" };
 
 export default function GearLocker() {
   const insets = useSafeAreaInsets();
@@ -52,7 +52,9 @@ export default function GearLocker() {
   const list = data ? (tab === "skins" ? data.skins : data.weapons) : [];
 
   const lockText = (item: any) =>
-    item.source === "quest" ? `🔒 ${item.quest_label || "Quest locked"}` : `🔒 UNLOCKS AT LV ${item.unlock_level}`;
+    item.source === "season"
+      ? (item.vaulted ? "⛔ VAULTED — SEASON ENDED" : `🔥 SEASONAL · ${item.quest_label}`)
+      : item.source === "quest" ? `🔒 ${item.quest_label || "Quest locked"}` : `🔒 UNLOCKS AT LV ${item.unlock_level}`;
 
   return (
     <View style={st.wrap}>

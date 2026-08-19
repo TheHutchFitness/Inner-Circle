@@ -79,10 +79,22 @@ QUEST_WEAPONS = [
 _PAID_SKIN_IDS = {s["id"] for s in PAID_SKINS}
 _FREE_SKIN = {s["id"]: s for s in FREE_SKINS}
 _QUEST_SKIN = {s["id"]: s for s in QUEST_SKINS}
+
+# ---- Seasonal boss skin: unlock by defeating bosses DURING the active season; vaults after ----
+def _current_season() -> str:
+    now = datetime.now(timezone.utc)
+    return f"{now.year}-S{(now.month - 1) // 3 + 1}"
+
+SEASON_SKINS = [
+    {"id": "skin_season1", "name": "Void Overlord", "rarity": "mythic", "season": "2026-S3",
+     "boss_count": 6, "quest_label": "Defeat 6 Bosses this season"},
+]
+_SEASON_SKIN = {s["id"]: s for s in SEASON_SKINS}
+
 _PAID_WEAP_IDS = {w["id"] for w in PAID_WEAPONS}
 _FREE_WEAP = {w["id"]: w for w in FREE_WEAPONS}
 _QUEST_WEAP = {w["id"]: w for w in QUEST_WEAPONS}
-_ALL_SKIN_IDS = _PAID_SKIN_IDS | set(_FREE_SKIN) | set(_QUEST_SKIN)
+_ALL_SKIN_IDS = _PAID_SKIN_IDS | set(_FREE_SKIN) | set(_QUEST_SKIN) | set(_SEASON_SKIN)
 _ALL_WEAP_IDS = _PAID_WEAP_IDS | set(_FREE_WEAP) | set(_QUEST_WEAP)
 
 
@@ -148,6 +160,21 @@ def _weap_row(w: dict, source: str, user: dict, level: int, counts: dict) -> dic
     }
 
 
+def _season_row(s: dict, user: dict, counts: dict) -> dict:
+    owned = s["id"] in (user.get("owned_skins", []) or [])
+    active = s["season"] == _current_season()
+    met = counts.get("boss", 0) >= s["boss_count"]
+    return {
+        "id": s["id"], "name": s["name"], "source": "season", "paid": False,
+        "rarity": s.get("rarity", "mythic"), "price_usd": 0, "unlock_level": 0,
+        "quest_label": s["quest_label"], "season": s["season"], "active": active,
+        "vaulted": (not active and not owned),
+        "owned": owned, "unlocked": owned or (active and met),
+        "equipped": user.get("equipped_skin") == s["id"],
+    }
+
+
+
 @api_router.get("/gear")
 async def gear_list(user=Depends(get_current_user)):
     level = level_from_xp(user.get("xp", 0))
@@ -155,7 +182,8 @@ async def gear_list(user=Depends(get_current_user)):
     month = _current_month()
     skins = [_skin_row(s, "paid", user, level, counts, month) for s in PAID_SKINS] + \
             [_skin_row(s, "level", user, level, counts, month) for s in FREE_SKINS] + \
-            [_skin_row(s, "quest", user, level, counts, month) for s in QUEST_SKINS]
+            [_skin_row(s, "quest", user, level, counts, month) for s in QUEST_SKINS] + \
+            [_season_row(s, user, counts) for s in SEASON_SKINS]
     weapons = [_weap_row(w, "paid", user, level, counts) for w in PAID_WEAPONS] + \
               [_weap_row(w, "level", user, level, counts) for w in FREE_WEAPONS] + \
               [_weap_row(w, "quest", user, level, counts) for w in QUEST_WEAPONS]
@@ -184,6 +212,13 @@ async def equip_skin(payload: dict, user=Depends(get_current_user)):
             counts = await _quest_counts(user["user_id"])
             if not _quest_met(_QUEST_SKIN[skin_id], counts):
                 raise HTTPException(status_code=403, detail="Locked — clear the quest to unlock")
+        elif skin_id in _SEASON_SKIN:
+            s = _SEASON_SKIN[skin_id]
+            if skin_id not in (user.get("owned_skins", []) or []):
+                counts = await _quest_counts(user["user_id"])
+                if s["season"] != _current_season() or counts.get("boss", 0) < s["boss_count"]:
+                    raise HTTPException(status_code=403, detail="Locked — earn it this season")
+                await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"owned_skins": skin_id}})
         elif level < _FREE_SKIN[skin_id]["unlock_level"]:
             raise HTTPException(status_code=403, detail="Locked — level up to unlock")
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"equipped_skin": skin_id}})
@@ -255,4 +290,10 @@ async def quest_loot_for_claim(user_id: str, scope: str) -> list:
     for it in QUEST_WEAPONS:
         if _quest_met(it, after) and not _quest_met(it, prev):
             loot.append({"kind": "weapon", "id": it["id"], "name": it["name"], "rarity": it["rarity"]})
+    # Seasonal boss skin drops on the boss claim that crosses the threshold, during the active season
+    if scope == "boss":
+        for it in SEASON_SKINS:
+            if it["season"] == _current_season() and after["boss"] >= it["boss_count"] > prev["boss"]:
+                await db.users.update_one({"user_id": user_id}, {"$addToSet": {"owned_skins": it["id"]}})
+                loot.append({"kind": "skin", "id": it["id"], "name": it["name"], "rarity": it["rarity"], "seasonal": True})
     return loot

@@ -9,7 +9,7 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, HAIR_COLORS, defaultHair, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle, bodyImage } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, HAIR_COLORS, BEARD_OPTIONS, defaultHair, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle, bodyImage } from "@/src/lib/theme";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { StrengthChart } from "@/src/components/StrengthChart";
 import { RadarChart } from "@/src/components/RadarChart";
@@ -80,6 +80,13 @@ export default function Profile() {
   const pickHair = async (equipped_hair: string) => {
     try {
       await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ equipped_hair }) });
+      await refresh();
+    } catch {}
+  };
+
+  const pickBeard = async (equipped_beard: string) => {
+    try {
+      await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ equipped_beard }) });
       await refresh();
     } catch {}
   };
@@ -287,7 +294,7 @@ export default function Profile() {
             <Text style={styles.modalTitle}>SELECT AVATAR</Text>
             <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={styles.avatarGrid}>
               {AVATARS.map((a) => {
-                const img = avatarImage(a.id, user.sex, user.equipped_hair);
+                const img = avatarImage(a.id, user.sex, user.equipped_hair, user.equipped_beard);
                 return (
                   <Pressable testID={`avatar-${a.id}`} key={a.id} onPress={() => pickAvatar(a.id)} style={[styles.avOpt, user.avatar_id === a.id && styles.avOptSel]}>
                     {img ? <Image source={img} style={styles.avImg} contentFit="cover" /> : <View style={styles.avEmojiWrap}><Text style={{ fontSize: 30 }}>{a.emoji}</Text></View>}
@@ -308,6 +315,21 @@ export default function Profile() {
                 );
               })}
             </View>
+            {user.sex !== "female" && (
+              <>
+                <Text style={styles.hairTitle}>FACIAL HAIR</Text>
+                <View style={styles.hairRow}>
+                  {BEARD_OPTIONS.map((b) => {
+                    const on = (user.equipped_beard || "none") === b.id;
+                    return (
+                      <Pressable testID={`beard-${b.id}`} key={b.id} onPress={() => pickBeard(b.id)} style={[styles.beardOpt, on && styles.beardOptOn]}>
+                        <Text style={[styles.beardLabel, on && { color: colors.brandPrimary }]}>{b.id === "beard" ? "🧔 " : "🙂 "}{b.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
             <Pressable onPress={() => setAvatarOpen(false)} style={styles.modalClose}><Text style={{ color: colors.textDim, letterSpacing: 2 }}>CLOSE</Text></Pressable>
           </View>
         </View>
@@ -451,6 +473,9 @@ const styles = StyleSheet.create({
   hairSwatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: "transparent" },
   hairSwatchOn: { borderColor: colors.brandPrimary },
   hairLabel: { color: colors.textDim, fontSize: 9, marginTop: 4, fontWeight: "700", letterSpacing: 0.5 },
+  beardOpt: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginHorizontal: 4 },
+  beardOptOn: { borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.08)" },
+  beardLabel: { color: colors.textMid, fontSize: 12, fontWeight: "800", letterSpacing: 0.5 },
   frameOpt: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.border, marginBottom: spacing.sm, backgroundColor: colors.surface2 },
   frameSwatch: { width: 42, height: 56, borderRadius: radius.sm, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   frameOptName: { color: colors.text, fontWeight: "900", letterSpacing: 1 },

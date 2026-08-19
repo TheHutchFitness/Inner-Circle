@@ -90,6 +90,7 @@ class ProfileUpdate(BaseModel):
     sex: Optional[Literal["male", "female", "other"]] = None
     avatar_id: Optional[str] = None
     equipped_hair: Optional[str] = None
+    equipped_beard: Optional[str] = None
     social_tiktok: Optional[str] = None
     social_instagram: Optional[str] = None
 

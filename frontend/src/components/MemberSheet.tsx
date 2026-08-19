@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, Pressable, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
+import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { colors, spacing, radius, avatarFor, avatarImage, bodyImage, RANK_COLORS, loadoutTitle } from "@/src/lib/theme";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { SocialLinksBar } from "@/src/components/SocialLinks";
@@ -39,7 +40,7 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
                 {m.use_photo && m.photo_media_id ? (
                   <Image source={{ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${m.photo_media_id}?token=${token}` }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                 ) : portrait ? (
-                  <Image source={portrait} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                  <GearedAvatar person={m} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                 ) : (
                   <Text style={styles.emoji}>{avatarFor(m.avatar_id).emoji}</Text>
                 )}
@@ -47,6 +48,9 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
               <Text style={[styles.name, m.founder_backer && { color: colors.warning }]}>{m.display_name}</Text>
               <Text style={[styles.rank, { color: rankColor }]}>{m.rank?.toUpperCase()} · LV {m.level}</Text>
               {!!loadoutTitle(m.loadout) && <Text style={styles.mtitle}>❰ {loadoutTitle(m.loadout)} ❱</Text>}
+              {(m.equipped_skin || m.equipped_weapon) && (
+                <Text style={styles.loadoutLine}>⚔ {[m.equipped_skin ? "SKIN EQUIPPED" : null, m.equipped_weapon ? "WEAPON" : null].filter(Boolean).join(" · ")}</Text>
+              )}
 
               <View style={styles.badges}>
                 {m.is_founder && <View style={styles.bFounder}><Text style={styles.bFounderText}>★ FOUNDING 100{m.founder_number ? ` · #${m.founder_number}` : ""}</Text></View>}
@@ -102,6 +106,7 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: spacing.md },
   rank: { fontSize: 12, letterSpacing: 2, fontWeight: "800", marginTop: 4 },
   mtitle: { color: colors.warning, fontSize: 10, letterSpacing: 3, fontWeight: "800", marginTop: 6 },
+  loadoutLine: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "800", marginTop: 4 },
   badges: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap", justifyContent: "center" },
   bBacker: { backgroundColor: colors.warning, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
   bBackerText: { color: "#221900", fontSize: 10, fontWeight: "900", letterSpacing: 1 },

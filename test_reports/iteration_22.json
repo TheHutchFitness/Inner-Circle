@@ -1,0 +1,44 @@
+{
+  "summary": "Iteration 22 — RIVAL LOADOUT PEEK + SEASONAL BOSS SKIN (Void Overlord) + FACIAL HAIR (Beard). Backend pytest 10/10 passed (test_iter22_rival_peek_season_beard.py -n0). Frontend Playwright (mobile 390x844) end-to-end: (a) SELECT AVATAR modal on profile renders a 'FACIAL HAIR' row with Clean/Beard toggles (testIDs beard-none / beard-beard) for MALE users; tapping Beard swaps ALL 5 avatar thumbnails + the player card portrait to '_beard' image variants (verified 7 av_*_beard.png srcs), tapping Clean reverts (0 beard variants). PATCH /api/profile/update {equipped_beard:'beard'} persists and is returned in /auth/me and /api/users/{id}/public; setting 'none' also persists (equipped_beard='none'). (b) MemberSheet on leaderboard tap opens for Apex Prime (bot10) after equipping skin_arcade+w_bow — portrait renders the equipped SKIN image (skins/skin_arcade.png) and a WEAPON prop (weapons/w_bow.png), and the loadout line '⚔ SKIN EQUIPPED · WEAPON' is present. (c) Journey map (bot1, LV3): tapping a rival dot (testID rival-<uid>) opens the taunt bubble showing a '👁 LOADOUT' button (testID peek-<uid>) — tapping it opens MemberSheet (member-sheet-close visible). (d) GET /api/gear includes source='season' row skin_season1 'Void Overlord' with active=true / unlocked=false / owned=false for bot10 (0 bosses this season) plus quest_label. (e) POST /api/gear/equip-skin skin_season1 is 403 when boss<6 and 200 (grants+equips owned_skins) when boss>=6 in season 2026-S3. (f) gear.quest_loot_for_claim() drops skin_season1 with seasonal:true and grants owned_skins when the boss claim crosses 6 (and does NOT drop at boss=5). (g) Chat feed (GET /api/chat/main/messages) and POST /chat/main/messages both enrich sender with equipped_beard alongside skin/weapon/hair. Cleanup: bot1 + bot10 fully reset ($unset equipped_skin/weapon/hair/beard; owned_skins/weapons=[]); 20 synthetic quest_claims deleted post-test.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/profile/update", "issue": "Pre-existing behaviour: {equipped_beard: null} is silently ignored because the handler filters None (routes/profile.py:20 `if v is not None`). To 'clear' beard the client must send 'none' string. Frontend uses 'none' correctly so this is not user-facing, just an API inconsistency (same as equipped_hair from iter21)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "MemberSheet portraitBacker style", "issue": "Uses deprecated 'shadow*' style props (shadowColor/shadowOpacity/shadowRadius/shadowOffset) — console emits 'shadow* style props are deprecated. Use boxShadow'. Reference: /app/frontend/src/components/MemberSheet.tsx:104. Pre-existing pattern (also seen in PlayerAvatar per iter21)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter22_rival_peek_season_beard.py",
+    "/app/test_reports/pytest/iter22.xml"
+  ],
+  "action_items": [
+    "None blocking. Feature bundle (Rival Peek + Season Skin + Beard) is fully green backend + frontend.",
+    "OPTIONAL: migrate the deprecated `shadow*` style props on MemberSheet.portraitBacker (and PlayerAvatar from iter21) to the modern `boxShadow` prop to silence RN web console warnings.",
+    "OPTIONAL (carried over from iter21): allow PATCH /api/profile/update with explicit null/'' to clear optional str fields (equipped_beard/hair/skin/weapon). Currently 'none' sentinel is required for beard, and unequip via POST /gear/equip-skin {skin_id:null} for gear.",
+    "OPTIONAL: add a unique index on quest_claims(user_id, quest_key) — still absent (flagged in iter21), and now with the seasonal drop granting owned_skins on the crossing claim, a double-submit could re-grant / mis-fire loot on retries."
+  ],
+  "critical_code_review_comments": [
+    "gear.quest_loot_for_claim (routes/gear.py:295-299) grants seasonal owned_skins via $addToSet on the CURRENT user_id — correct. But the loot record has `seasonal:true` while the other quest-skin/weapon loot entries do not have a per-type flag. Consider a consistent 'source' tag (source:'quest'|'season') on each loot entry for easier frontend styling.",
+    "routes/quests.py:253 still does `from gear import quest_loot_for_claim` (bare import), depending on /app/backend/routes being on sys.path. My test file adds the path explicitly. Prefer `from routes.gear import ...` for portability.",
+    "SEASON_SKINS is hard-coded to season '2026-S3' (routes/gear.py:89). Once the season rolls, the row will silently flip to vaulted for non-owners with no admin toggle — consider externalising to config or a DB collection so seasons can be authored without redeploy.",
+    "PATCH /api/profile/update handler filters None values, so equipped_beard='none' is stored as the literal string 'none' rather than as null. Public endpoint returns it as-is. Frontend correctly special-cases 'none' — but any consumer expecting null-or-string must handle the sentinel.",
+    "MemberSheet loadout line displays 'SKIN EQUIPPED · WEAPON' but doesn't show the actual skin/weapon name (only that they are equipped). Not a bug, just noting.",
+    "shared.py still 1775 lines (pre-existing, iter21)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter22_rival_peek_season_beard.py (new — 10 tests, all passing sequentially)"
+  ],
+  "success_rate": {"backend": "100% (10/10 passed with -n0)", "frontend": "100% — beard toggle recolours all 5 thumbnails + player card; MemberSheet renders equipped skin/weapon portrait + loadout line; journey rival dot → taunt bubble → 👁 LOADOUT → MemberSheet all working"},
+  "seed_data_creation": "Synthetic user_ids (__testuser_iter22_boss*, __testuser_iter22_season_*, __testuser_iter22_no_*) inserted+deleted per-test. Bot1 seeded with 6 boss:seed_iter22_* quest_claims to test the equip-grant path; removed on cleanup. Bot10 had equipped_skin=skin_arcade + equipped_weapon=w_bow briefly for the MemberSheet portrait test; both unequipped + owned_skins/weapons reset. All 20 synthetic quest_claims deleted at teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Regression file: /app/backend/tests/test_iter22_rival_peek_season_beard.py. RUN WITH -n0 (motor connection cache confuses xdist workers on shared bots — same guidance as iter21). Frontend testIDs verified: beard-none / beard-beard (facial-hair row, MALE only), peek-<uid> (journey rival taunt bubble), rival-<uid> (journey rival dot), member-sheet-close. To repro the peek flow: login bot1 (many rivals above) → /journey → tap first rival dot → LOADOUT button appears in taunt bubble. Season 2026-S3 is hardcoded — the active season assertions will need updating when calendar rolls. gear.quest_loot_for_claim depends on quests.py doing `from gear import ...` which only resolves when routes/ is on sys.path — my tests bootstrap this at module top.",
+  "rca_of_issue": "N/A — no product bugs found. Test-scaffolding note: motor's AsyncIOMotorClient caches its IO loop internally, so alternating between `asyncio.new_event_loop()` calls per-test caused 'attached to a different loop' / 'Event loop is closed' errors on the second seeded test. Fix in the test file: use a single module-level `_SHARED_LOOP = asyncio.new_event_loop(); asyncio.set_event_loop(_SHARED_LOOP)` and route all async helpers through `_run(coro)` on that shared loop. Also, the season-skin grant helper assumes the user document exists (it uses $addToSet, not upsert), so for the isolated loot-helper test we seed a stub user doc first. Both changes are test-only, no product code touched."
+}

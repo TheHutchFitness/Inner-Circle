@@ -136,10 +136,44 @@ export function defaultHair(id?: string) {
   return DEFAULT_HAIR[id || ""] || "black";
 }
 
-export function avatarImage(id?: string, sex?: string, hair?: string) {
+// Male beard variants keyed by `${race}_${hair}` (facial hair for male avatars)
+export const AVATAR_BEARD_IMAGES: Record<string, any> = {
+  white_black: require("@/assets/images/av_white_black_beard.png"),
+  white_brown: require("@/assets/images/av_white_brown_beard.png"),
+  white_blonde: require("@/assets/images/av_white_blonde_beard.png"),
+  white_red: require("@/assets/images/av_white_red_beard.png"),
+  white_white: require("@/assets/images/av_white_white_beard.png"),
+  black_black: require("@/assets/images/av_black_black_beard.png"),
+  black_brown: require("@/assets/images/av_black_brown_beard.png"),
+  black_blonde: require("@/assets/images/av_black_blonde_beard.png"),
+  black_red: require("@/assets/images/av_black_red_beard.png"),
+  black_white: require("@/assets/images/av_black_white_beard.png"),
+  asian_black: require("@/assets/images/av_asian_black_beard.png"),
+  asian_brown: require("@/assets/images/av_asian_brown_beard.png"),
+  asian_blonde: require("@/assets/images/av_asian_blonde_beard.png"),
+  asian_red: require("@/assets/images/av_asian_red_beard.png"),
+  asian_white: require("@/assets/images/av_asian_white_beard.png"),
+  native_black: require("@/assets/images/av_native_black_beard.png"),
+  native_brown: require("@/assets/images/av_native_brown_beard.png"),
+  native_blonde: require("@/assets/images/av_native_blonde_beard.png"),
+  native_red: require("@/assets/images/av_native_red_beard.png"),
+  native_white: require("@/assets/images/av_native_white_beard.png"),
+  indian_black: require("@/assets/images/av_indian_black_beard.png"),
+  indian_brown: require("@/assets/images/av_indian_brown_beard.png"),
+  indian_blonde: require("@/assets/images/av_indian_blonde_beard.png"),
+  indian_red: require("@/assets/images/av_indian_red_beard.png"),
+  indian_white: require("@/assets/images/av_indian_white_beard.png"),
+};
+export const BEARD_OPTIONS: { id: string; label: string }[] = [
+  { id: "none", label: "Clean" },
+  { id: "beard", label: "Beard" },
+];
+
+export function avatarImage(id?: string, sex?: string, hair?: string, beard?: string) {
   const race = (id || "avatar_white").replace("avatar_", "");
   const h = hair || defaultHair(id);
   const key = `${race}_${h}`;
+  if (sex !== "female" && beard === "beard" && AVATAR_BEARD_IMAGES[key]) return AVATAR_BEARD_IMAGES[key];
   const map = sex === "female" ? AVATAR_IMAGES_F : AVATAR_IMAGES;
   return map[key] || map[`${race}_${defaultHair(id)}`] || AVATAR_IMAGES[key] || null;
 }
@@ -171,6 +205,7 @@ export const SKIN_IMAGES: Record<string, any> = {
   skin_flame: require("@/assets/images/skins/skin_flame.png"),
   skin_frost: require("@/assets/images/skins/skin_frost.png"),
   skin_celestial: require("@/assets/images/skins/skin_celestial.png"),
+  skin_season1: require("@/assets/images/skins/skin_season1.png"),
 };
 
 // ---- Equippable WEAPONS (rendered as a prop beside the avatar) ----
@@ -195,9 +230,9 @@ export function weaponImage(id?: string) {
   return WEAPON_IMAGES[id || ""] || null;
 }
 // Resolve the body image for a person: equipped full-body skin overrides the base avatar.
-export function bodyImage(person?: { equipped_skin?: string; avatar_id?: string; sex?: string; equipped_hair?: string } | null) {
+export function bodyImage(person?: { equipped_skin?: string; avatar_id?: string; sex?: string; equipped_hair?: string; equipped_beard?: string } | null) {
   if (person?.equipped_skin && SKIN_IMAGES[person.equipped_skin]) return SKIN_IMAGES[person.equipped_skin];
-  return avatarImage(person?.avatar_id, person?.sex, person?.equipped_hair);
+  return avatarImage(person?.avatar_id, person?.sex, person?.equipped_hair, person?.equipped_beard);
 }
 
 // ---- Unified RARITY tiers (how rare / hard to get) ----
