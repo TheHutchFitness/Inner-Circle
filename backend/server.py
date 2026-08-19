@@ -22,6 +22,7 @@ from routes import (  # noqa: F401
     presets,
     profile,
     programs,
+    push,
     quests,
     store,
     verify,

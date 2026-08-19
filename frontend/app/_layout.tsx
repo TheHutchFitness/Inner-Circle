@@ -13,6 +13,7 @@ import { initializeRevenueCat, SubscriptionProvider, useRCIdentityBinder } from 
 import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
 import { HeroIntro } from "@/src/components/HeroIntro";
 import { AppModeIntro } from "@/src/components/AppModeIntro";
+import { PushManager } from "@/src/lib/push";
 import { isEnhancedPalette, applyEnhancedPalette, colors } from "@/src/lib/theme";
 import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
 
@@ -99,6 +100,7 @@ export default function RootLayout() {
               <EnhancedSync />
               <IntroGate />
               <ModeGate />
+              <PushManager />
               </UnitsProvider>
             </RCIdentity>
           </SubscriptionProvider>

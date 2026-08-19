@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing } from "react-native-reanimated";
 import { Image } from "expo-image";
+import { Calendar } from "react-native-calendars";
 import Svg, { Polyline, Circle, Line as SvgLine } from "react-native-svg";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
@@ -15,6 +16,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
+import { BookingModal } from "@/src/components/BookingModal";
 import { setPendingWorkoutExact } from "@/src/lib/pendingWorkout";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -125,6 +127,8 @@ export default function InPersonRoom() {
   const [attOpen, setAttOpen] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
@@ -146,9 +150,20 @@ export default function InPersonRoom() {
     try {
       const t = await apiFetch(token, `/api/inperson/thread/${cid}`);
       setThread(t);
+      try {
+        const q = isAdmin ? `?client_id=${cid}` : "";
+        setBookings((await apiFetch(token, `/api/inperson/bookings${q}`)).bookings || []);
+      } catch {}
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
     } catch (e: any) { setErr(e.message); }
-  }, [token]);
+  }, [token, isAdmin]);
+
+  const decideBooking = async (id: string, action: "approve" | "decline") => {
+    try {
+      await apiFetch(token, `/api/inperson/booking/${id}/${action}`, { method: "POST" });
+      if (selected) await loadThread(selected);
+    } catch (e: any) { setErr(e.message); }
+  };
 
   useEffect(() => {
     (async () => {
@@ -403,6 +418,50 @@ export default function InPersonRoom() {
               </View>
             </View>
           )}
+          {/* SESSIONS — booking calendar + requests */}
+          <View style={styles.sessionsBox}>
+            <Text style={styles.photoLabel}>📅 SESSIONS</Text>
+            <Calendar
+              testID="ip-sessions-calendar"
+              markedDates={bookings.filter((b) => b.status === "approved").reduce((acc: any, b: any) => { acc[b.date] = { marked: true, selected: true, selectedColor: colors.success }; return acc; }, {})}
+              theme={{
+                calendarBackground: colors.surface2, dayTextColor: colors.text, monthTextColor: colors.text,
+                textSectionTitleColor: colors.textDim, todayTextColor: colors.brandPrimary,
+                selectedDayBackgroundColor: colors.success, selectedDayTextColor: "#001a10",
+                arrowColor: colors.brandPrimary, textDisabledColor: colors.textDim,
+              }}
+              style={styles.sessionsCal}
+            />
+            {!isAdmin && (
+              <Pressable testID="ip-request-session" onPress={() => setBookingOpen(true)} style={styles.sessionReqBtn}>
+                <Text style={styles.sessionReqText}>📅 REQUEST A SESSION</Text>
+              </Pressable>
+            )}
+            {isAdmin && bookings.filter((b) => b.status === "pending").length > 0 && (
+              <View style={{ marginTop: spacing.sm }}>
+                <Text style={styles.pendingLabel}>PENDING REQUESTS</Text>
+                {bookings.filter((b) => b.status === "pending").map((b) => (
+                  <View key={b.id} style={styles.pendingRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pendingDate}>{b.date} · {b.time}</Text>
+                      {!!b.note && <Text style={styles.pendingNote} numberOfLines={1}>{b.note}</Text>}
+                    </View>
+                    <Pressable testID={`ip-approve-${b.id}`} onPress={() => decideBooking(b.id, "approve")} style={styles.apprBtn}><Text style={styles.apprText}>APPROVE</Text></Pressable>
+                    <Pressable testID={`ip-decline-${b.id}`} onPress={() => decideBooking(b.id, "decline")} style={styles.declBtn}><Text style={styles.declText}>✕</Text></Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+            {bookings.filter((b) => b.status === "approved").length > 0 && (
+              <View style={{ marginTop: spacing.sm }}>
+                {bookings.filter((b) => b.status === "approved").map((b) => (
+                  <View key={b.id} style={styles.apprvRow}>
+                    <Text style={styles.apprvText}>✓ CONFIRMED · {b.date} at {b.time}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
           {/* Next session + coaching context */}
           {(!!nextSession || isAdmin || (thread.checkin_streak || 0) > 0 || (thread.checkin_photos?.length || 0) > 0 || (thread.metrics_timeline?.length || 0) > 0) && (
             <View style={styles.topPanel}>
@@ -665,6 +724,9 @@ export default function InPersonRoom() {
           onAssign={(name, planText, note, saveTpl) => assignPayload({ name, plan_text: planText, note, save_as_template: saveTpl })}
         />
       )}
+      {!isAdmin && (
+        <BookingModal visible={bookingOpen} onClose={() => setBookingOpen(false)} onBooked={() => selected && loadThread(selected)} />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -873,6 +935,20 @@ const styles = StyleSheet.create({
   notesBtnText: { color: colors.warning, fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
   photoStrip: { marginTop: spacing.sm },
   photoLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginBottom: 6 },
+  sessionsBox: { marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
+  sessionsCal: { borderRadius: radius.sm, overflow: "hidden" },
+  sessionReqBtn: { marginTop: spacing.md, backgroundColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 12, alignItems: "center" },
+  sessionReqText: { color: "#001122", fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  pendingLabel: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginBottom: 6 },
+  pendingRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 8, paddingHorizontal: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.08)", marginBottom: spacing.sm },
+  pendingDate: { color: colors.text, fontWeight: "800", fontSize: 13 },
+  pendingNote: { color: colors.textDim, fontSize: 11, marginTop: 1 },
+  apprBtn: { backgroundColor: colors.success, borderRadius: radius.sm, paddingVertical: 7, paddingHorizontal: 10 },
+  apprText: { color: "#001a10", fontWeight: "900", fontSize: 10, letterSpacing: 1 },
+  declBtn: { borderWidth: 1, borderColor: colors.error, borderRadius: radius.sm, paddingVertical: 7, paddingHorizontal: 10 },
+  declText: { color: colors.error, fontWeight: "900", fontSize: 12 },
+  apprvRow: { paddingVertical: 7, paddingHorizontal: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.06)", marginBottom: 6 },
+  apprvText: { color: colors.success, fontWeight: "800", fontSize: 12, letterSpacing: 0.5 },
   photoItem: { marginRight: 8, alignItems: "center" },
   photoThumb: { width: 88, height: 110, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
   photoDate: { color: colors.textDim, fontSize: 9, marginTop: 3, fontWeight: "700" },

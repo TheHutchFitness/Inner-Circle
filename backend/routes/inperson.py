@@ -575,3 +575,121 @@ async def inperson_unread(user=Depends(get_current_user)):
             {"client_id": user["user_id"], "sender_role": "admin", "read_by_client": {"$ne": True}})
         return {"unread": n, "role": "client"}
     return {"unread": 0, "role": "none"}
+
+
+# ---------- Session bookings (client requests a date/time, coach approves) ----------
+def _booking_public(b: dict) -> dict:
+    return {
+        "id": b["id"],
+        "client_id": b["client_id"],
+        "client_name": b.get("client_name", "Athlete"),
+        "coach_id": b.get("coach_id"),
+        "date": b.get("date"),
+        "time": b.get("time"),
+        "note": b.get("note", ""),
+        "status": b.get("status", "pending"),
+        "created_at": b["created_at"].isoformat() if hasattr(b.get("created_at"), "isoformat") else b.get("created_at"),
+    }
+
+
+def _compute_appt_at(date: str, time: str, tz_offset_minutes: int) -> datetime:
+    """Build the appointment instant in UTC from a local date/time + the client's
+    JS getTimezoneOffset() (minutes to ADD to local to reach UTC)."""
+    y, m, d = [int(x) for x in date.split("-")]
+    hh, mm = [int(x) for x in time.split(":")]
+    local = datetime(y, m, d, hh, mm)
+    return (local + timedelta(minutes=int(tz_offset_minutes or 0))).replace(tzinfo=timezone.utc)
+
+
+@api_router.post("/inperson/booking/request")
+async def inperson_booking_request(inp: SessionRequestIn, user=Depends(get_current_user)):
+    """An approved in-person client requests a session at a chosen date + time."""
+    if not user.get("inperson_client"):
+        raise HTTPException(status_code=403, detail="Only in-person clients can request sessions")
+    date = (inp.date or "").strip()[:10]
+    time = (inp.time or "").strip()[:5]
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        raise HTTPException(status_code=400, detail="Pick a valid date")
+    if not re.match(r"^\d{2}:\d{2}$", time):
+        raise HTTPException(status_code=400, detail="Pick a time slot")
+    try:
+        appt_at = _compute_appt_at(date, time, inp.tz_offset_minutes)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date or time")
+    cid = user["user_id"]
+    now = datetime.now(timezone.utc)
+    doc = {
+        "id": new_id("ipbk"), "client_id": cid, "client_name": user.get("display_name", "Athlete"),
+        "coach_id": None, "date": date, "time": time, "appt_at": appt_at,
+        "note": (inp.note or "").strip()[:200], "status": "pending",
+        "reminder_24_sent": False, "reminder_1_sent": False, "created_at": now,
+    }
+    await db.inperson_bookings.insert_one(doc)
+    await db.inperson_messages.insert_one({
+        "id": new_id("ipm"), "client_id": cid, "sender_id": cid, "sender_role": "client",
+        "kind": "booking", "text": f"📅 Requested a session · {date} at {time}" + (f" · {doc['note']}" if doc['note'] else ""),
+        "booking_id": doc["id"], "created_at": now, "read_by_admin": False, "read_by_client": True,
+    })
+    return _booking_public(doc)
+
+
+@api_router.get("/inperson/bookings")
+async def inperson_bookings(client_id: Optional[str] = None, user=Depends(get_current_user)):
+    """Admin: all bookings (optionally for one client). Client: their own."""
+    if _is_admin(user):
+        query: dict = {}
+        if client_id:
+            query["client_id"] = client_id
+    else:
+        query = {"client_id": user["user_id"]}
+    rows = await db.inperson_bookings.find(query, {"_id": 0}).sort("appt_at", 1).to_list(500)
+    return {"bookings": [_booking_public(b) for b in rows]}
+
+
+async def _set_booking_status(booking_id: str, status: str, user, system_text: str):
+    b = await db.inperson_bookings.find_one({"id": booking_id})
+    if not b:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    updates = {"status": status}
+    if status == "approved":
+        updates["coach_id"] = user["user_id"]
+        updates["approved_at"] = datetime.now(timezone.utc)
+        await db.users.update_one({"user_id": b["client_id"]}, {"$set": {"inperson_next_session": f"{b['date']} at {b['time']}"}})
+    await db.inperson_bookings.update_one({"id": booking_id}, {"$set": updates})
+    await db.inperson_messages.insert_one({
+        "id": new_id("ipm"), "client_id": b["client_id"], "sender_id": user["user_id"], "sender_role": "admin",
+        "kind": "system", "text": system_text, "booking_id": booking_id,
+        "created_at": datetime.now(timezone.utc), "read_by_admin": True, "read_by_client": False,
+    })
+    fresh = await db.inperson_bookings.find_one({"id": booking_id}, {"_id": 0})
+    return _booking_public(fresh)
+
+
+@api_router.post("/inperson/booking/{booking_id}/approve")
+async def inperson_booking_approve(booking_id: str, user=Depends(get_current_user)):
+    _require_admin_ip(user)
+    b = await db.inperson_bookings.find_one({"id": booking_id})
+    if not b:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return await _set_booking_status(booking_id, "approved", user, f"✅ Session confirmed · {b['date']} at {b['time']}")
+
+
+@api_router.post("/inperson/booking/{booking_id}/decline")
+async def inperson_booking_decline(booking_id: str, user=Depends(get_current_user)):
+    _require_admin_ip(user)
+    b = await db.inperson_bookings.find_one({"id": booking_id})
+    if not b:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return await _set_booking_status(booking_id, "declined", user, f"❌ Session request declined · {b['date']} at {b['time']}")
+
+
+@api_router.post("/inperson/booking/{booking_id}/cancel")
+async def inperson_booking_cancel(booking_id: str, user=Depends(get_current_user)):
+    b = await db.inperson_bookings.find_one({"id": booking_id})
+    if not b:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if not (_is_admin(user) or b["client_id"] == user["user_id"]):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    who = "Coach" if _is_admin(user) else "Client"
+    return await _set_booking_status(booking_id, "cancelled", user, f"🚫 Session cancelled by {who} · {b['date']} at {b['time']}")
+

@@ -22,6 +22,7 @@ import { PetCompanion } from "@/src/components/PetCompanion";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { GymWatermark } from "@/src/components/GymWatermark";
+import { BookingModal } from "@/src/components/BookingModal";
 import { isLite } from "@/src/lib/mode";
 
 const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"], ["OHP", "ohp"]];
@@ -42,6 +43,8 @@ export default function Profile() {
   const [gymInput, setGymInput] = useState<string>("");
   const [gyms, setGyms] = useState<string[]>([]);
   const [gymEditing, setGymEditing] = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookings, setBookings] = useState<any[]>([]);
   const cardRef = useRef<View>(null);
 
   const shimmer = useSharedValue(0);
@@ -55,6 +58,11 @@ export default function Profile() {
       try { setGyms((await apiFetch(token, "/api/gyms")).gyms || []); } catch {}
     })();
   }, [token, user?.xp]);
+
+  const loadBookings = async () => {
+    try { setBookings((await apiFetch(token, "/api/inperson/bookings")).bookings || []); } catch {}
+  };
+  useEffect(() => { if (user?.inperson_client) loadBookings(); }, [token, user?.inperson_client]);
 
   if (!user) return null;
   const av = avatarFor(user.avatar_id);
@@ -382,6 +390,26 @@ export default function Profile() {
             <Text style={styles.ipRequestText}>🏋 REQUEST IN-PERSON COACHING</Text>
           </Pressable>
         )}
+
+        {user.inperson_client && (
+          <>
+            <Pressable testID="profile-request-session" onPress={() => setBookingOpen(true)} style={styles.sessionBtn}>
+              <Text style={styles.sessionBtnText}>📅 REQUEST A TRAINING SESSION</Text>
+            </Pressable>
+            {bookings.filter((b) => b.status === "approved" || b.status === "pending").length > 0 && (
+              <View style={styles.bookingList}>
+                {bookings.filter((b) => b.status === "approved" || b.status === "pending").slice(0, 5).map((b) => (
+                  <View key={b.id} style={styles.bookingRow}>
+                    <Text style={styles.bookingDate}>{b.date} · {b.time}</Text>
+                    <View style={[styles.bookingPill, b.status === "approved" ? styles.bookingApproved : styles.bookingPending]}>
+                      <Text style={[styles.bookingPillText, { color: b.status === "approved" ? colors.success : colors.warning }]}>{b.status === "approved" ? "✓ CONFIRMED" : "PENDING"}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
       </View>
 
       {!lite && (
@@ -482,6 +510,7 @@ export default function Profile() {
         </View>
       </Modal>
     </ScrollView>
+    <BookingModal visible={bookingOpen} onClose={() => setBookingOpen(false)} onBooked={loadBookings} />
     </View>
     </SwipeTabs>
   );
@@ -631,4 +660,13 @@ const styles = StyleSheet.create({
   ipRequestBtn: { marginTop: spacing.md, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 12, alignItems: "center" },
   ipRequestDisabled: { opacity: 0.45 },
   ipRequestText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  sessionBtn: { marginTop: spacing.md, backgroundColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 12, alignItems: "center" },
+  sessionBtnText: { color: "#001122", fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  bookingList: { marginTop: spacing.md, gap: spacing.sm },
+  bookingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
+  bookingDate: { color: colors.text, fontWeight: "800", fontSize: 13 },
+  bookingPill: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1 },
+  bookingApproved: { borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.08)" },
+  bookingPending: { borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.08)" },
+  bookingPillText: { fontWeight: "900", fontSize: 9, letterSpacing: 1 },
 });

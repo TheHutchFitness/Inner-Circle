@@ -165,6 +165,12 @@ class SkoolVerifyIn(BaseModel):
 class SubscriptionSet(BaseModel):
     is_premium: bool
 
+class SessionRequestIn(BaseModel):
+    date: str
+    time: str
+    note: Optional[str] = ""
+    tz_offset_minutes: Optional[int] = 0
+
 class BackgroundSet(BaseModel):
     background_id: str
 
@@ -1808,9 +1814,89 @@ async def seed():
     logger.info("Seeded DB")
 
 
+# ---------- Emergent Managed Push Notifications ----------
+PUSH_BASE_URL = "https://integrations.emergentagent.com"  # constant, never from env
+PUSH_KEY = os.environ.get("EMERGENT_PUSH_KEY", "placeholder")
+_push_client = httpx.AsyncClient(base_url=PUSH_BASE_URL, headers={"X-Push-Key": PUSH_KEY}, timeout=10.0)
+
+
+async def send_push(recipients: list, data: dict, idempotency_key: Optional[str] = None) -> None:
+    """Relay a push to specific user_ids via the Emergent managed push service.
+    Never blocks the caller — wrap calls in try/except."""
+    recipients = [r for r in (recipients or []) if r]
+    if not recipients:
+        return
+    if "title" not in data or "message" not in data:
+        raise ValueError("data must include title and message")
+    payload: dict = {"recipients": recipients[:100], "data": data}
+    if idempotency_key:
+        payload["$idempotency_key"] = idempotency_key
+    resp = await _push_client.post("/api/v1/push/trigger", json=payload)
+    resp.raise_for_status()
+
+
+# ---------- In-Person booking reminders (24h + 1h before appointment) ----------
+async def _send_booking_reminder(bk: dict, kind: str):
+    """kind: '24' or '1'. Notifies the client and coach; marks the flag sent."""
+    cid = bk.get("client_id")
+    coach_id = bk.get("coach_id")
+    client = await db.users.find_one({"user_id": cid}, {"_id": 0, "display_name": 1})
+    when = f"{bk.get('date')} {bk.get('time')}"
+    lead = "in 24 hours" if kind == "24" else "in 1 hour"
+    try:
+        await send_push(
+            recipients=[cid],
+            data={"title": "Training session reminder",
+                  "message": f"Your in-person session with Coach is {lead} ({when}).",
+                  "action_url": "/inperson"},
+            idempotency_key=f"{bk['id']}:client:{kind}",
+        )
+    except Exception as e:
+        logger.warning(f"client reminder push failed (non-blocking): {e}")
+    if coach_id:
+        try:
+            await send_push(
+                recipients=[coach_id],
+                data={"title": "Coaching session reminder",
+                      "message": f"Session with {(client or {}).get('display_name', 'your client')} is {lead} ({when}).",
+                      "action_url": "/inperson"},
+                idempotency_key=f"{bk['id']}:coach:{kind}",
+            )
+        except Exception as e:
+            logger.warning(f"coach reminder push failed (non-blocking): {e}")
+    await db.inperson_bookings.update_one({"id": bk["id"]}, {"$set": {f"reminder_{kind}_sent": True}})
+
+
+async def _booking_reminder_loop():
+    """Every 60s: fire 24h/1h reminders for approved, upcoming bookings."""
+    import asyncio
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+            cursor = db.inperson_bookings.find({"status": "approved"})
+            async for bk in cursor:
+                appt = bk.get("appt_at")
+                if not isinstance(appt, datetime):
+                    continue
+                if appt.tzinfo is None:
+                    appt = appt.replace(tzinfo=timezone.utc)
+                if appt < now:
+                    continue
+                secs = (appt - now).total_seconds()
+                if secs <= 24 * 3600 and not bk.get("reminder_24_sent"):
+                    await _send_booking_reminder(bk, "24")
+                if secs <= 3600 and not bk.get("reminder_1_sent"):
+                    await _send_booking_reminder(bk, "1")
+        except Exception as e:
+            logger.warning(f"booking reminder loop error: {e}")
+        await asyncio.sleep(60)
+
+
 @app.on_event("startup")
 async def on_start():
     await seed()
+    import asyncio
+    asyncio.create_task(_booking_reminder_loop())
 
 
 

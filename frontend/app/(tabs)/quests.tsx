@@ -10,6 +10,7 @@ import { colors, spacing, radius, bgImage, skinImage, weaponImage, rarityColor, 
 import { HudSectionHeader } from "@/src/components/Hud";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { GymWatermark } from "@/src/components/GymWatermark";
+import { isLite } from "@/src/lib/mode";
 
 function BossReveal({ data, onClose }: { data: { label: string; title: string; loot?: any[] }; onClose: () => void }) {
   const scale = useSharedValue(0.4);
@@ -83,6 +84,7 @@ const GOAL_CHIPS = ["Lose weight", "Build muscle", "Compete in a powerlifting me
 export default function Quests() {
   const insets = useSafeAreaInsets();
   const { token, user, refresh } = useAuth();
+  const lite = isLite(user);
   const [scope, setScope] = useState("daily");
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState(true);
@@ -160,6 +162,7 @@ export default function Quests() {
         <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.xl, padding: spacing.lg, paddingBottom: 120 }}>
           <Text style={styles.eyebrow}>▚ COACH INTAKE //</Text>
           <Text style={styles.h1}>WHAT ARE YOU CHASING?</Text>
+          {!lite && (
           <Pressable testID="open-journey" onPress={() => router.push("/journey")} style={styles.journeyBtn}>
             <Text style={styles.journeyIcon}>⚔</Text>
             <View style={{ flex: 1 }}>
@@ -168,6 +171,7 @@ export default function Quests() {
             </View>
             <Text style={styles.journeyArrow}>▶</Text>
           </Pressable>
+          )}
           <Text style={styles.intakeSub}>
             Tell Coach Hutch your current goals — real life, not just gym numbers. He&apos;ll forge specific quests to get you there. Think &quot;lose 5 lb&quot;, &quot;sign up for a powerlifting meet&quot;, &quot;deadlift 500&quot;.
           </Text>
@@ -248,6 +252,7 @@ export default function Quests() {
           </View>
         )}
 
+        {!lite && (
         <Pressable testID="open-journey" onPress={() => router.push("/journey")} style={styles.journeyBtn}>
           <Text style={styles.journeyIcon}>⚔</Text>
           <View style={{ flex: 1 }}>
@@ -256,6 +261,7 @@ export default function Quests() {
           </View>
           <Text style={styles.journeyArrow}>▶</Text>
         </Pressable>
+        )}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {SCOPES.map((s) => (
