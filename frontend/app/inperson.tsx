@@ -36,6 +36,7 @@ export default function InPersonRoom() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [notesInput, setNotesInput] = useState("");
   const [goalInput, setGoalInput] = useState("");
+  const [goalPct, setGoalPct] = useState(0);
   const [nudgeMsg, setNudgeMsg] = useState<string | null>(null);
   const [attOpen, setAttOpen] = useState(false);
   const [showLog, setShowLog] = useState(false);
@@ -175,6 +176,14 @@ export default function InPersonRoom() {
   useEffect(() => { setSchedInput(nextSession); }, [nextSession, selected]);
   useEffect(() => { setNotesInput(thread?.coach_notes || ""); }, [thread?.coach_notes, selected]);
   useEffect(() => { setGoalInput(thread?.goal || ""); }, [thread?.goal, selected]);
+  useEffect(() => { setGoalPct(thread?.goal_progress || 0); }, [thread?.goal_progress, selected]);
+
+  const saveGoalProgress = async (pct: number) => {
+    if (!selected) return;
+    const v = Math.max(0, Math.min(100, pct));
+    setGoalPct(v);
+    try { await apiFetch(token, `/api/inperson/thread/${selected}/notes`, { method: "POST", body: JSON.stringify({ goal_progress: v }) }); } catch (e: any) { setErr(e.message); }
+  };
 
   const saveSchedule = async () => {
     if (!selected) return;
@@ -254,6 +263,7 @@ export default function InPersonRoom() {
                   </Text>
                   <View style={styles.clientMetaRow}>
                     <Text style={styles.monthChip}>📅 {c.sessions_this_month || 0} this month</Text>
+                    {(c.checkin_streak || 0) > 0 && <Text style={styles.streakMini}>🔥 {c.checkin_streak}w</Text>}
                     {c.checkin_due && <Text style={styles.dueChip}>⚠ CHECK-IN DUE</Text>}
                   </View>
                 </View>
@@ -289,11 +299,20 @@ export default function InPersonRoom() {
           {!!thread.goal && (
             <View style={styles.goalBanner}>
               <Text style={styles.goalBannerText} numberOfLines={2}>🎯 GOAL · {thread.goal}</Text>
+              <View style={styles.goalBarTrack}><View style={[styles.goalBarFill, { width: `${goalPct}%` }]} /></View>
+              <View style={styles.goalPctRow}>
+                {isAdmin && <Pressable testID="goal-minus" onPress={() => saveGoalProgress(goalPct - 5)} hitSlop={8} style={styles.goalStep}><Text style={styles.goalStepText}>−</Text></Pressable>}
+                <Text style={styles.goalPctText}>{goalPct}% there</Text>
+                {isAdmin && <Pressable testID="goal-plus" onPress={() => saveGoalProgress(goalPct + 5)} hitSlop={8} style={styles.goalStep}><Text style={styles.goalStepText}>+</Text></Pressable>}
+              </View>
             </View>
           )}
           {/* Next session + coaching context */}
-          {(!!nextSession || isAdmin || (thread.checkin_photos?.length || 0) > 0 || (thread.metrics_timeline?.length || 0) > 0) && (
+          {(!!nextSession || isAdmin || (thread.checkin_streak || 0) > 0 || (thread.checkin_photos?.length || 0) > 0 || (thread.metrics_timeline?.length || 0) > 0) && (
             <View style={styles.topPanel}>
+              {(thread.checkin_streak || 0) > 0 && (
+                <View style={styles.streakChip}><Text style={styles.streakText}>🔥 {thread.checkin_streak} WEEK CHECK-IN STREAK</Text></View>
+              )}
               {isAdmin ? (
                 <View style={styles.schedRow}>
                   <Text style={styles.schedIcon}>📅</Text>
@@ -674,6 +693,15 @@ const styles = StyleSheet.create({
   nudgeMsg: { color: colors.success, textAlign: "center", fontWeight: "800", marginBottom: spacing.sm },
   goalBanner: { marginHorizontal: spacing.lg, marginTop: spacing.sm, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.10)" },
   goalBannerText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 13, letterSpacing: 0.3 },
+  goalBarTrack: { height: 8, borderRadius: 4, backgroundColor: colors.surface3, marginTop: 8, overflow: "hidden" },
+  goalBarFill: { height: 8, borderRadius: 4, backgroundColor: colors.brandPrimary },
+  goalPctRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md, marginTop: 6 },
+  goalStep: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: colors.brandPrimary, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface2 },
+  goalStepText: { color: colors.brandPrimary, fontSize: 20, fontWeight: "900", marginTop: -2 },
+  goalPctText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 12, minWidth: 70, textAlign: "center" },
+  streakChip: { alignSelf: "flex-start", flexDirection: "row", paddingVertical: 5, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: "#FF7A1A", backgroundColor: "rgba(255,122,26,0.10)", marginBottom: spacing.sm },
+  streakText: { color: "#FF9A4A", fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
+  streakMini: { color: "#FF9A4A", fontSize: 10, fontWeight: "900" },
   goalInput: { color: colors.brandPrimary, backgroundColor: colors.surface, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: 8, marginTop: 6, fontSize: 13, fontWeight: "700" },
   metricsBox: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
   metricsRowLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: 6 },

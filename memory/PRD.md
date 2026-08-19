@@ -410,3 +410,8 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - BODY METRICS: check-in now accepts metrics {weight, waist, arms} (sanitized via _clean_metrics), stored on the checkin message. Thread returns metrics_timeline (chronological). CheckinModal gained 3 optional numeric inputs (lb / waist" / arms"). Admin+client see a "📈 BODY METRICS" panel listing each entry date + weight (with Δ vs previous) + waist/arms. Verified (212.5→210 shows -2.5).
 - GOALS DASHBOARD: new user field inperson_goal (set alongside coach notes via /notes endpoint, accepts goal). Thread returns goal to BOTH roles. inperson.tsx pins a cyan "🎯 GOAL · <goal>" banner at the very top of the room (client sees it too as motivation); admin edits it via a dedicated goal input in the Coach Notes card. Verified.
 - Test data cleaned (launch DB clean).
+
+## Implemented (2026-06 — In-Person: Goal Progress + Check-In Streak)
+- GOAL PROGRESS: user field inperson_goal_progress (0-100, set via /notes endpoint accepting goal_progress). Thread returns goal_progress (both roles). inperson.tsx goal banner now shows a cyan progress bar + "N% there"; admin has −/+ (5%) nudge buttons that instantly save. Verified (40→45% persists).
+- CHECK-IN STREAK: helper _checkin_streak counts consecutive ISO weeks with ≥1 check-in (alive if checked in this or last week). Thread + clients list return checkin_streak. inperson.tsx shows an orange "🔥 N WEEK CHECK-IN STREAK" chip in the room (both roles) and a "🔥 Nw" mini-badge on admin client rows. Verified (3-week streak).
+- Test data cleaned (launch DB clean).

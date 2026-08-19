@@ -105,6 +105,7 @@ async def inperson_clients(user=Depends(get_current_user)):
         brief["last_message"] = (_msg_public(last[0]) if last else None)
         brief["unread"] = unread
         brief["checkin_due"] = await _checkin_due(cid)
+        brief["checkin_streak"] = await _checkin_streak(cid)
         brief["sessions_this_month"] = await _sessions_this_month(cid)
         out.append(brief)
     # Most recent activity first, then float overdue check-ins to the very top
@@ -132,6 +133,40 @@ async def _sessions_this_month(cid: str) -> int:
     now = datetime.now(timezone.utc)
     start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
     return await db.inperson_attendance.count_documents({"client_id": cid, "date": {"$gte": start}})
+
+
+async def _checkin_streak(cid: str) -> int:
+    """Consecutive ISO-week streak of weekly check-ins (alive this or last week)."""
+    rows = await db.inperson_messages.find({"client_id": cid, "kind": "checkin"}, {"_id": 0, "created_at": 1}).to_list(500)
+    weekset = set()
+    for r in rows:
+        d = r.get("created_at")
+        if not d:
+            continue
+        if getattr(d, "tzinfo", None) is None:
+            d = d.replace(tzinfo=timezone.utc)
+        c = d.isocalendar()
+        weekset.add((c[0], c[1]))
+    if not weekset:
+        return 0
+    now = datetime.now(timezone.utc)
+
+    def wk(dt):
+        c = dt.isocalendar()
+        return (c[0], c[1])
+    anchor = now
+    if wk(now) in weekset:
+        anchor = now
+    elif wk(now - timedelta(weeks=1)) in weekset:
+        anchor = now - timedelta(weeks=1)
+    else:
+        return 0
+    streak = 0
+    cur = anchor
+    while wk(cur) in weekset:
+        streak += 1
+        cur = cur - timedelta(weeks=1)
+    return streak
 
 
 def _clean_metrics(m) -> dict:
@@ -183,7 +218,7 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         {"date": m["created_at"].isoformat() if hasattr(m.get("created_at"), "isoformat") else m.get("created_at"), **(m.get("metrics") or {})}
         for m in msgs if m.get("kind") == "checkin" and m.get("metrics")
     ]
-    cdoc = await db.users.find_one({"user_id": cid}, {"_id": 0, "inperson_notes": 1, "inperson_goal": 1})
+    cdoc = await db.users.find_one({"user_id": cid}, {"_id": 0, "inperson_notes": 1, "inperson_goal": 1, "inperson_goal_progress": 1})
     return {
         "client": await _person_brief(cid),
         "messages": [_msg_public(m) for m in msgs],
@@ -194,16 +229,18 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         "attendance_count": len(attendance),
         "sessions_this_month": await _sessions_this_month(cid),
         "checkin_due": checkin_due,
+        "checkin_streak": await _checkin_streak(cid),
         "checkin_photos": checkin_photos,
         "metrics_timeline": metrics_timeline,
         "goal": (cdoc or {}).get("inperson_goal", "") or "",
+        "goal_progress": int((cdoc or {}).get("inperson_goal_progress", 0) or 0),
         "coach_notes": ((cdoc or {}).get("inperson_notes", "") or "") if _is_admin(user) else None,
     }
 
 
 @api_router.post("/inperson/thread/{client_id}/notes")
 async def inperson_notes(client_id: str, payload: dict, user=Depends(get_current_user)):
-    """Private coach-only notes + a shared goal per client. Admin only."""
+    """Private coach-only notes + a shared goal & goal progress per client. Admin only."""
     _require_admin_ip(user)
     cid = await _resolve_thread(client_id, user)
     updates: dict = {}
@@ -211,9 +248,15 @@ async def inperson_notes(client_id: str, payload: dict, user=Depends(get_current
         updates["inperson_notes"] = (payload.get("notes") or "").strip()[:2000]
     if payload.get("goal") is not None:
         updates["inperson_goal"] = (payload.get("goal") or "").strip()[:120]
+    if payload.get("goal_progress") is not None:
+        try:
+            updates["inperson_goal_progress"] = max(0, min(100, int(payload.get("goal_progress"))))
+        except (TypeError, ValueError):
+            pass
     if updates:
         await db.users.update_one({"user_id": cid}, {"$set": updates})
-    return {"ok": True, "coach_notes": updates.get("inperson_notes"), "goal": updates.get("inperson_goal")}
+    return {"ok": True, "coach_notes": updates.get("inperson_notes"),
+            "goal": updates.get("inperson_goal"), "goal_progress": updates.get("inperson_goal_progress")}
 
 
 @api_router.post("/inperson/nudge")
