@@ -131,13 +131,81 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
     for p in programs:
         if hasattr(p.get("created_at"), "isoformat"):
             p["created_at"] = p["created_at"].isoformat()
+    # Attendance history + weekly check-in status
+    att_rows = await db.inperson_attendance.find({"client_id": cid}, {"_id": 0}).sort("date", -1).limit(30).to_list(30)
+    attendance = [{"date": a["date"].isoformat() if hasattr(a.get("date"), "isoformat") else a.get("date"), "note": a.get("note", "")} for a in att_rows]
+    last_checkin = await db.inperson_messages.find_one(
+        {"client_id": cid, "kind": "checkin"}, sort=[("created_at", -1)])
+    checkin_due = True
+    if last_checkin and last_checkin.get("created_at"):
+        lc = last_checkin["created_at"]
+        if getattr(lc, "tzinfo", None) is None:
+            lc = lc.replace(tzinfo=timezone.utc)
+        checkin_due = (datetime.now(timezone.utc) - lc).days >= 7
     return {
         "client": await _person_brief(cid),
         "messages": [_msg_public(m) for m in msgs],
         "programs": programs,
         "is_admin": _is_admin(user),
         "client_stats": (await _client_stats(cid)) if _is_admin(user) else None,
+        "attendance": attendance,
+        "attendance_count": len(attendance),
+        "checkin_due": checkin_due,
     }
+
+
+@api_router.post("/inperson/thread/{client_id}/checkin")
+async def inperson_checkin(client_id: str, payload: dict, user=Depends(get_current_user)):
+    """Client logs a weekly progress check-in (note + optional photo)."""
+    cid = await _resolve_thread(client_id, user)
+    text = (payload.get("text") or "").strip()[:2000]
+    media_id = payload.get("media_id")
+    media_type = None
+    file_name = None
+    if media_id:
+        rec = await db.chat_media.find_one({"media_id": media_id}, {"_id": 0})
+        if not rec:
+            raise HTTPException(status_code=400, detail="Invalid attachment")
+        media_type = rec.get("media_type")
+        file_name = rec.get("original_name")
+    if not text and not media_id:
+        raise HTTPException(status_code=400, detail="Add a note or a photo")
+    role = "admin" if _is_admin(user) else "client"
+    doc = {
+        "id": new_id("ipm"),
+        "client_id": cid,
+        "sender_id": user["user_id"],
+        "sender_role": role,
+        "kind": "checkin",
+        "text": text,
+        "media_id": media_id,
+        "media_type": media_type,
+        "file_name": file_name,
+        "created_at": datetime.now(timezone.utc),
+        "read_by_admin": role == "admin",
+        "read_by_client": role == "client",
+    }
+    await db.inperson_messages.insert_one(doc)
+    return _msg_public(doc)
+
+
+@api_router.post("/inperson/thread/{client_id}/attendance")
+async def inperson_attendance(client_id: str, payload: dict, user=Depends(get_current_user)):
+    """Admin marks an in-person session completed (builds attendance history)."""
+    _require_admin_ip(user)
+    cid = await _resolve_thread(client_id, user)
+    note = (payload.get("note") or "").strip()[:200]
+    now = datetime.now(timezone.utc)
+    await db.inperson_attendance.insert_one({
+        "id": new_id("ipa"), "client_id": cid, "marked_by": user["user_id"], "date": now, "note": note,
+    })
+    await db.inperson_messages.insert_one({
+        "id": new_id("ipm"), "client_id": cid, "sender_id": user["user_id"], "sender_role": "admin",
+        "kind": "system", "text": f"✅ Session completed{(' · ' + note) if note else ''}",
+        "created_at": now, "read_by_admin": True, "read_by_client": False,
+    })
+    count = await db.inperson_attendance.count_documents({"client_id": cid})
+    return {"ok": True, "count": count}
 
 
 @api_router.post("/inperson/thread/{client_id}/schedule")

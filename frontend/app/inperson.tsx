@@ -32,6 +32,7 @@ export default function InPersonRoom() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [schedInput, setSchedInput] = useState("");
   const [showStats, setShowStats] = useState(false);
+  const [checkinOpen, setCheckinOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
@@ -154,6 +155,37 @@ export default function InPersonRoom() {
     } catch (e: any) { setErr(e.message); }
   };
 
+  const markAttendance = async () => {
+    if (!selected) return;
+    try {
+      await apiFetch(token, `/api/inperson/thread/${selected}/attendance`, { method: "POST", body: JSON.stringify({}) });
+      await loadThread(selected);
+    } catch (e: any) { setErr(e.message); }
+  };
+
+  const submitCheckin = async (note: string, asset: any) => {
+    if (!selected || (!note.trim() && !asset)) { setCheckinOpen(false); return; }
+    setErr(null);
+    try {
+      let media_id: string | null = null;
+      if (asset) {
+        const form = new FormData();
+        if (Platform.OS === "web") {
+          const blob = await (await fetch(asset.uri)).blob();
+          form.append("file", blob, asset.name || "photo.jpg");
+        } else {
+          form.append("file", { uri: asset.uri, name: asset.name || "photo.jpg", type: asset.type || "image/jpeg" } as any);
+        }
+        const r = await fetch(`${API}/api/inperson/upload`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Upload failed"); }
+        media_id = (await r.json()).media_id;
+      }
+      await apiFetch(token, `/api/inperson/thread/${selected}/checkin`, { method: "POST", body: JSON.stringify({ text: note.trim(), media_id }) });
+      setCheckinOpen(false);
+      await loadThread(selected);
+    } catch (e: any) { setErr(e.message); }
+  };
+
   // ---------- ADMIN: client list ----------
   if (isAdmin && !selected) {
     return (
@@ -219,6 +251,20 @@ export default function InPersonRoom() {
                 <View style={styles.nextBanner}><Text style={styles.nextBannerText}>📅 NEXT SESSION · {nextSession}</Text></View>
               )}
 
+              {isAdmin && (
+                <View style={styles.attRow}>
+                  <Text style={styles.attCount}>✅ {thread.attendance_count || 0} sessions logged</Text>
+                  <Pressable testID="ip-mark-attendance" onPress={markAttendance} style={styles.attBtn}><Text style={styles.attBtnText}>MARK SESSION DONE</Text></Pressable>
+                </View>
+              )}
+
+              {!isAdmin && thread.checkin_due && (
+                <Pressable testID="ip-checkin-open" onPress={() => setCheckinOpen(true)} style={styles.checkinPrompt}>
+                  <Text style={styles.checkinPromptText}>📝 LOG THIS WEEK'S CHECK-IN</Text>
+                  <Text style={styles.checkinPromptSub}>How's training going? Add a note or progress photo →</Text>
+                </Pressable>
+              )}
+
               {isAdmin && stats && (
                 <>
                   <Pressable testID="ip-stats-toggle" onPress={() => setShowStats((s) => !s)} style={styles.statsToggle}>
@@ -256,6 +302,15 @@ export default function InPersonRoom() {
               const mine = m.sender_id === user?.user_id;
               if (m.kind === "system") {
                 return <Text key={m.id} style={styles.systemMsg}>{m.text}</Text>;
+              }
+              if (m.kind === "checkin") {
+                return (
+                  <View key={m.id} style={styles.checkinCard}>
+                    <Text style={styles.checkinEyebrow}>📝 WEEKLY CHECK-IN · {new Date(m.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</Text>
+                    {!!m.media_id && <Image source={{ uri: mediaUrl(m.media_id) }} style={styles.checkinImage} contentFit="cover" />}
+                    {!!m.text && <Text style={styles.checkinText}>{m.text}</Text>}
+                  </View>
+                );
               }
               if (m.kind === "program") {
                 const prog = (thread.programs || []).find((p: any) => p.id === m.program_id);
@@ -322,6 +377,10 @@ export default function InPersonRoom() {
         </>
       )}
 
+      {!isAdmin && (
+        <CheckinModal visible={checkinOpen} onClose={() => setCheckinOpen(false)} onSubmit={submitCheckin} />
+      )}
+
       {isAdmin && (
         <AssignModal
           visible={assignOpen}
@@ -351,6 +410,41 @@ function Header({ title, subtitle, onBack }: { title: string; subtitle?: string;
         {!!subtitle && <Text style={styles.hSub} numberOfLines={1}>{subtitle}</Text>}
       </View>
     </View>
+  );
+}
+
+function CheckinModal({ visible, onClose, onSubmit }: { visible: boolean; onClose: () => void; onSubmit: (note: string, asset: any) => void }) {
+  const [note, setNote] = useState("");
+  const [asset, setAsset] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (visible) { setNote(""); setAsset(null); setBusy(false); } }, [visible]);
+  const pick = async () => {
+    const cur = await ImagePicker.getMediaLibraryPermissionsAsync();
+    let status = cur.status;
+    if (status !== "granted") status = (await ImagePicker.requestMediaLibraryPermissionsAsync()).status;
+    if (status !== "granted") return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+    if (res.canceled || !res.assets?.length) return;
+    const a = res.assets[0];
+    setAsset({ uri: a.uri, name: a.fileName || "photo.jpg", type: a.mimeType || "image/jpeg" });
+  };
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBg}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>WEEKLY CHECK-IN</Text>
+          <Text style={styles.modalHint}>Log how training, diet & recovery went this week for your coach.</Text>
+          <TextInput testID="ip-checkin-note" value={note} onChangeText={setNote} placeholder="This week I…" placeholderTextColor={colors.textDim} style={[styles.mInput, { height: 110, textAlignVertical: "top" }]} multiline />
+          <Pressable testID="ip-checkin-photo" onPress={pick} style={styles.checkinPhotoBtn}>
+            <Text style={styles.checkinPhotoText}>{asset ? "✓ Photo attached — tap to change" : "📷 Add a progress photo (optional)"}</Text>
+          </Pressable>
+          <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
+            <Pressable onPress={onClose} style={[styles.mBtn, styles.mCancel]}><Text style={styles.mCancelText}>CANCEL</Text></Pressable>
+            <Pressable testID="ip-checkin-submit" disabled={busy} onPress={() => { setBusy(true); onSubmit(note, asset); }} style={[styles.mBtn, styles.mAssign]}><Text style={styles.mAssignText}>{busy ? "…" : "SUBMIT"}</Text></Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -415,6 +509,19 @@ const styles = StyleSheet.create({
   recentName: { color: colors.text, fontWeight: "700", fontSize: 13 },
   recentMeta: { color: colors.textDim, fontSize: 10, marginTop: 1 },
   systemMsg: { color: colors.textDim, fontSize: 11, fontWeight: "700", textAlign: "center", marginVertical: spacing.sm },
+  attRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
+  attCount: { color: colors.success, fontWeight: "800", fontSize: 12 },
+  attBtn: { paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.1)" },
+  attBtnText: { color: colors.success, fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
+  checkinPrompt: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.08)" },
+  checkinPromptText: { color: colors.success, fontWeight: "900", fontSize: 13, letterSpacing: 0.5 },
+  checkinPromptSub: { color: colors.textMid, fontSize: 11, marginTop: 2 },
+  checkinCard: { alignSelf: "stretch", backgroundColor: "rgba(0,229,180,0.06)", borderWidth: 1.5, borderColor: colors.success, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
+  checkinEyebrow: { color: colors.success, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  checkinImage: { width: "100%", height: 200, borderRadius: radius.sm, marginTop: 6 },
+  checkinText: { color: colors.text, fontSize: 14, lineHeight: 19, marginTop: 6 },
+  checkinPhotoBtn: { paddingVertical: 12, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignItems: "center" },
+  checkinPhotoText: { color: colors.brandPrimary, fontWeight: "800", fontSize: 12 },
   bubbleRow: { marginBottom: spacing.sm, flexDirection: "row" },
   rowRight: { justifyContent: "flex-end" },
   rowLeft: { justifyContent: "flex-start" },
