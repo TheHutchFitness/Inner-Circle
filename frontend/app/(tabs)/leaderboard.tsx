@@ -37,6 +37,11 @@ const BOARDS = [
   { key: "season", label: "🔥 SEASON", desc: "Bosses beaten this season · vaults soon" },
 ];
 
+function fmtSeason(s: string) {
+  const [y, q] = (s || "").split("-");
+  return q ? `${q} ${y}` : s;
+}
+
 function seasonDaysLeft() {
   const now = new Date();
   const q = Math.floor(now.getMonth() / 3);
@@ -70,6 +75,21 @@ export default function Leaderboards() {
   const [active, setActive] = useState<number | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [popFilter, setPopFilter] = useState<"all" | "enhanced" | "natural">("all");
+  const [seasonView, setSeasonView] = useState<"live" | "history">("live");
+  const [champs, setChamps] = useState<any[]>([]);
+  const [champsLoading, setChampsLoading] = useState(false);
+
+  useEffect(() => {
+    if (board !== "season" || seasonView !== "history") return;
+    let alive = true;
+    (async () => {
+      setChampsLoading(true);
+      try { const r = await apiFetch(token, "/api/leaderboard/season/history"); if (alive) setChamps(r); }
+      catch { if (alive) setChamps([]); }
+      if (alive) setChampsLoading(false);
+    })();
+    return () => { alive = false; };
+  }, [board, seasonView, token]);
 
   useEffect(() => {
     let alive = true;
@@ -153,6 +173,16 @@ export default function Leaderboards() {
             <Text style={styles.seasonBannerText}>🔥 SEASON ENDS IN {seasonDaysLeft()} DAYS — grind bosses before it vaults</Text>
           </View>
         )}
+        {board === "season" && (
+          <View style={styles.seasonViewRow}>
+            <Pressable testID="season-live" onPress={() => setSeasonView("live")} style={[styles.svBtn, seasonView === "live" && styles.svBtnActive]}>
+              <Text style={[styles.svText, seasonView === "live" && styles.svTextActive]}>THIS SEASON</Text>
+            </Pressable>
+            <Pressable testID="season-history" onPress={() => setSeasonView("history")} style={[styles.svBtn, seasonView === "history" && styles.svBtnActive]}>
+              <Text style={[styles.svText, seasonView === "history" && styles.svTextActive]}>🏆 PAST CHAMPIONS</Text>
+            </Pressable>
+          </View>
+        )}
         </>
       ) : (
         <>
@@ -180,7 +210,34 @@ export default function Leaderboards() {
         </>
       )}
 
-      {loading ? (
+      {board === "season" && seasonView === "history" ? (
+        champsLoading ? (
+          <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} />
+        ) : champs.length === 0 ? (
+          <Text style={styles.emptyBoard}>No past champions yet — this season's top boss-slayer will be crowned here when the season ends.</Text>
+        ) : (
+          <View style={styles.listWrap}>
+            <Text style={styles.hofHint}>🏆 HALL OF FAME — top boss-slayer of each past season</Text>
+            {champs.map((c) => (
+              <Pressable key={c.season} testID={`champ-${c.season}`} onPress={() => c.user_id && setMemberId(c.user_id)} style={styles.champCard}>
+                <View style={styles.champSeasonCol}>
+                  <Text style={styles.champTrophy}>🏆</Text>
+                  <Text style={styles.champSeason}>{fmtSeason(c.season)}</Text>
+                </View>
+                <View style={{ marginHorizontal: 6 }}><PlayerAvatar person={c} token={token} size={44} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.champName, c.founder_backer && { color: colors.warning }]} numberOfLines={1}>{c.display_name}</Text>
+                  <Text style={[styles.rowSub, { color: RANK_COLORS[c.rank] }]}>{c.rank} · LV {c.level}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={styles.champBosses}>{c.bosses}</Text>
+                  <Text style={styles.podiumMetricLabel}>BOSSES</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )
+      ) : loading ? (
         <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} />
       ) : rows.length === 0 ? (
         <Text style={styles.emptyBoard}>No entries yet. Be the first to log {mode === "cardio" ? "a " + activity : "your lifts"}.</Text>
@@ -264,6 +321,18 @@ const styles = StyleSheet.create({
   chipTextActive: { color: colors.brandPrimary },
   seasonBanner: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingVertical: 8, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: "#FF6A00", backgroundColor: "rgba(255,106,0,0.12)" },
   seasonBannerText: { color: "#FFB07A", fontWeight: "900", fontSize: 11, letterSpacing: 0.5, textAlign: "center" },
+  seasonViewRow: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
+  svBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingVertical: 7, alignItems: "center", backgroundColor: colors.surface2 },
+  svBtnActive: { borderColor: colors.warning, backgroundColor: "rgba(255,215,0,0.10)" },
+  svText: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  svTextActive: { color: colors.warning },
+  hofHint: { color: colors.textDim, fontSize: 10, letterSpacing: 1, fontWeight: "700", marginBottom: spacing.sm, textAlign: "center" },
+  champCard: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: "rgba(255,215,0,0.35)", backgroundColor: "rgba(255,215,0,0.05)", borderRadius: radius.md, marginBottom: spacing.sm, gap: 4 },
+  champSeasonCol: { alignItems: "center", width: 48 },
+  champTrophy: { fontSize: 20 },
+  champSeason: { color: colors.warning, fontSize: 9, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
+  champName: { color: colors.text, fontWeight: "800", fontSize: 14 },
+  champBosses: { color: colors.warning, fontWeight: "900", fontSize: 20, fontVariant: ["tabular-nums"] },
   podiumWrap: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginTop: spacing.md },
   podiumCard: { flex: 1, alignItems: "center", padding: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1 },
   podiumRank: { fontWeight: "900", letterSpacing: 2, fontSize: 14 },

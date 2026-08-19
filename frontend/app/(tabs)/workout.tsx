@@ -85,7 +85,6 @@ export default function WorkoutScreen() {
     copy.exercises[ei].sets.push({ reps: p.reps, weight_lb: p.weight_lb, rpe: p.rpe });
     setActive({ ...copy });
     setPresetPickerFor(null);
-    startRest();
   };
 
   useEffect(() => {
@@ -173,7 +172,6 @@ export default function WorkoutScreen() {
     const last = sets[sets.length - 1];
     sets.push(last ? { ...last } : { reps: 8, weight_lb: units.toLb(units.unit === "kg" ? 40 : 95), rpe: 7 });
     setActive({ ...copy });
-    startRest();
   };
 
   const editSet = (ei: number, si: number, field: keyof SetT, val: number) => {
@@ -294,6 +292,7 @@ export default function WorkoutScreen() {
               <Text style={styles.h1}>{active.templateName.toUpperCase()}</Text>
             </View>
             <Pressable testID="unit-toggle" onPress={units.toggle} style={styles.unitBtn}><Text style={styles.unitText}>{units.unit.toUpperCase()}</Text></Pressable>
+            <Pressable testID="start-rest" onPress={() => startRest()} style={styles.restBtn}><Text style={styles.restBtnText}>⏱ REST</Text></Pressable>
           </View>
 
           {active.exercises.map((ex, ei) => (
@@ -310,7 +309,6 @@ export default function WorkoutScreen() {
                   <Text style={styles.setHeaderText}>SET</Text>
                   <Text style={styles.setHeaderText}>REPS</Text>
                   <Text style={styles.setHeaderText}>{units.unit.toUpperCase()}</Text>
-                  <Text style={styles.setHeaderText}>RPE</Text>
                   <Text style={styles.setHeaderText}></Text>
                 </View>
               )}
@@ -319,7 +317,6 @@ export default function WorkoutScreen() {
                   <Text style={styles.setNum}>{si + 1}</Text>
                   <NumInput testID={`set-${ei}-${si}-reps`} value={s.reps} onChange={(v) => editSet(ei, si, "reps", Math.round(v))} />
                   <NumInput testID={`set-${ei}-${si}-weight`} value={Math.round(units.toDisplay(s.weight_lb) * 10) / 10} decimal onChange={(v) => editWeight(ei, si, v)} />
-                  <Stepper testID={`set-${ei}-${si}-rpe`} value={s.rpe} step={0.5} decimal onChange={(v) => editSet(ei, si, "rpe", v)} />
                   <View style={styles.rowActions}>
                     <Pressable testID={`save-preset-${ei}-${si}`} onPress={() => savePreset(s)} hitSlop={8}><Text style={styles.saveStar}>☆</Text></Pressable>
                     <Pressable testID={`remove-set-${ei}-${si}`} onPress={() => removeSet(ei, si)} hitSlop={8}><Text style={styles.rmX}>✕</Text></Pressable>
@@ -558,17 +555,6 @@ export default function WorkoutScreen() {
   );
 }
 
-function Stepper({ value, onChange, step, decimal, testID }: { value: number; onChange: (v: number) => void; step: number; decimal?: boolean; testID?: string }) {
-  const disp = decimal ? value.toFixed(1) : String(value);
-  return (
-    <View style={sstyles.wrap}>
-      <Pressable testID={`${testID}-down`} onPress={() => onChange(value - step)} style={sstyles.btn}><Text style={sstyles.txt}>−</Text></Pressable>
-      <Text testID={testID} style={sstyles.value}>{disp}</Text>
-      <Pressable testID={`${testID}-up`} onPress={() => onChange(value + step)} style={sstyles.btn}><Text style={sstyles.txt}>+</Text></Pressable>
-    </View>
-  );
-}
-
 const sstyles = StyleSheet.create({
   wrap: { flexDirection: "row", alignItems: "center", flex: 1, justifyContent: "center" },
   btn: { width: 22, height: 22, backgroundColor: colors.surface3, borderRadius: 3, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
@@ -625,6 +611,8 @@ const styles = StyleSheet.create({
   sessionHead: { flexDirection: "row", alignItems: "center" },
   unitBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.sm, minWidth: 52, alignItems: "center" },
   unitText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2 },
+  restBtn: { marginLeft: spacing.sm, borderWidth: 1, borderColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.sm, alignItems: "center", backgroundColor: "rgba(0,180,220,0.10)" },
+  restBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   tplGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingHorizontal: spacing.lg },
   tplCard: { width: "48%", backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, minHeight: 96, justifyContent: "space-between" },
   tplCustom: { borderColor: colors.brandPrimary, borderStyle: "dashed" },
