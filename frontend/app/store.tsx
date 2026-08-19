@@ -7,7 +7,7 @@ import { colors, spacing, radius } from "@/src/lib/theme";
 import { StoreCosmetic } from "@/src/components/StoreCosmetic";
 
 const KIND_LABEL: Record<string, string> = {
-  avatar: "AVATARS", banner: "BANNERS", title: "TITLES", badge: "BADGES", background: "BACKGROUNDS", aura: "AURAS",
+  avatar: "AVATARS", banner: "BANNERS", title: "TITLES", badge: "BADGES", background: "BACKGROUNDS", aura: "AURAS", pet: "PETS",
 };
 
 export default function Store() {

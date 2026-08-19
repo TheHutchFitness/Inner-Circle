@@ -6,7 +6,7 @@ def _current_month() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m")
 
 
-STORE_KINDS = ["avatar", "banner", "title", "badge", "background", "aura"]
+STORE_KINDS = ["avatar", "banner", "title", "badge", "background", "aura", "pet"]
 STORE_PRICE_USD = 1
 
 
@@ -97,8 +97,19 @@ async def store_equip(payload: dict, user=Depends(get_current_user)):
         equips[kind] = item_id
     else:
         equips.pop(kind, None)
-    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"store_equips": equips}})
-    return {"equips": equips}
+    update = {"store_equips": equips}
+    # Snapshot the pet's visuals so the avatar + map can render it without extra lookups.
+    if kind == "pet":
+        if item_id:
+            it = await db.store_items.find_one({"item_id": item_id}, {"_id": 0})
+            update["equipped_pet"] = {
+                "item_id": item_id, "name": it.get("name"), "icon": it.get("icon", "🐾"),
+                "colors": it.get("colors", []), "glow": it.get("glow", ""), "motion": it.get("motion", "pulse"),
+            }
+        else:
+            update["equipped_pet"] = None
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": update})
+    return {"equips": equips, "equipped_pet": update.get("equipped_pet", user.get("equipped_pet"))}
 
 
 # ---------- Admin: create / schedule / remove monthly drops ----------

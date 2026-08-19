@@ -161,4 +161,5 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
         "social_tiktok": tt,
         "social_instagram": ig,
         "is_creator": bool(tt or ig),
+        "equipped_pet": u.get("equipped_pet"),
     }

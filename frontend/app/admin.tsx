@@ -125,7 +125,7 @@ export default function Admin() {
         <View style={st.card}>
           <Text style={st.cardSub}>Create this month's exclusive cosmetic ($1, current month, never returns).</Text>
           <View style={st.chipWrap}>
-            {["avatar", "banner", "title", "badge", "background", "aura"].map((k) => (
+            {["avatar", "banner", "title", "badge", "background", "aura", "pet"].map((k) => (
               <Pressable key={k} onPress={() => setNf((s: any) => ({ ...s, kind: k }))} style={[st.miniChip, nf.kind === k && st.miniChipOn]}><Text style={[st.miniChipText, nf.kind === k && st.miniChipTextOn]}>{k}</Text></Pressable>
             ))}
           </View>

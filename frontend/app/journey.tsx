@@ -9,6 +9,7 @@ import * as Haptics from "expo-haptics";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { HeroSprite } from "@/src/components/HeroSprite";
+import { PetCompanion } from "@/src/components/PetCompanion";
 import { initSfx, playSfx, isSfxEnabled, setSfxEnabled, startZoneMusic, stopMusic } from "@/src/lib/sfx";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -484,7 +485,10 @@ export default function Journey() {
 
           {/* hero */}
           <View style={[styles.hero, { left: nodeX(heroIndex) - 24, top: nodeY(heroIndex) - 78 }]}>
-            <HeroSprite size={52} color={accent} facing={1} />
+            <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
+              <HeroSprite size={52} color={accent} facing={1} />
+              {user?.equipped_pet && <PetCompanion pet={user.equipped_pet} size={26} />}
+            </View>
             <View style={[styles.heroTag, { borderColor: accent }]}><Text style={styles.heroTagText}>YOU · Lv{data?.me?.level}</Text></View>
           </View>
         </View>

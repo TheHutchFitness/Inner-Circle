@@ -18,6 +18,7 @@ import { HealthCard } from "@/src/components/HealthCard";
 import { NutritionCard } from "@/src/components/NutritionCard";
 import { SocialLinksEditor } from "@/src/components/SocialLinks";
 import { FoundingRibbon, CreatorBadge } from "@/src/components/Badges";
+import { PetCompanion } from "@/src/components/PetCompanion";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"], ["OHP", "ohp"]];
@@ -135,6 +136,12 @@ export default function Profile() {
                   <Text style={[styles.playerClass, { color: rankColor }]}>{attrs?.class_title || `${av.label.toUpperCase()} CLASS`}</Text>
                 </View>
                 <Pressable testID="open-frame-vault" onPress={openFrames}><Text style={styles.frameName}>◈ {frame.name}  ▾</Text></Pressable>
+                {user.equipped_pet && (
+                  <View style={styles.petRow}>
+                    <PetCompanion pet={user.equipped_pet} size={34} />
+                    <Text style={styles.petName}>{user.equipped_pet.name}</Text>
+                  </View>
+                )}
                 <View style={styles.pillRow}>
                   {isSubscribed && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ PREMIUM</Text></View>}
                   {user.skool_verified && <View style={[styles.pill, { backgroundColor: colors.success }]}><Text style={styles.pillText}>✓ SKOOL</Text></View>}
@@ -372,6 +379,8 @@ const styles = StyleSheet.create({
   barFill: { height: "100%" },
   tapHint: { color: colors.textDim, fontSize: 10, letterSpacing: 2, marginTop: spacing.sm, fontWeight: "700" },
   creatorWrap: { alignItems: "center", marginTop: spacing.sm },
+  petRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  petName: { color: colors.textMid, fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
   radarCard: { marginHorizontal: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, alignItems: "center" },
   radarClassRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md, marginBottom: spacing.sm },
   radarClassTitle: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 2 },
