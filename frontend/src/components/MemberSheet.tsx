@@ -3,14 +3,14 @@ import { View, Text, StyleSheet, Modal, Pressable, ActivityIndicator } from "rea
 import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
-import { colors, spacing, radius, avatarFor, avatarImage, bodyImage, RANK_COLORS, loadoutTitle } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, bodyImage, skinImage, weaponImage, RANK_COLORS, loadoutTitle } from "@/src/lib/theme";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { SocialLinksBar } from "@/src/components/SocialLinks";
 
 const LIFTS: [string, string][] = [["bench", "BENCH"], ["squat", "SQUAT"], ["deadlift", "DEAD"], ["ohp", "OHP"]];
 
 export function MemberSheet({ userId, visible, onClose }: { userId: string | null; visible: boolean; onClose: () => void }) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [m, setM] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -25,6 +25,7 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
 
   const rankColor = m ? (RANK_COLORS[m.rank] || colors.brandPrimary) : colors.brandPrimary;
   const portrait = m ? bodyImage(m) : null;
+  const isMe = !!m && !!user && m.user_id === user.user_id;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -48,8 +49,27 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
               <Text style={[styles.name, m.founder_backer && { color: colors.warning }]}>{m.display_name}</Text>
               <Text style={[styles.rank, { color: rankColor }]}>{m.rank?.toUpperCase()} · LV {m.level}</Text>
               {!!loadoutTitle(m.loadout) && <Text style={styles.mtitle}>❰ {loadoutTitle(m.loadout)} ❱</Text>}
-              {(m.equipped_skin || m.equipped_weapon) && (
-                <Text style={styles.loadoutLine}>⚔ {[m.equipped_skin ? "SKIN EQUIPPED" : null, m.equipped_weapon ? "WEAPON" : null].filter(Boolean).join(" · ")}</Text>
+              {(m.equipped_skin || m.equipped_weapon || user?.equipped_skin || user?.equipped_weapon) && !isMe && (
+                <View style={styles.cmp}>
+                  <Text style={styles.cmpHead}>LOADOUT COMPARE</Text>
+                  <View style={styles.cmpRow}>
+                    <View style={styles.cmpCol}>
+                      <Text style={styles.cmpWho}>YOU</Text>
+                      <View style={styles.cmpCell}>{user?.equipped_skin ? <Image source={skinImage(user.equipped_skin)} style={styles.cmpImg} contentFit="cover" /> : <Text style={styles.cmpDash}>—</Text>}</View>
+                      <View style={[styles.cmpCell, styles.cmpCellW]}>{user?.equipped_weapon ? <Image source={weaponImage(user.equipped_weapon)} style={styles.cmpImg} contentFit="contain" /> : <Text style={styles.cmpDash}>—</Text>}</View>
+                    </View>
+                    <View style={styles.cmpLabels}>
+                      <Text style={styles.cmpVs}>VS</Text>
+                      <Text style={styles.cmpLbl}>SKIN</Text>
+                      <Text style={styles.cmpLbl}>WEAPON</Text>
+                    </View>
+                    <View style={styles.cmpCol}>
+                      <Text style={[styles.cmpWho, { color: rankColor }]}>{m.display_name?.split(" ")[0]?.toUpperCase() || "RIVAL"}</Text>
+                      <View style={styles.cmpCell}>{m.equipped_skin ? <Image source={skinImage(m.equipped_skin)} style={styles.cmpImg} contentFit="cover" /> : <Text style={styles.cmpDash}>—</Text>}</View>
+                      <View style={[styles.cmpCell, styles.cmpCellW]}>{m.equipped_weapon ? <Image source={weaponImage(m.equipped_weapon)} style={styles.cmpImg} contentFit="contain" /> : <Text style={styles.cmpDash}>—</Text>}</View>
+                    </View>
+                  </View>
+                </View>
               )}
 
               <View style={styles.badges}>
@@ -107,6 +127,18 @@ const styles = StyleSheet.create({
   rank: { fontSize: 12, letterSpacing: 2, fontWeight: "800", marginTop: 4 },
   mtitle: { color: colors.warning, fontSize: 10, letterSpacing: 3, fontWeight: "800", marginTop: 6 },
   loadoutLine: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "800", marginTop: 4 },
+  cmp: { marginTop: spacing.md, width: "100%", padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  cmpHead: { color: colors.textMid, fontSize: 10, fontWeight: "900", letterSpacing: 3, textAlign: "center", marginBottom: spacing.sm },
+  cmpRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  cmpCol: { alignItems: "center", gap: 8 },
+  cmpLabels: { alignItems: "center", gap: 14 },
+  cmpVs: { color: colors.warning, fontWeight: "900", fontSize: 12 },
+  cmpLbl: { color: colors.textDim, fontSize: 9, fontWeight: "800", letterSpacing: 1 },
+  cmpWho: { color: colors.text, fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  cmpCell: { width: 52, height: 60, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, overflow: "hidden", backgroundColor: "#05070C", alignItems: "center", justifyContent: "center" },
+  cmpCellW: { height: 44 },
+  cmpImg: { width: "100%", height: "100%" },
+  cmpDash: { color: colors.textDim, fontSize: 18 },
   badges: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap", justifyContent: "center" },
   bBacker: { backgroundColor: colors.warning, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
   bBackerText: { color: "#221900", fontSize: 10, fontWeight: "900", letterSpacing: 1 },

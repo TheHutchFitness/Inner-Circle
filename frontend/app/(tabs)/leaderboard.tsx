@@ -37,6 +37,13 @@ const BOARDS = [
   { key: "season", label: "🔥 SEASON", desc: "Bosses beaten this season · vaults soon" },
 ];
 
+function seasonDaysLeft() {
+  const now = new Date();
+  const q = Math.floor(now.getMonth() / 3);
+  const end = new Date(now.getFullYear(), q * 3 + 3, 1); // start of next quarter
+  return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000));
+}
+
 const RANK_BG: Record<string, { male: any; female: any }> = {
   strength: {
     male: require("../../assets/images/rank-strength-male.png"),
@@ -141,6 +148,11 @@ export default function Leaderboards() {
             </Pressable>
           ))}
         </ScrollView>
+        {board === "season" && (
+          <View style={styles.seasonBanner}>
+            <Text style={styles.seasonBannerText}>🔥 SEASON ENDS IN {seasonDaysLeft()} DAYS — grind bosses before it vaults</Text>
+          </View>
+        )}
         </>
       ) : (
         <>
@@ -250,6 +262,8 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
   chipText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2, fontSize: 12 },
   chipTextActive: { color: colors.brandPrimary },
+  seasonBanner: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingVertical: 8, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: "#FF6A00", backgroundColor: "rgba(255,106,0,0.12)" },
+  seasonBannerText: { color: "#FFB07A", fontWeight: "900", fontSize: 11, letterSpacing: 0.5, textAlign: "center" },
   podiumWrap: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginTop: spacing.md },
   podiumCard: { flex: 1, alignItems: "center", padding: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1 },
   podiumRank: { fontWeight: "900", letterSpacing: 2, fontSize: 14 },
