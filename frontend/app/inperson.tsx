@@ -30,6 +30,8 @@ export default function InPersonRoom() {
   const [sending, setSending] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
+  const [schedInput, setSchedInput] = useState("");
+  const [showStats, setShowStats] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
@@ -137,6 +139,20 @@ export default function InPersonRoom() {
   };
 
   const gym = thread?.client?.inperson_gym || "";
+  const nextSession = thread?.client?.next_session || "";
+  const stats = thread?.client_stats;
+
+  useEffect(() => { setSchedInput(nextSession); }, [nextSession, selected]);
+
+  const saveSchedule = async () => {
+    if (!selected) return;
+    try {
+      await apiFetch(token, `/api/inperson/thread/${selected}/schedule`, {
+        method: "POST", body: JSON.stringify({ next_session: schedInput.trim() }),
+      });
+      await loadThread(selected);
+    } catch (e: any) { setErr(e.message); }
+  };
 
   // ---------- ADMIN: client list ----------
   if (isAdmin && !selected) {
@@ -186,6 +202,51 @@ export default function InPersonRoom() {
         <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} />
       ) : (
         <>
+          {/* Next session + coaching context */}
+          {(!!nextSession || isAdmin || (stats && (stats.recent?.length || 0) > 0)) && (
+            <View style={styles.topPanel}>
+              {isAdmin ? (
+                <View style={styles.schedRow}>
+                  <Text style={styles.schedIcon}>📅</Text>
+                  <TextInput
+                    testID="ip-sched-input" value={schedInput} onChangeText={setSchedInput}
+                    placeholder="Next session (e.g. Sat 9:00 AM)" placeholderTextColor={colors.textDim}
+                    style={styles.schedInput}
+                  />
+                  <Pressable testID="ip-sched-save" onPress={saveSchedule} style={styles.schedBtn}><Text style={styles.schedBtnText}>SET</Text></Pressable>
+                </View>
+              ) : !!nextSession && (
+                <View style={styles.nextBanner}><Text style={styles.nextBannerText}>📅 NEXT SESSION · {nextSession}</Text></View>
+              )}
+
+              {isAdmin && stats && (
+                <>
+                  <Pressable testID="ip-stats-toggle" onPress={() => setShowStats((s) => !s)} style={styles.statsToggle}>
+                    <Text style={styles.statsToggleText}>📊 CLIENT PROGRESS {showStats ? "▲" : "▼"}</Text>
+                  </Pressable>
+                  {showStats && (
+                    <View style={styles.statsBox}>
+                      <View style={styles.prRow}>
+                        {[["BENCH", stats.prs?.bench], ["SQUAT", stats.prs?.squat], ["DEAD", stats.prs?.deadlift], ["OHP", stats.prs?.ohp]].map(([l, v]: any) => (
+                          <View key={l} style={styles.prCell}><Text style={styles.prVal}>{v || 0}</Text><Text style={styles.prLbl}>{l}</Text></View>
+                        ))}
+                      </View>
+                      <Text style={styles.statsMeta}>{stats.workouts_logged || 0} workouts · {stats.streak_days || 0}d streak</Text>
+                      {(stats.recent || []).length === 0 ? (
+                        <Text style={styles.statsEmpty}>No workouts logged yet.</Text>
+                      ) : (stats.recent || []).map((w: any, i: number) => (
+                        <View key={i} style={styles.recentRow}>
+                          <Text style={styles.recentName} numberOfLines={1}>{w.pr ? "🏅 " : ""}{w.name}</Text>
+                          <Text style={styles.recentMeta}>{w.sets} sets · {w.volume.toLocaleString()} lb · {new Date(w.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          )}
+
           <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.lg, paddingBottom: 20 }}
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}>
             {thread.messages.length === 0 && (
@@ -193,6 +254,9 @@ export default function InPersonRoom() {
             )}
             {thread.messages.map((m: any) => {
               const mine = m.sender_id === user?.user_id;
+              if (m.kind === "system") {
+                return <Text key={m.id} style={styles.systemMsg}>{m.text}</Text>;
+              }
               if (m.kind === "program") {
                 const prog = (thread.programs || []).find((p: any) => p.id === m.program_id);
                 return (
@@ -330,6 +394,27 @@ const styles = StyleSheet.create({
   chevron: { color: colors.textDim, fontSize: 22 },
   watermarkWrap: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   watermark: { color: colors.brandPrimary, opacity: 0.05, fontSize: 54, fontWeight: "900", letterSpacing: 4, textAlign: "center", transform: [{ rotate: "-18deg" }] },
+  topPanel: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: spacing.sm },
+  schedRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  schedIcon: { fontSize: 16 },
+  schedInput: { flex: 1, height: 38, color: colors.text, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, fontSize: 13 },
+  schedBtn: { height: 38, paddingHorizontal: spacing.md, borderRadius: radius.sm, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  schedBtnText: { color: "#04121a", fontWeight: "900", fontSize: 12 },
+  nextBanner: { paddingVertical: 8, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.08)" },
+  nextBannerText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 12, letterSpacing: 0.5, textAlign: "center" },
+  statsToggle: { marginTop: spacing.sm, paddingVertical: 6, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  statsToggleText: { color: colors.textMid, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
+  statsBox: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  prRow: { flexDirection: "row", gap: spacing.sm },
+  prCell: { flex: 1, alignItems: "center", paddingVertical: 6, borderRadius: radius.sm, backgroundColor: colors.surface3 },
+  prVal: { color: colors.text, fontWeight: "900", fontSize: 15, fontVariant: ["tabular-nums"] },
+  prLbl: { color: colors.textDim, fontSize: 8, letterSpacing: 1, fontWeight: "800", marginTop: 1 },
+  statsMeta: { color: colors.textMid, fontSize: 11, marginTop: 6, marginBottom: 2, fontWeight: "700" },
+  statsEmpty: { color: colors.textDim, fontSize: 12, marginTop: 4 },
+  recentRow: { paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: colors.border },
+  recentName: { color: colors.text, fontWeight: "700", fontSize: 13 },
+  recentMeta: { color: colors.textDim, fontSize: 10, marginTop: 1 },
+  systemMsg: { color: colors.textDim, fontSize: 11, fontWeight: "700", textAlign: "center", marginVertical: spacing.sm },
   bubbleRow: { marginBottom: spacing.sm, flexDirection: "row" },
   rowRight: { justifyContent: "flex-end" },
   rowLeft: { justifyContent: "flex-start" },

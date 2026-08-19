@@ -24,6 +24,34 @@ async def _person_brief(uid: str) -> dict:
         "rank": rank_from_xp(u.get("xp", 0)),
         "level": level_from_xp(u.get("xp", 0)),
         "inperson_gym": u.get("inperson_gym", "") or "",
+        "next_session": u.get("inperson_next_session", "") or "",
+    }
+
+
+async def _client_stats(cid: str) -> dict:
+    """Recent workouts + PRs for coaching context (admin peek)."""
+    u = await db.users.find_one({"user_id": cid}, {"_id": 0, "prs": 1, "workouts_logged": 1, "streak_days": 1})
+    rows = await db.workouts.find({"user_id": cid}, {"_id": 0}).sort("logged_at", -1).limit(6).to_list(6)
+    recent = []
+    for w in rows:
+        sets = 0
+        volume = 0
+        for ex in (w.get("exercises") or []):
+            for s in (ex.get("sets") or []):
+                sets += 1
+                volume += (s.get("reps", 0) or 0) * (s.get("weight_lb", 0) or 0)
+        recent.append({
+            "name": w.get("workout_name", "Workout"),
+            "date": w["logged_at"].isoformat() if hasattr(w.get("logged_at"), "isoformat") else w.get("logged_at"),
+            "sets": sets,
+            "volume": int(volume),
+            "pr": bool(w.get("pr_details")),
+        })
+    return {
+        "prs": (u or {}).get("prs", {}) or {},
+        "workouts_logged": (u or {}).get("workouts_logged", 0),
+        "streak_days": (u or {}).get("streak_days", 0),
+        "recent": recent,
     }
 
 
@@ -108,7 +136,30 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         "messages": [_msg_public(m) for m in msgs],
         "programs": programs,
         "is_admin": _is_admin(user),
+        "client_stats": (await _client_stats(cid)) if _is_admin(user) else None,
     }
+
+
+@api_router.post("/inperson/thread/{client_id}/schedule")
+async def inperson_schedule(client_id: str, payload: dict, user=Depends(get_current_user)):
+    """Admin sets the client's next in-person session (free-text date/time)."""
+    _require_admin_ip(user)
+    cid = await _resolve_thread(client_id, user)
+    when = (payload.get("next_session") or "").strip()[:80]
+    await db.users.update_one({"user_id": cid}, {"$set": {"inperson_next_session": when}})
+    if when:
+        await db.inperson_messages.insert_one({
+            "id": new_id("ipm"),
+            "client_id": cid,
+            "sender_id": user["user_id"],
+            "sender_role": "admin",
+            "kind": "system",
+            "text": f"📅 Next session set: {when}",
+            "created_at": datetime.now(timezone.utc),
+            "read_by_admin": True,
+            "read_by_client": False,
+        })
+    return {"ok": True, "next_session": when}
 
 
 @api_router.post("/inperson/thread/{client_id}/message")

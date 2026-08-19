@@ -51,6 +51,30 @@ export default function WorkoutScreen() {
   const [genBusy, setGenBusy] = useState(false);
   const [presets, setPresets] = useState<any[]>([]);
   const [presetPickerFor, setPresetPickerFor] = useState<number | null>(null);
+  const [assignPickerOpen, setAssignPickerOpen] = useState(false);
+  const [ipClients, setIpClients] = useState<any[]>([]);
+  const [assignMsg, setAssignMsg] = useState<string | null>(null);
+
+  const openAssignPicker = async () => {
+    setAssignMsg(null);
+    setAssignPickerOpen(true);
+    try { setIpClients(await apiFetch(token, "/api/inperson/clients")); } catch {}
+  };
+  const assignToClient = async (clientId: string) => {
+    if (!active) return;
+    const exercises = active.exercises
+      .filter((e) => e.sets.length > 0)
+      .map((e) => ({ name: e.name, sets: e.sets.map((s) => ({ reps: s.reps, weight_lb: s.weight_lb, rpe: s.rpe })) }));
+    if (exercises.length === 0) { setAssignMsg("Add at least one set first."); return; }
+    try {
+      await apiFetch(token, `/api/inperson/thread/${clientId}/assign`, {
+        method: "POST",
+        body: JSON.stringify({ name: active.templateName, exercises }),
+      });
+      setAssignPickerOpen(false);
+      setNotice("Workout assigned to client ✓");
+    } catch (e: any) { setAssignMsg(e.message); }
+  };
 
   const rank = user?.rank || "Beginner";
   const canAC = (rankIndex(rank) >= 2 || user?.all_rooms_access || user?.athletes_center_access)
@@ -370,8 +394,32 @@ export default function WorkoutScreen() {
           {notice && <Text style={styles.notice}>{notice}</Text>}
 
           <Pressable testID="finish-workout" onPress={finish} disabled={saving} style={styles.finishBtn}><Text style={styles.finishText}>{saving ? "SAVING..." : "FINISH WORKOUT"}</Text></Pressable>
+          {user?.is_admin && (
+            <Pressable testID="assign-to-client" onPress={openAssignPicker} style={styles.assignBtn}><Text style={styles.assignBtnText}>🏋 ASSIGN TO IN-PERSON CLIENT</Text></Pressable>
+          )}
           <Pressable onPress={() => setActive(null)} style={styles.cancelBtn}><Text style={styles.cancelText}>CANCEL</Text></Pressable>
         </ScrollView>
+
+        <Modal visible={assignPickerOpen} transparent animationType="slide" onRequestClose={() => setAssignPickerOpen(false)}>
+          <View style={styles.apBg}>
+            <View style={styles.apCard}>
+              <Text style={styles.apTitle}>ASSIGN “{active.templateName?.toUpperCase()}”</Text>
+              <Text style={styles.apHint}>Pick a client — this workout loads straight into their logger.</Text>
+              {assignMsg && <Text style={styles.notice}>{assignMsg}</Text>}
+              <ScrollView style={{ maxHeight: 320 }}>
+                {ipClients.length === 0 ? (
+                  <Text style={styles.apEmpty}>No in-person clients yet. Enroll one in the Admin Panel.</Text>
+                ) : ipClients.map((c) => (
+                  <Pressable key={c.user_id} testID={`assign-client-${c.user_id}`} onPress={() => assignToClient(c.user_id)} style={styles.apRow}>
+                    <Text style={styles.apName}>{c.display_name}</Text>
+                    <Text style={styles.apGym}>{c.inperson_gym ? `🏋 ${c.inperson_gym}` : ""}  ›</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Pressable onPress={() => setAssignPickerOpen(false)} style={styles.apCancel}><Text style={styles.cancelText}>CLOSE</Text></Pressable>
+            </View>
+          </View>
+        </Modal>
 
         {restActive && (
           <View style={styles.restBar}>
@@ -765,6 +813,17 @@ const styles = StyleSheet.create({
   finishBtn: { backgroundColor: colors.brandPrimary, marginTop: spacing.lg, padding: spacing.lg, alignItems: "center", borderRadius: radius.sm },
   finishText: { color: "#001122", fontWeight: "900", letterSpacing: 3 },
   cancelBtn: { padding: spacing.md, alignItems: "center", marginTop: spacing.sm },
+  assignBtn: { marginTop: spacing.sm, padding: spacing.md, alignItems: "center", borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.08)" },
+  assignBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 13 },
+  apBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
+  apCard: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, borderTopWidth: 1, borderColor: colors.brandPrimary },
+  apTitle: { color: colors.text, fontSize: 15, fontWeight: "900", letterSpacing: 1 },
+  apHint: { color: colors.textDim, fontSize: 12, marginTop: 4, marginBottom: spacing.sm },
+  apEmpty: { color: colors.textDim, fontSize: 13, paddingVertical: spacing.md, textAlign: "center" },
+  apRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  apName: { color: colors.text, fontWeight: "800", fontSize: 15 },
+  apGym: { color: colors.textMid, fontSize: 12 },
+  apCancel: { padding: spacing.md, alignItems: "center", marginTop: spacing.sm },
   cancelText: { color: colors.textDim, letterSpacing: 2 },
   summaryXp: { alignSelf: "flex-start", backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill, marginBottom: spacing.md },
   summaryXpText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2 },
