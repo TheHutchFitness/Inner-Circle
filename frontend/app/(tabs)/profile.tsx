@@ -47,7 +47,9 @@ export default function Profile() {
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [bookings, setBookings] = useState<any[]>([]);
   const [prs, setPrs] = useState<any>(null);
+  const [gymRank, setGymRank] = useState<any>(null);
   const cardRef = useRef<View>(null);
+  const gymCardRef = useRef<View>(null);
 
   const shimmer = useSharedValue(0);
   useEffect(() => { shimmer.value = withRepeat(withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.ease) }), -1, true); }, []);
@@ -58,6 +60,7 @@ export default function Profile() {
       try { setChart(await apiFetch(token, "/api/progress/chart")); } catch {}
       try { setAttrs(await apiFetch(token, "/api/profile/attributes")); } catch {}
       try { setPrs(await apiFetch(token, "/api/profile/prs")); } catch {}
+      try { setGymRank(await apiFetch(token, "/api/profile/gym-rank")); } catch {}
       try { setGyms((await apiFetch(token, "/api/gyms")).gyms || []); } catch {}
     })();
   }, [token, user?.xp]);
@@ -117,6 +120,14 @@ export default function Profile() {
     try {
       const uri = await captureRef(cardRef, { format: "png", quality: 1 });
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
+    } catch { setMsg("Sharing unavailable here — try on a device."); }
+  };
+
+  const shareGymRank = async () => {
+    try {
+      const uri = await captureRef(gymCardRef, { format: "png", quality: 1 });
+      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
+      else setMsg("Sharing unavailable here — try on a device.");
     } catch { setMsg("Sharing unavailable here — try on a device."); }
   };
 
@@ -411,6 +422,22 @@ export default function Profile() {
               <Text style={styles.gymEditText}>{user.inperson_gym ? "EDIT" : "ADD"}</Text>
             </Pressable>
           </View>
+        )}
+
+        {!!gymRank && gymRank.rank > 0 && (
+          <>
+            <View ref={gymCardRef} collapsable={false} style={[styles.gymRankCard, gymRank.rank === 1 && styles.gymRankCardTop]}>
+              <Text style={styles.gymRankBrand}>HUTCH'S INNER CIRCLE</Text>
+              <Text style={[styles.gymRankBig, gymRank.rank === 1 && { color: colors.warning }]}>{gymRank.rank === 1 ? "🏆 #1" : `#${gymRank.rank}`}</Text>
+              <Text style={styles.gymRankLabel}>{gymRank.rank === 1 ? "TOP LIFTER AT" : "RANKED AT"}</Text>
+              <Text style={styles.gymRankGym}>📍 {gymRank.gym}</Text>
+              <Text style={styles.gymRankMeta}>Big 4 Total · {gymRank.big4} lb · {gymRank.members} member{gymRank.members === 1 ? "" : "s"}</Text>
+              <Text style={styles.gymRankFooter}>{user.display_name}</Text>
+            </View>
+            <Pressable testID="share-gym-rank" onPress={shareGymRank} style={styles.gymShareBtn}>
+              <Text style={styles.gymShareText}>📢 SHARE MY GYM RANK</Text>
+            </Pressable>
+          </>
         )}
 
         {user.inperson_client ? (
@@ -745,4 +772,14 @@ const styles = StyleSheet.create({
   prFeedIcon: { fontSize: 16 },
   prFeedName: { color: colors.text, fontWeight: "800", fontSize: 13 },
   prFeedMeta: { color: colors.textDim, fontSize: 10, marginTop: 1 },
+  gymRankCard: { marginTop: spacing.md, alignItems: "center", padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface3 },
+  gymRankCardTop: { borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.06)" },
+  gymRankBrand: { color: colors.textDim, fontSize: 9, fontWeight: "900", letterSpacing: 3 },
+  gymRankBig: { color: colors.brandPrimary, fontSize: 42, fontWeight: "900", marginTop: 4 },
+  gymRankLabel: { color: colors.textMid, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginTop: 2 },
+  gymRankGym: { color: colors.text, fontSize: 16, fontWeight: "900", marginTop: 4 },
+  gymRankMeta: { color: colors.textDim, fontSize: 11, marginTop: 6 },
+  gymRankFooter: { color: colors.brandPrimary, fontSize: 12, fontWeight: "800", marginTop: 8 },
+  gymShareBtn: { marginTop: spacing.sm, borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 11, alignItems: "center" },
+  gymShareText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
 });

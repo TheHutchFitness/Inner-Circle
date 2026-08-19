@@ -15,6 +15,26 @@ async def profile_attributes(user=Depends(get_current_user)):
     return await _compute_attributes(user)
 
 
+@api_router.get("/profile/gym-rank")
+async def gym_rank(user=Depends(get_current_user)):
+    """The caller's rank (by Big-4 total) among athletes at their own gym."""
+    gym = (user.get("inperson_gym", "") or "").strip()
+    if not gym:
+        return {"gym": "", "rank": 0, "members": 0, "big4": 0}
+    gl = gym.lower()
+    rows = await db.users.find(
+        {"is_admin": {"$ne": True}}, {"_id": 0, "prs": 1, "inperson_gym": 1, "user_id": 1}
+    ).to_list(3000)
+    members = [m for m in rows if ((m.get("inperson_gym", "") or "").strip().lower() == gl)]
+
+    def tot(m):
+        return sum((m.get("prs", {}) or {}).values())
+
+    members.sort(key=tot, reverse=True)
+    rank = next((i + 1 for i, m in enumerate(members) if m["user_id"] == user["user_id"]), 0)
+    return {"gym": gym, "rank": rank, "members": len(members), "big4": tot(user)}
+
+
 @api_router.get("/profile/prs")
 async def profile_prs(user_id: Optional[str] = None, user=Depends(get_current_user)):
     """Current lift bests + a recent PR feed (from logged workouts). Own by default."""
