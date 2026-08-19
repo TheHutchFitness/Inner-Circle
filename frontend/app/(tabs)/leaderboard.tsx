@@ -34,6 +34,7 @@ const BOARDS = [
   { key: "xp", label: "LEVEL", desc: "Overall Level" },
   { key: "strength", label: "STRENGTH", desc: "Absolute Big 4" },
   { key: "ratio", label: "BW RATIO", desc: "Total / Bodyweight" },
+  { key: "season", label: "🔥 SEASON", desc: "Bosses beaten this season · vaults soon" },
 ];
 
 const RANK_BG: Record<string, { male: any; female: any }> = {

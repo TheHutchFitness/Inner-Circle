@@ -27,6 +27,26 @@ async def leaderboard(board_type: str, filter: str = "all", user=Depends(get_cur
     elif board_type == "ratio":
         users.sort(key=lambda x: x["ratio"], reverse=True)
         for u in users: u["metric"] = u["ratio"]; u["metric_label"] = "BW Ratio"
+    elif board_type == "season":
+        # Bosses defeated during the current season (calendar quarter)
+        now = datetime.now(timezone.utc)
+        q_start_month = ((now.month - 1) // 3) * 3 + 1
+        season_start = datetime(now.year, q_start_month, 1, tzinfo=timezone.utc)
+        pipeline = [
+            {"$match": {"quest_key": {"$regex": "^boss:"}}},
+            {"$group": {"_id": "$user_id", "n": {"$sum": 1},
+                        "recent": {"$max": "$claimed_at"}}},
+        ]
+        counts = {}
+        async for row in db.quest_claims.aggregate(pipeline):
+            recent = row.get("recent")
+            # count claims made this season (fallback: count all if timestamps missing)
+            counts[row["_id"]] = row["n"] if (recent is None or recent >= season_start) else 0
+        for u in users:
+            u["metric"] = counts.get(u["user_id"], 0)
+            u["metric_label"] = "Bosses"
+        users = [u for u in users if u["metric"] > 0]
+        users.sort(key=lambda x: x["metric"], reverse=True)
     else:
         raise HTTPException(status_code=400, detail="Invalid board type")
     return users[:50]
