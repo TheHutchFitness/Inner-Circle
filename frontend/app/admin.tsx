@@ -18,9 +18,6 @@ export default function Admin() {
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const [redOn, setRedOn] = useState(!!user?.enhanced);
-  const [smsStatus, setSmsStatus] = useState<any>(null);
-  const [annMsg, setAnnMsg] = useState("");
-  const [annBusy, setAnnBusy] = useState(false);
 
   const loadMembers = async (query = "") => {
     try {
@@ -32,7 +29,7 @@ export default function Admin() {
   const loadFeatured = async () => {
     try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
   };
-  useEffect(() => { if (token) { loadMembers(); loadFeatured(); apiFetch(token, "/api/admin/sms-status").then(setSmsStatus).catch(() => {}); } /* eslint-disable-line */ }, [token]);
+  useEffect(() => { if (token) { loadMembers(); loadFeatured(); } /* eslint-disable-line */ }, [token]);
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 2000); };
 
@@ -64,17 +61,6 @@ export default function Admin() {
   };
   const unban = async (m: any) => {
     try { patchMember(await apiFetch(token, "/api/admin/unban", { method: "POST", body: JSON.stringify({ user_id: m.user_id }) })); flash("Unbanned ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
-  };
-
-  const sendAnnounce = async () => {
-    if (annBusy || !annMsg.trim()) return;
-    setAnnBusy(true);
-    try {
-      const r = await apiFetch(token, "/api/admin/announce", { method: "POST", body: JSON.stringify({ message: annMsg.trim() }) });
-      flash(`Sent to ${r.sent}/${r.recipients}${r.failed ? ` (${r.failed} failed)` : ""}`);
-      setAnnMsg("");
-    } catch (e: any) { flash(e?.message || "Failed"); }
-    setAnnBusy(false);
   };
 
   const toggleRed = async (on: boolean) => {
@@ -113,30 +99,6 @@ export default function Admin() {
             </View>
             <Switch testID="admin-red-toggle" value={redOn} onValueChange={toggleRed} trackColor={{ true: "#FF2A3C", false: colors.border }} />
           </View>
-        </View>
-
-        {/* SMS announcement broadcast */}
-        <View style={st.card}>
-          <Text style={st.cardTitle}>📣 SMS ANNOUNCEMENT</Text>
-          <Text style={st.cardSub}>
-            {smsStatus?.configured
-              ? `Text all phone-verified members from ${smsStatus.from_number}. ${smsStatus.reachable ?? 0} member${(smsStatus.reachable ?? 0) === 1 ? "" : "s"} reachable.`
-              : "Twilio SMS is not configured."}
-          </Text>
-          <TextInput
-            testID="admin-announce-input"
-            value={annMsg}
-            onChangeText={setAnnMsg}
-            placeholder="Type your announcement…"
-            placeholderTextColor={colors.textDim}
-            style={st.annInput}
-            multiline
-            maxLength={1200}
-            editable={!!smsStatus?.configured}
-          />
-          <Pressable testID="admin-announce-send" onPress={sendAnnounce} disabled={annBusy || !smsStatus?.configured || !annMsg.trim()} style={[st.annBtn, (!smsStatus?.configured || !annMsg.trim()) && { opacity: 0.5 }]}>
-            <Text style={st.annBtnText}>{annBusy ? "SENDING…" : "↗ SEND TO ALL VERIFIED"}</Text>
-          </Pressable>
         </View>
 
         {/* Featured members */}

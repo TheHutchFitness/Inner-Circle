@@ -14,7 +14,6 @@ export function VerifyPanel({ onVerified }: { onVerified?: () => void }) {
   const [msg, setMsg] = useState<string | null>(null);
 
   const emailDone = !!user?.email_verified;
-  const phoneDone = !!user?.phone_verified;
 
   const pickMethod = (m: "email" | "phone") => {
     setMethod(m); setStage("idle"); setCode(""); setMockCode(null); setMsg(null);
@@ -56,9 +55,6 @@ export function VerifyPanel({ onVerified }: { onVerified?: () => void }) {
         <View style={[st.statusChip, emailDone && st.statusDone]}>
           <Text style={[st.statusText, emailDone && st.statusTextDone]}>{emailDone ? "✓ EMAIL VERIFIED" : "EMAIL UNVERIFIED"}</Text>
         </View>
-        <View style={[st.statusChip, phoneDone && st.statusDone]}>
-          <Text style={[st.statusText, phoneDone && st.statusTextDone]}>{phoneDone ? "✓ PHONE VERIFIED" : "PHONE UNVERIFIED"}</Text>
-        </View>
       </View>
 
       {!method && (
@@ -66,11 +62,6 @@ export function VerifyPanel({ onVerified }: { onVerified?: () => void }) {
           {!emailDone && (
             <Pressable testID="verify-method-email" onPress={() => pickMethod("email")} style={st.methodBtn}>
               <Text style={st.methodText}>VERIFY EMAIL</Text>
-            </Pressable>
-          )}
-          {!phoneDone && (
-            <Pressable testID="verify-method-phone" onPress={() => pickMethod("phone")} style={st.methodBtn}>
-              <Text style={st.methodText}>VERIFY PHONE</Text>
             </Pressable>
           )}
         </View>
