@@ -420,3 +420,7 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - STREAK MILESTONES: when a check-in pushes the consecutive-week streak to a multiple of 4 (4/8/12...), inperson_checkin auto-posts a one-time celebratory system message (deduped via a milestone field): 4=🥉 LOCKED IN, 8=🥈 ELITE, 12+=🏆 LEGEND. inperson.tsx renders 🎉 system messages as a gold celebration pill, and the streak chip is now tiered (bronze/silver/gold color + label) via streakTier(). Verified (4-week streak triggered 🥉 message + badge).
 - WEIGHT CHART: new MetricsChart component (react-native-svg) renders the body-metrics weights as a line graph (polyline + dots + min/max lb axis) above the metrics list, shown when ≥2 weight entries exist. Verified (220→211 lb downward trend renders).
 - Test data cleaned (launch DB clean).
+
+## Implemented (2026-06 — In-Person: Milestone Confetti)
+- MILESTONE CONFETTI: thread returns milestone_celebrate (client-only) = streak when streak%4==0 AND greater than user.inperson_milestone_seen. POST /inperson/milestone-seen marks it acknowledged (dedupe). inperson.tsx: on opening the room with a fresh milestone, a reanimated Confetti overlay (70 colored pieces falling ~3.4s) plays once, then POSTs milestone-seen so it never replays. Admin never sees it. Verified (celebrate=4 first open → 0 after seen; confetti rendered).
+- Test data cleaned (launch DB clean).

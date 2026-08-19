@@ -218,7 +218,10 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         {"date": m["created_at"].isoformat() if hasattr(m.get("created_at"), "isoformat") else m.get("created_at"), **(m.get("metrics") or {})}
         for m in msgs if m.get("kind") == "checkin" and m.get("metrics")
     ]
-    cdoc = await db.users.find_one({"user_id": cid}, {"_id": 0, "inperson_notes": 1, "inperson_goal": 1, "inperson_goal_progress": 1})
+    cdoc = await db.users.find_one({"user_id": cid}, {"_id": 0, "inperson_notes": 1, "inperson_goal": 1, "inperson_goal_progress": 1, "inperson_milestone_seen": 1})
+    streak_val = await _checkin_streak(cid)
+    seen_ms = int((cdoc or {}).get("inperson_milestone_seen", 0) or 0)
+    milestone_celebrate = streak_val if (not _is_admin(user) and streak_val % 4 == 0 and streak_val > seen_ms) else 0
     return {
         "client": await _person_brief(cid),
         "messages": [_msg_public(m) for m in msgs],
@@ -229,7 +232,8 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         "attendance_count": len(attendance),
         "sessions_this_month": await _sessions_this_month(cid),
         "checkin_due": checkin_due,
-        "checkin_streak": await _checkin_streak(cid),
+        "checkin_streak": streak_val,
+        "milestone_celebrate": milestone_celebrate,
         "checkin_photos": checkin_photos,
         "metrics_timeline": metrics_timeline,
         "goal": (cdoc or {}).get("inperson_goal", "") or "",
@@ -257,6 +261,14 @@ async def inperson_notes(client_id: str, payload: dict, user=Depends(get_current
         await db.users.update_one({"user_id": cid}, {"$set": updates})
     return {"ok": True, "coach_notes": updates.get("inperson_notes"),
             "goal": updates.get("inperson_goal"), "goal_progress": updates.get("inperson_goal_progress")}
+
+
+@api_router.post("/inperson/milestone-seen")
+async def inperson_milestone_seen(user=Depends(get_current_user)):
+    """Client acknowledges their current streak milestone (stops confetti replay)."""
+    streak = await _checkin_streak(user["user_id"])
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"inperson_milestone_seen": streak}})
+    return {"ok": True, "milestone_seen": streak}
 
 
 @api_router.post("/inperson/nudge")

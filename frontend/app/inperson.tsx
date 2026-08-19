@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator,
-  KeyboardAvoidingView, Platform, Modal, Linking,
+  KeyboardAvoidingView, Platform, Modal, Linking, Dimensions,
 } from "react-native";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing } from "react-native-reanimated";
 import { Image } from "expo-image";
 import Svg, { Polyline, Circle, Line as SvgLine } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,6 +22,37 @@ function streakTier(n: number) {
   if (n >= 8) return { style: { borderColor: "#C0C7D1", backgroundColor: "rgba(192,199,209,0.12)" }, textStyle: { color: "#D6DCE6" }, label: (x: number) => `🥈 ${x}-WEEK STREAK · ELITE` };
   if (n >= 4) return { style: { borderColor: "#CD7F32", backgroundColor: "rgba(205,127,50,0.14)" }, textStyle: { color: "#E39A5C" }, label: (x: number) => `🥉 ${x}-WEEK STREAK · LOCKED IN` };
   return { style: {}, textStyle: {}, label: (x: number) => `🔥 ${x} WEEK CHECK-IN STREAK` };
+}
+
+const CONFETTI_COLORS = ["#00E5FF", "#FFD700", "#FF7A1A", "#00E5B4", "#FF4D6D", "#B388FF"];
+function ConfettiPiece({ index }: { index: number }) {
+  const p = useSharedValue(0);
+  const { width, height } = Dimensions.get("window");
+  const startX = Math.random() * width;
+  const drift = (Math.random() - 0.5) * 100;
+  const delay = Math.random() * 500;
+  const size = 6 + Math.random() * 7;
+  const rot = Math.random() * 360;
+  const color = CONFETTI_COLORS[index % CONFETTI_COLORS.length];
+  useEffect(() => {
+    p.value = withDelay(delay, withTiming(1, { duration: 2600 + Math.random() * 900, easing: Easing.linear }));
+  }, []);
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: startX + drift * p.value },
+      { translateY: -30 + (height + 80) * p.value },
+      { rotate: `${rot + p.value * 540}deg` },
+    ],
+    opacity: 1 - Math.max(0, p.value - 0.85) * 6.5,
+  }));
+  return <Animated.View style={[{ position: "absolute", top: 0, left: 0, width: size, height: size * 0.5, backgroundColor: color, borderRadius: 1 }, style]} />;
+}
+function Confetti() {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {Array.from({ length: 70 }).map((_, i) => <ConfettiPiece key={i} index={i} />)}
+    </View>
+  );
 }
 
 function MetricsChart({ data }: { data: any[] }) {
@@ -74,6 +106,8 @@ export default function InPersonRoom() {
   const [goalInput, setGoalInput] = useState("");
   const [goalPct, setGoalPct] = useState(0);
   const [nudgeMsg, setNudgeMsg] = useState<string | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const celebratedRef = useRef(0);
   const [attOpen, setAttOpen] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
@@ -214,6 +248,17 @@ export default function InPersonRoom() {
   useEffect(() => { setGoalInput(thread?.goal || ""); }, [thread?.goal, selected]);
   useEffect(() => { setGoalPct(thread?.goal_progress || 0); }, [thread?.goal_progress, selected]);
 
+  // Celebrate a freshly-reached streak milestone with confetti (client, once)
+  useEffect(() => {
+    const ms = thread?.milestone_celebrate || 0;
+    if (ms > 0 && celebratedRef.current !== ms) {
+      celebratedRef.current = ms;
+      setShowConfetti(true);
+      apiFetch(token, "/api/inperson/milestone-seen", { method: "POST" }).catch(() => {});
+      setTimeout(() => setShowConfetti(false), 3600);
+    }
+  }, [thread?.milestone_celebrate, token]);
+
   const saveGoalProgress = async (pct: number) => {
     if (!selected) return;
     const v = Math.max(0, Math.min(100, pct));
@@ -332,6 +377,7 @@ export default function InPersonRoom() {
         <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} />
       ) : (
         <>
+          {showConfetti && <Confetti />}
           {!!thread.goal && (
             <View style={styles.goalBanner}>
               <Text style={styles.goalBannerText} numberOfLines={2}>🎯 GOAL · {thread.goal}</Text>
