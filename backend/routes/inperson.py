@@ -104,14 +104,34 @@ async def inperson_clients(user=Depends(get_current_user)):
         brief = await _person_brief(cid)
         brief["last_message"] = (_msg_public(last[0]) if last else None)
         brief["unread"] = unread
+        brief["checkin_due"] = await _checkin_due(cid)
+        brief["sessions_this_month"] = await _sessions_this_month(cid)
         out.append(brief)
+    # Most recent activity first, then float overdue check-ins to the very top
     out.sort(key=lambda x: (x["last_message"]["created_at"] if x["last_message"] else ""), reverse=True)
+    out.sort(key=lambda x: 0 if x["checkin_due"] else 1)
     return out
 
 
 def _require_admin_ip(user):
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin only")
+
+
+async def _checkin_due(cid: str) -> bool:
+    last = await db.inperson_messages.find_one({"client_id": cid, "kind": "checkin"}, sort=[("created_at", -1)])
+    if not last or not last.get("created_at"):
+        return True
+    lc = last["created_at"]
+    if getattr(lc, "tzinfo", None) is None:
+        lc = lc.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - lc).days >= 7
+
+
+async def _sessions_this_month(cid: str) -> int:
+    now = datetime.now(timezone.utc)
+    start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    return await db.inperson_attendance.count_documents({"client_id": cid, "date": {"$gte": start}})
 
 
 @api_router.get("/inperson/thread/{client_id}")
@@ -134,14 +154,7 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
     # Attendance history + weekly check-in status
     att_rows = await db.inperson_attendance.find({"client_id": cid}, {"_id": 0}).sort("date", -1).limit(30).to_list(30)
     attendance = [{"date": a["date"].isoformat() if hasattr(a.get("date"), "isoformat") else a.get("date"), "note": a.get("note", "")} for a in att_rows]
-    last_checkin = await db.inperson_messages.find_one(
-        {"client_id": cid, "kind": "checkin"}, sort=[("created_at", -1)])
-    checkin_due = True
-    if last_checkin and last_checkin.get("created_at"):
-        lc = last_checkin["created_at"]
-        if getattr(lc, "tzinfo", None) is None:
-            lc = lc.replace(tzinfo=timezone.utc)
-        checkin_due = (datetime.now(timezone.utc) - lc).days >= 7
+    checkin_due = await _checkin_due(cid)
     return {
         "client": await _person_brief(cid),
         "messages": [_msg_public(m) for m in msgs],
@@ -150,6 +163,7 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         "client_stats": (await _client_stats(cid)) if _is_admin(user) else None,
         "attendance": attendance,
         "attendance_count": len(attendance),
+        "sessions_this_month": await _sessions_this_month(cid),
         "checkin_due": checkin_due,
     }
 
@@ -360,7 +374,46 @@ async def inperson_assign(client_id: str, payload: dict, user=Depends(get_curren
     })
     prog.pop("_id", None)
     prog["created_at"] = prog["created_at"].isoformat()
+    if payload.get("save_as_template"):
+        await db.inperson_templates.insert_one({
+            "id": new_id("ipt"), "owner_id": user["user_id"], "name": name,
+            "note": note, "exercises": exercises, "created_at": datetime.now(timezone.utc),
+        })
     return prog
+
+
+@api_router.get("/inperson/templates")
+async def inperson_templates(user=Depends(get_current_user)):
+    """Admin's saved workout templates for quick re-assignment."""
+    _require_admin_ip(user)
+    rows = await db.inperson_templates.find({"owner_id": user["user_id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    for r in rows:
+        if hasattr(r.get("created_at"), "isoformat"):
+            r["created_at"] = r["created_at"].isoformat()
+    return rows
+
+
+@api_router.post("/inperson/templates")
+async def inperson_template_create(payload: dict, user=Depends(get_current_user)):
+    _require_admin_ip(user)
+    name = (payload.get("name") or "Template").strip()[:60]
+    note = (payload.get("note") or "").strip()[:500]
+    exercises = payload.get("exercises") or _parse_program(payload.get("plan_text", ""))
+    if not exercises:
+        raise HTTPException(status_code=400, detail="Add at least one exercise line")
+    tpl = {"id": new_id("ipt"), "owner_id": user["user_id"], "name": name, "note": note,
+           "exercises": exercises, "created_at": datetime.now(timezone.utc)}
+    await db.inperson_templates.insert_one(tpl)
+    tpl.pop("_id", None)
+    tpl["created_at"] = tpl["created_at"].isoformat()
+    return tpl
+
+
+@api_router.delete("/inperson/templates/{template_id}")
+async def inperson_template_delete(template_id: str, user=Depends(get_current_user)):
+    _require_admin_ip(user)
+    await db.inperson_templates.delete_one({"id": template_id, "owner_id": user["user_id"]})
+    return {"ok": True}
 
 
 @api_router.post("/inperson/programs/{program_id}/started")

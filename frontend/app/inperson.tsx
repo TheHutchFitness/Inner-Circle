@@ -33,6 +33,7 @@ export default function InPersonRoom() {
   const [schedInput, setSchedInput] = useState("");
   const [showStats, setShowStats] = useState(false);
   const [checkinOpen, setCheckinOpen] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
   const scrollRef = useRef<ScrollView>(null);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
@@ -143,6 +144,19 @@ export default function InPersonRoom() {
   const nextSession = thread?.client?.next_session || "";
   const stats = thread?.client_stats;
 
+  const openAssign = async () => {
+    setAssignOpen(true);
+    try { setTemplates(await apiFetch(token, "/api/inperson/templates")); } catch {}
+  };
+  const assignPayload = async (body: any) => {
+    if (!selected) return;
+    try {
+      await apiFetch(token, `/api/inperson/thread/${selected}/assign`, { method: "POST", body: JSON.stringify(body) });
+      setAssignOpen(false);
+      await loadThread(selected);
+    } catch (e: any) { setErr(e.message); }
+  };
+
   useEffect(() => { setSchedInput(nextSession); }, [nextSession, selected]);
 
   const saveSchedule = async () => {
@@ -202,8 +216,12 @@ export default function InPersonRoom() {
                   <Text style={styles.clientName}>{c.display_name}</Text>
                   <Text style={styles.clientGym} numberOfLines={1}>
                     {c.inperson_gym ? `🏋 ${c.inperson_gym}` : "No gym set"}
-                    {c.last_message ? `  ·  ${c.last_message.kind === "program" ? "📋 " : ""}${(c.last_message.text || "Attachment").slice(0, 26)}` : ""}
+                    {c.last_message ? `  ·  ${c.last_message.kind === "program" ? "📋 " : ""}${(c.last_message.text || "Attachment").slice(0, 22)}` : ""}
                   </Text>
+                  <View style={styles.clientMetaRow}>
+                    <Text style={styles.monthChip}>📅 {c.sessions_this_month || 0} this month</Text>
+                    {c.checkin_due && <Text style={styles.dueChip}>⚠ CHECK-IN DUE</Text>}
+                  </View>
                 </View>
                 {c.unread > 0 && <View style={styles.badge}><Text style={styles.badgeText}>{c.unread}</Text></View>}
                 <Text style={styles.chevron}>›</Text>
@@ -253,7 +271,7 @@ export default function InPersonRoom() {
 
               {isAdmin && (
                 <View style={styles.attRow}>
-                  <Text style={styles.attCount}>✅ {thread.attendance_count || 0} sessions logged</Text>
+                  <Text style={styles.attCount}>✅ {thread.attendance_count || 0} total · 📅 {thread.sessions_this_month || 0} this month</Text>
                   <Pressable testID="ip-mark-attendance" onPress={markAttendance} style={styles.attBtn}><Text style={styles.attBtnText}>MARK SESSION DONE</Text></Pressable>
                 </View>
               )}
@@ -361,7 +379,7 @@ export default function InPersonRoom() {
 
           <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
             {isAdmin && (
-              <Pressable testID="ip-assign" onPress={() => setAssignOpen(true)} style={styles.iconBtn}><Text style={styles.iconText}>🏋</Text></Pressable>
+              <Pressable testID="ip-assign" onPress={openAssign} style={styles.iconBtn}><Text style={styles.iconText}>🏋</Text></Pressable>
             )}
             <Pressable testID="ip-attach-img" onPress={pickImage} style={styles.iconBtn}><Text style={styles.iconText}>🖼</Text></Pressable>
             <Pressable testID="ip-attach-file" onPress={pickDoc} style={styles.iconBtn}><Text style={styles.iconText}>📎</Text></Pressable>
@@ -385,16 +403,10 @@ export default function InPersonRoom() {
         <AssignModal
           visible={assignOpen}
           onClose={() => setAssignOpen(false)}
-          onAssign={async (name, planText, note) => {
-            setAssignOpen(false);
-            if (!selected) return;
-            try {
-              await apiFetch(token, `/api/inperson/thread/${selected}/assign`, {
-                method: "POST", body: JSON.stringify({ name, plan_text: planText, note }),
-              });
-              await loadThread(selected);
-            } catch (e: any) { setErr(e.message); }
-          }}
+          templates={templates}
+          onAssignTemplate={(tpl) => assignPayload({ name: tpl.name, note: tpl.note, exercises: tpl.exercises })}
+          onDeleteTemplate={async (id) => { try { await apiFetch(token, `/api/inperson/templates/${id}`, { method: "DELETE" }); setTemplates((t) => t.filter((x) => x.id !== id)); } catch {} }}
+          onAssign={(name, planText, note, saveTpl) => assignPayload({ name, plan_text: planText, note, save_as_template: saveTpl })}
         />
       )}
     </KeyboardAvoidingView>
@@ -448,23 +460,45 @@ function CheckinModal({ visible, onClose, onSubmit }: { visible: boolean; onClos
   );
 }
 
-function AssignModal({ visible, onClose, onAssign }: { visible: boolean; onClose: () => void; onAssign: (name: string, planText: string, note: string) => void }) {
+function AssignModal({ visible, onClose, onAssign, templates, onAssignTemplate, onDeleteTemplate }: {
+  visible: boolean; onClose: () => void;
+  onAssign: (name: string, planText: string, note: string, saveTpl: boolean) => void;
+  templates: any[]; onAssignTemplate: (tpl: any) => void; onDeleteTemplate: (id: string) => void;
+}) {
   const [name, setName] = useState("");
   const [plan, setPlan] = useState("");
   const [note, setNote] = useState("");
-  useEffect(() => { if (visible) { setName(""); setPlan(""); setNote(""); } }, [visible]);
+  const [saveTpl, setSaveTpl] = useState(false);
+  useEffect(() => { if (visible) { setName(""); setPlan(""); setNote(""); setSaveTpl(false); } }, [visible]);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalBg}>
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>ASSIGN A WORKOUT</Text>
-          <Text style={styles.modalHint}>One exercise per line: <Text style={{ color: colors.brandPrimary }}>Name  SETSxREPS @weight</Text>{"\n"}e.g. Back Squat 4x6 @225</Text>
+          {templates.length > 0 && (
+            <>
+              <Text style={styles.tplLabel}>SAVED TEMPLATES · tap to assign</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.sm }}>
+                {templates.map((t) => (
+                  <Pressable key={t.id} testID={`ip-tpl-${t.id}`} onPress={() => onAssignTemplate(t)} onLongPress={() => onDeleteTemplate(t.id)} style={styles.tplChip}>
+                    <Text style={styles.tplChipText}>{t.name}</Text>
+                    <Text style={styles.tplChipSub}>{t.exercises?.length || 0} exercises · hold to delete</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </>
+          )}
+          <Text style={styles.modalHint}>Or build one — one exercise per line: <Text style={{ color: colors.brandPrimary }}>Name  SETSxREPS @weight</Text>{"\n"}e.g. Back Squat 4x6 @225</Text>
           <TextInput testID="ip-assign-name" value={name} onChangeText={setName} placeholder="Workout name (e.g. Leg Day A)" placeholderTextColor={colors.textDim} style={styles.mInput} />
-          <TextInput testID="ip-assign-plan" value={plan} onChangeText={setPlan} placeholder={"Back Squat 4x6 @225\nRomanian Deadlift 3x10 @185\nLeg Press 3x12"} placeholderTextColor={colors.textDim} style={[styles.mInput, { height: 120, textAlignVertical: "top" }]} multiline />
+          <TextInput testID="ip-assign-plan" value={plan} onChangeText={setPlan} placeholder={"Back Squat 4x6 @225\nRomanian Deadlift 3x10 @185\nLeg Press 3x12"} placeholderTextColor={colors.textDim} style={[styles.mInput, { height: 110, textAlignVertical: "top" }]} multiline />
           <TextInput testID="ip-assign-note" value={note} onChangeText={setNote} placeholder="Note to client (optional)" placeholderTextColor={colors.textDim} style={styles.mInput} />
+          <Pressable testID="ip-assign-savetpl" onPress={() => setSaveTpl((s) => !s)} style={styles.tplToggle}>
+            <View style={[styles.checkbox, saveTpl && styles.checkboxOn]}>{saveTpl && <Text style={styles.checkboxTick}>✓</Text>}</View>
+            <Text style={styles.tplToggleText}>💾 Save as a reusable template</Text>
+          </Pressable>
           <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
             <Pressable onPress={onClose} style={[styles.mBtn, styles.mCancel]}><Text style={styles.mCancelText}>CANCEL</Text></Pressable>
-            <Pressable testID="ip-assign-submit" onPress={() => onAssign(name.trim() || "Custom Workout", plan, note.trim())} style={[styles.mBtn, styles.mAssign]}><Text style={styles.mAssignText}>ASSIGN</Text></Pressable>
+            <Pressable testID="ip-assign-submit" onPress={() => onAssign(name.trim() || "Custom Workout", plan, note.trim(), saveTpl)} style={[styles.mBtn, styles.mAssign]}><Text style={styles.mAssignText}>ASSIGN</Text></Pressable>
           </View>
         </View>
       </View>
@@ -483,6 +517,9 @@ const styles = StyleSheet.create({
   clientRow: { flexDirection: "row", alignItems: "center", padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, marginBottom: spacing.sm },
   clientName: { color: colors.text, fontWeight: "800", fontSize: 15 },
   clientGym: { color: colors.textMid, fontSize: 11, marginTop: 2 },
+  clientMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  monthChip: { color: colors.textMid, fontSize: 10, fontWeight: "800" },
+  dueChip: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 0.5, borderWidth: 1, borderColor: colors.warning, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: "rgba(255,214,0,0.08)" },
   badge: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: colors.error, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, marginRight: 6 },
   badgeText: { color: "#fff", fontWeight: "900", fontSize: 11 },
   chevron: { color: colors.textDim, fontSize: 22 },
@@ -554,6 +591,15 @@ const styles = StyleSheet.create({
   modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, borderTopWidth: 1, borderColor: colors.brandPrimary },
   modalTitle: { color: colors.text, fontSize: 16, fontWeight: "900", letterSpacing: 2 },
   modalHint: { color: colors.textDim, fontSize: 12, marginTop: 6, marginBottom: spacing.sm, lineHeight: 18 },
+  tplLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: spacing.sm, marginBottom: 6 },
+  tplChip: { borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.08)", borderRadius: radius.sm, paddingVertical: 8, paddingHorizontal: 12, marginRight: 8, minWidth: 130 },
+  tplChipText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 13 },
+  tplChipSub: { color: colors.textDim, fontSize: 9, marginTop: 2 },
+  tplToggle: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  checkbox: { width: 22, height: 22, borderRadius: 5, borderWidth: 1.5, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  checkboxOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandPrimary },
+  checkboxTick: { color: "#04121a", fontWeight: "900", fontSize: 14 },
+  tplToggleText: { color: colors.textMid, fontWeight: "700", fontSize: 13 },
   mInput: { color: colors.text, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 14, marginBottom: spacing.sm },
   mBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.sm, alignItems: "center" },
   mCancel: { borderWidth: 1, borderColor: colors.border },
