@@ -79,6 +79,8 @@ export default function Leaderboards() {
   const [active, setActive] = useState<number | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [popFilter, setPopFilter] = useState<"all" | "enhanced" | "natural">("all");
+  const [gymScope, setGymScope] = useState(false);
+  const myGym = (user?.inperson_gym || "").trim();
   const [seasonView, setSeasonView] = useState<"live" | "history">("live");
   const [champs, setChamps] = useState<any[]>([]);
   const [champsLoading, setChampsLoading] = useState(false);
@@ -110,14 +112,15 @@ export default function Leaderboards() {
       setLoading(true);
       try {
         if (mode === "strength") {
-          setRows(await apiFetch(token, `/api/leaderboard/${board}?filter=${popFilter}`));
+          const gq = gymScope && myGym ? `&gym=${encodeURIComponent(myGym)}` : "";
+          setRows(await apiFetch(token, `/api/leaderboard/${board}?filter=${popFilter}${gq}`));
         } else {
           setRows(await apiFetch(token, `/api/cardio/leaderboard?board=${cardioBoard}&activity=${activity}&dist=${dist}`));
         }
       } catch { setRows([]); }
       setLoading(false);
     })();
-  }, [board, token, mode, activity, cardioBoard, dist, popFilter]);
+  }, [board, token, mode, activity, cardioBoard, dist, popFilter, gymScope]);
 
   const podium = rows.slice(0, 3);
   const rest = rows.slice(3);
@@ -166,6 +169,16 @@ export default function Leaderboards() {
             </Pressable>
           ))}
         </View>
+        {!!myGym && (
+          <View style={styles.scopeRow}>
+            <Pressable testID="scope-global" onPress={() => setGymScope(false)} style={[styles.scopeBtn, !gymScope && styles.scopeActive]}>
+              <Text style={[styles.scopeText, !gymScope && styles.scopeTextActive]}>🌐 THE CIRCLE</Text>
+            </Pressable>
+            <Pressable testID="scope-gym" onPress={() => setGymScope(true)} style={[styles.scopeBtn, gymScope && styles.scopeActive]}>
+              <Text style={[styles.scopeText, gymScope && styles.scopeTextActive]} numberOfLines={1}>🏋 {myGym.toUpperCase()}</Text>
+            </Pressable>
+          </View>
+        )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {BOARDS.map((b) => (
             <Pressable testID={`board-${b.key}`} key={b.key} onPress={() => setBoard(b.key)} style={[styles.chip, board === b.key && styles.chipActive]}>
@@ -245,7 +258,7 @@ export default function Leaderboards() {
       ) : loading ? (
         <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} />
       ) : rows.length === 0 ? (
-        <Text style={styles.emptyBoard}>No entries yet. Be the first to log {mode === "cardio" ? "a " + activity : "your lifts"}.</Text>
+        <Text style={styles.emptyBoard}>{gymScope && myGym ? `No ranked athletes at ${myGym} yet — log your lifts to lead your gym.` : `No entries yet. Be the first to log ${mode === "cardio" ? "a " + activity : "your lifts"}.`}</Text>
       ) : (
         <>
           <View style={styles.podiumWrap}>
@@ -284,7 +297,10 @@ export default function Leaderboards() {
                     </View>
                     <Text style={[styles.rowSub, { color: RANK_COLORS[r.rank] }]}>{r.rank}{loadoutTitle(r.loadout) ? ` · ${loadoutTitle(r.loadout)}` : ""}</Text>
                   </View>
-                  <Text style={styles.rowMetric}>{r.metric}</Text>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={styles.rowMetric}>{r.metric}</Text>
+                    {mode === "strength" && board !== "strength" && !!r.total_lift && <Text style={styles.rowTotal}>Σ {r.total_lift} lb</Text>}
+                  </View>
                 </Pressable>
               );
             })}
@@ -316,6 +332,11 @@ const styles = StyleSheet.create({
   activeText: { color: colors.success, fontSize: 10, fontWeight: "900", letterSpacing: 1, fontVariant: ["tabular-nums"] },
   chipRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm },
   popRow: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
+  scopeRow: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginBottom: spacing.sm },
+  scopeBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  scopeActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  scopeText: { color: colors.textDim, fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
+  scopeTextActive: { color: colors.brandPrimary },
   popBtn: { flex: 1, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingVertical: 7, alignItems: "center", backgroundColor: colors.surface2 },
   popActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
   popEnhanced: { borderColor: "#FF2A3C", backgroundColor: "rgba(255,42,60,0.1)" },
@@ -360,4 +381,5 @@ const styles = StyleSheet.create({
   rowName: { color: colors.text, fontWeight: "700" },
   rowSub: { fontSize: 10, letterSpacing: 2, fontWeight: "700", marginTop: 2 },
   rowMetric: { color: colors.text, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  rowTotal: { color: colors.textDim, fontSize: 9, fontWeight: "800", marginTop: 1, fontVariant: ["tabular-nums"] },
 });

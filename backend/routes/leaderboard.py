@@ -4,13 +4,17 @@ from shared import *  # noqa: F401,F403
 
 # ---------- Leaderboards ----------
 @api_router.get("/leaderboard/{board_type}")
-async def leaderboard(board_type: str, filter: str = "all", user=Depends(get_current_user)):
+async def leaderboard(board_type: str, filter: str = "all", gym: str = "", user=Depends(get_current_user)):
     q = {"is_admin": {"$ne": True}}
     if filter == "enhanced":
         q = {"enhanced": True, "is_admin": {"$ne": True}}
     elif filter == "natural":
         q = {"enhanced": {"$ne": True}, "is_admin": {"$ne": True}}
     users = await db.users.find(q, {"_id": 0, "password_hash": 0}).to_list(1000)
+    # Gym-only ranking: keep athletes whose gym matches (case-insensitive)
+    if gym.strip():
+        gl = gym.strip().lower()
+        users = [u for u in users if ((u.get("inperson_gym", "") or "").strip().lower() == gl)]
     for u in users:
         u["rank"] = rank_from_xp(u.get("xp", 0))
         u["total_lift"] = sum(u.get("prs", {}).values())

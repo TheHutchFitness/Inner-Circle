@@ -1843,11 +1843,13 @@ async def _send_booking_reminder(bk: dict, kind: str):
     client = await db.users.find_one({"user_id": cid}, {"_id": 0, "display_name": 1})
     when = f"{bk.get('date')} {bk.get('time')}"
     lead = "in 24 hours" if kind == "24" else "in 1 hour"
+    note = (bk.get("coach_note") or "").strip()
+    note_suffix = f" 📝 Coach: {note}" if note else ""
     try:
         await send_push(
             recipients=[cid],
             data={"title": "Training session reminder",
-                  "message": f"Your in-person session with Coach is {lead} ({when}).",
+                  "message": f"Your in-person session with Coach is {lead} ({when}).{note_suffix}",
                   "action_url": "/inperson"},
             idempotency_key=f"{bk['id']}:client:{kind}",
         )
