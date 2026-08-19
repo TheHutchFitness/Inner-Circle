@@ -1,14 +1,24 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Pressable, Modal } from "react-native";
 import { Image } from "expo-image";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withRepeat, withTiming, withSequence } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
+import { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
 import { colors, spacing, radius, RANK_COLORS, bgImage } from "@/src/lib/theme";
 
 export function RankUpCelebration({ visible, fromRank, toRank, background, onClose }: { visible: boolean; fromRank?: string; toRank?: string; background?: { id: string; name: string } | null; onClose: () => void }) {
   const scale = useSharedValue(0);
   const ring = useSharedValue(0);
+  const cardRef = useRef(null);
   const rankColor = RANK_COLORS[toRank || ""] || colors.brandPrimary;
+
+  const shareWin = async () => {
+    try {
+      const uri = await captureRef(cardRef, { format: "png", quality: 0.95 });
+      if (await Sharing.isAvailableAsync().catch(() => false)) await Sharing.shareAsync(uri, { dialogTitle: "Share your rank up" });
+    } catch {}
+  };
 
   useEffect(() => {
     if (visible) {
@@ -26,6 +36,7 @@ export function RankUpCelebration({ visible, fromRank, toRank, background, onClo
       <View style={styles.overlay}>
         <Animated.View style={[styles.ring, { backgroundColor: rankColor }, ringStyle]} />
         <Animated.View style={cardStyle}>
+          <View ref={cardRef} collapsable={false}>
           <LinearGradient colors={[rankColor + "33", "#12141A", "#050508"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.card, { borderColor: rankColor }]}>
             <Text style={styles.eyebrow}>RANK ASCENSION</Text>
             <Text style={[styles.newRank, { color: rankColor, textShadowColor: rankColor }]}>{toRank?.toUpperCase()}</Text>
@@ -48,7 +59,11 @@ export function RankUpCelebration({ visible, fromRank, toRank, background, onClo
             )}
             <Text style={styles.brand}>{"HUTCH'S INNER CIRCLE"}</Text>
           </LinearGradient>
+          </View>
         </Animated.View>
+        <Pressable testID="rankup-share" onPress={shareWin} style={[styles.shareBtn, { borderColor: rankColor }]}>
+          <Text style={[styles.shareText, { color: rankColor }]}>📢 SHARE TO STORY</Text>
+        </Pressable>
         <Pressable testID="rankup-close" onPress={onClose} style={styles.closeBtn}>
           <Text style={styles.closeText}>CONTINUE</Text>
         </Pressable>
@@ -75,6 +90,8 @@ const styles = StyleSheet.create({
   perkName: { fontSize: 16, fontWeight: "900", letterSpacing: 1, marginTop: 2 },
   perkEquipped: { color: colors.success, fontSize: 10, fontWeight: "800", letterSpacing: 1, marginTop: 2 },
   brand: { color: colors.textDim, letterSpacing: 3, fontSize: 10, marginTop: spacing.xl, fontWeight: "700" },
-  closeBtn: { marginTop: spacing.xl, backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.sm },
+  closeBtn: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.sm },
   closeText: { color: "#001122", fontWeight: "900", letterSpacing: 3 },
+  shareBtn: { marginTop: spacing.xl, borderWidth: 1.5, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.sm },
+  shareText: { fontWeight: "900", letterSpacing: 2 },
 });

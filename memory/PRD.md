@@ -428,3 +428,9 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Implemented (2026-06 — Milestone Share + Test Client account)
 - MILESTONE SHARE: client room shows a branded share card (HUTCH'S INNER CIRCLE + 🔥N + tier + gym + Coached by @the9hutch) with a "📢 SHARE TO STORY" button when streak>0. Captures the card via react-native-view-shot captureRef → expo-sharing shareAsync (native share sheet / story). Web falls back gracefully. Verified rendering.
 - TEST CLIENT ACCOUNT: created persistent real account testclient@hutch.com / TestClient123! (Test Client), enrolled as in-person client at gym "Hutch Performance Lab" so the owner can trial the whole in-person flow (assign programs, check-ins, etc.) before real users. Documented in test_credentials.md. NOT auto-seeded (survives restarts as a real signup).
+
+## Implemented (2026-06 — Share Any Win)
+- SHARE ANY WIN: reused the branded capture-and-share pattern (react-native-view-shot captureRef → expo-sharing) on two more celebrations so members promote the app:
+  - RankUpCelebration.tsx: wrapped the rank-ascension card in a capture ref; added a "📢 SHARE TO STORY" button (rank-colored) above CONTINUE. Card already shows the new rank + unlocked background + HUTCHS INNER CIRCLE brand.
+  - journey.tsx Reward modal: boss victories now titled "☠ BOSS DEFEATED ☠"; wrapped the reward/loot card (with a HUTCHS INNER CIRCLE brand line) in a capture ref + a "📢 SHARE TO STORY" button (shown for boss + loot drops), alongside EQUIP NOW / CONTINUE.
+- tsc clean; app loads without crash. Share sheet works on real device / Expo Go (not web preview).

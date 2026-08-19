@@ -6,6 +6,8 @@ import { router } from "expo-router";
 import Svg, { Polyline, Circle } from "react-native-svg";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay, withRepeat, Easing, runOnJS } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, bodyImage } from "@/src/lib/theme";
 import { HeroSprite } from "@/src/components/HeroSprite";
@@ -170,7 +172,14 @@ function Reward({ label, boss, accent, onClose }: { label: string; boss: boolean
   const dropY = useSharedValue(-260);
   const spin = useSharedValue(0);
   const glow = useSharedValue(0);
+  const cardRef = useRef(null);
   const isLoot = boss || /frame|aura|title|emblem|badge/i.test(label);
+  const shareWin = async () => {
+    try {
+      const uri = await captureRef(cardRef, { format: "png", quality: 0.95 });
+      if (await Sharing.isAvailableAsync().catch(() => false)) await Sharing.shareAsync(uri, { dialogTitle: "Share your victory" });
+    } catch {}
+  };
   useEffect(() => {
     s.value = withSequence(withTiming(1.15, { duration: 260 }), withTiming(1, { duration: 160 }));
     if (isLoot) {
@@ -186,6 +195,7 @@ function Reward({ label, boss, accent, onClose }: { label: string; boss: boolean
   return (
     <View style={styles.combatWrap}>
       <Animated.View style={[styles.rewardCard, { borderColor: accent }, st]}>
+       <View ref={cardRef} collapsable={false} style={{ alignItems: "center" }}>
         {isLoot ? (
           <View style={styles.lootHolder}>
             <Animated.Text style={[styles.lootGlow, { color: accent }, glowSt]}>✦</Animated.Text>
@@ -194,9 +204,14 @@ function Reward({ label, boss, accent, onClose }: { label: string; boss: boolean
         ) : (
           <Text style={styles.rewardBurst}>✦</Text>
         )}
-        <Text style={[styles.rewardTitle, { color: accent }]}>{isLoot ? "★ LOOT DROP ★" : "REWARD UNLOCKED"}</Text>
+        <Text style={[styles.rewardTitle, { color: accent }]}>{boss ? "☠ BOSS DEFEATED ☠" : isLoot ? "★ LOOT DROP ★" : "REWARD UNLOCKED"}</Text>
         <Text style={styles.rewardLabel}>{label}</Text>
+        <Text style={styles.rewardBrand}>{"HUTCH'S INNER CIRCLE"}</Text>
+       </View>
         {isLoot && <Text style={styles.lootSub}>Equip it in your Locker / Loadout</Text>}
+        <Pressable testID="reward-share" onPress={shareWin} style={[styles.primaryBtn, styles.secondaryBtn, { marginBottom: spacing.sm }]}>
+          <Text style={[styles.primaryBtnText, { color: accent }]}>📢 SHARE TO STORY</Text>
+        </Pressable>
         {isLoot && (
           <Pressable testID="loot-equip" onPress={() => { onClose(); router.push("/loadout"); }} style={[styles.primaryBtn, { backgroundColor: accent, marginBottom: spacing.sm }]}>
             <Text style={styles.primaryBtnText}>⚙ EQUIP NOW</Text>
@@ -596,6 +611,7 @@ const styles = StyleSheet.create({
   lootSub: { color: colors.textDim, fontSize: 11, marginBottom: spacing.md, letterSpacing: 1 },
   rewardTitle: { fontWeight: "900", letterSpacing: 3, fontSize: 15, marginTop: spacing.sm },
   rewardLabel: { color: colors.text, fontWeight: "800", fontSize: 18, marginVertical: spacing.lg, textAlign: "center" },
+  rewardBrand: { color: colors.textDim, letterSpacing: 3, fontSize: 10, fontWeight: "700", marginBottom: spacing.md },
   // milestone
   milestoneCard: { width: "88%", alignItems: "center", backgroundColor: colors.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.xl },
   ringHolder: { width: 110, height: 110, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
