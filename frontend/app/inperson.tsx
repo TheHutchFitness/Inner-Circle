@@ -471,7 +471,7 @@ export default function InPersonRoom() {
             )}
           </View>
           {/* Next session + coaching context */}
-          {(!!nextSession || isAdmin || (thread.checkin_streak || 0) > 0 || (thread.checkin_photos?.length || 0) > 0 || (thread.metrics_timeline?.length || 0) > 0) && (
+          {(!!nextSession || isAdmin || (thread.checkin_streak || 0) > 0 || (thread.checkin_photos?.length || 0) > 0 || (thread.metrics_timeline?.length || 0) > 0 || (thread.attendance?.length || 0) > 0) && (
             <View style={styles.topPanel}>
               {(thread.checkin_streak || 0) > 0 && (
                 <View style={[styles.streakChip, streakTier(thread.checkin_streak).style]}>
@@ -588,6 +588,24 @@ export default function InPersonRoom() {
                         <View key={i} style={styles.recentRow}>
                           <Text style={styles.recentName}>{new Date(a.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</Text>
                           <Text style={styles.recentMeta}>{a.note || "Session completed"}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
+
+              {!isAdmin && (thread.attendance?.length || 0) > 0 && (
+                <>
+                  <Pressable testID="ip-history-toggle" onPress={() => setShowLog((s) => !s)} style={styles.statsToggle}>
+                    <Text style={styles.statsToggleText}>📋 SESSION HISTORY ({thread.attendance.length}) {showLog ? "▲" : "▼"}</Text>
+                  </Pressable>
+                  {showLog && (
+                    <View style={styles.statsBox}>
+                      {thread.attendance.map((a: any, i: number) => (
+                        <View key={i} style={styles.recentRow}>
+                          <Text style={styles.recentName}>{new Date(a.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</Text>
+                          <Text style={styles.recentMeta}>{a.note || "Session completed ✓"}</Text>
                         </View>
                       ))}
                     </View>
