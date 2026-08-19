@@ -325,6 +325,13 @@ async def award_xp(user_id: str, amount: int):
         await db.users.update_one({"user_id": user_id}, {"$set": {"level": new_level}})
 
 
+async def award_group_xp(user_id: str, amount: int):
+    """Contribute a member's earned XP to every clan/group they belong to."""
+    if not amount or amount <= 0:
+        return
+    await db.groups.update_many({"members": user_id}, {"$inc": {"xp": int(amount)}})
+
+
 async def founder_status(user) -> dict:
     """First FOUNDER_LIMIT real members (by signup order) are Founding Beta members and
     get all subscription/Skool-gated perks free. Returns {is_founder, founder_number}."""

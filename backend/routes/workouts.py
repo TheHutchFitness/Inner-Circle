@@ -63,6 +63,9 @@ async def log_workout(inp: WorkoutLog, user=Depends(get_current_user)):
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"level": fresh["level"]}})
     fresh["rank"] = rank_from_xp(fresh["xp"])
 
+    # Contribute this workout's XP to any clans/groups the athlete belongs to
+    await award_group_xp(user["user_id"], xp_gain)
+
     # Rank Perk: auto-equip a fresh background the instant the athlete ranks up
     prev_rank = rank_from_xp(user.get("xp", 0))
     ranked_up = fresh["rank"] != prev_rank

@@ -60,11 +60,20 @@ export function GroupsPanel() {
         </View>
 
         {tab === "chat" ? (
-          <ChatRoom key={sel.id} room={`group:${sel.id}`} accent={colors.brandPrimary} sendTextColor="#001122" placeholder={`Talk with ${sel.name}...`} highlightMine />
+          <ChatRoom key={sel.id} room={`group:${sel.id}`} accent={sel.color || colors.brandPrimary} sendTextColor="#001122" placeholder={`Talk with ${sel.name}...`} highlightMine />
         ) : (
           <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
-            <Text style={styles.gName}>{sel.name}</Text>
-            <Text style={styles.gLvl}>◈ LEVEL {sel.level} · {sel.member_count} member{sel.member_count === 1 ? "" : "s"} · {sel.xp} XP</Text>
+            <Text style={[styles.gName, { color: sel.color || colors.text }]}>{sel.badge ? sel.badge + " " : ""}{sel.name}</Text>
+            <Text style={[styles.gLvl, { color: sel.color || colors.brandPrimary }]}>◈ LEVEL {sel.level} · {sel.title} · {sel.member_count} member{sel.member_count === 1 ? "" : "s"}</Text>
+            <View style={styles.progWrap}>
+              <View style={styles.progBar}>
+                <View style={[styles.progFill, { width: `${Math.min(100, Math.round(((sel.xp_into_level || 0) / (sel.xp_for_next || 1000)) * 100))}%`, backgroundColor: sel.color || colors.brandPrimary }]} />
+              </View>
+              <Text style={styles.progText}>
+                {sel.xp_into_level || 0} / {sel.xp_for_next || 1000} XP · {sel.xp} total
+                {sel.next_tier ? `  →  Lv ${sel.next_tier.level} unlocks ${sel.next_tier.badge || ""} ${sel.next_tier.title}` : "  ·  MAX TIER 🏆"}
+              </Text>
+            </View>
             <Text style={styles.gDesc}>{sel.description || "No description yet."}</Text>
             <Text style={styles.gCreator}>Led by {sel.creator_name}</Text>
 
@@ -156,12 +165,15 @@ export function GroupsPanel() {
       <Text style={styles.section}>ALL GROUPS ({list.length})</Text>
       {list.length === 0 ? <Text style={styles.dim}>No groups yet. Be the first to start one!</Text> :
         list.map((g) => (
-          <Pressable key={g.id} testID={`group-${g.id}`} onPress={() => openGroup(g.id)} style={styles.groupCard}>
+          <Pressable key={g.id} testID={`group-${g.id}`} onPress={() => openGroup(g.id)} style={[styles.groupCard, { borderColor: g.color || colors.borderStrong }]}>
+            <View style={[styles.gcBadge, { borderColor: g.color || colors.border }]}>
+              <Text style={[styles.gcBadgeT, { color: g.color || colors.brandPrimary }]}>{g.badge ? g.badge : g.level}</Text>
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.gcName}>{g.name}{g.role === "creator" ? " 👑" : g.role === "member" ? " ✓" : ""}</Text>
-              <Text style={styles.gcMeta}>◈ Lv {g.level} · {g.member_count} member{g.member_count === 1 ? "" : "s"}</Text>
+              <Text style={[styles.gcMeta, { color: g.color || colors.textDim }]}>◈ Lv {g.level} · {g.title} · {g.member_count} member{g.member_count === 1 ? "" : "s"}</Text>
             </View>
-            <Text style={styles.gcArrow}>›</Text>
+            <Text style={[styles.gcArrow, { color: g.color || colors.brandPrimary }]}>›</Text>
           </Pressable>
         ))}
     </ScrollView>
@@ -178,6 +190,10 @@ const styles = StyleSheet.create({
   segTOn: { color: colors.brandPrimary },
   gName: { color: colors.text, fontSize: 24, fontWeight: "900", letterSpacing: 1 },
   gLvl: { color: colors.brandPrimary, fontSize: 12, fontWeight: "800", marginTop: 4 },
+  progWrap: { marginTop: spacing.sm },
+  progBar: { height: 8, borderRadius: 4, backgroundColor: colors.surface3, overflow: "hidden", borderWidth: 1, borderColor: colors.border },
+  progFill: { height: "100%", borderRadius: 4 },
+  progText: { color: colors.textDim, fontSize: 10, fontWeight: "700", marginTop: 5, letterSpacing: 0.3 },
   gDesc: { color: colors.textMid, fontSize: 13, marginTop: spacing.sm, lineHeight: 19 },
   gCreator: { color: colors.textDim, fontSize: 11, marginTop: 4 },
   section: { color: colors.textDim, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginTop: spacing.lg, marginBottom: spacing.sm },
@@ -199,7 +215,9 @@ const styles = StyleSheet.create({
   memRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
   memName: { color: colors.text, fontWeight: "800", fontSize: 13 },
   memRank: { color: colors.textDim, fontSize: 10, marginTop: 1 },
-  groupCard: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, marginBottom: spacing.sm },
+  groupCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, marginBottom: spacing.sm },
+  gcBadge: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3 },
+  gcBadgeT: { fontWeight: "900", fontSize: 14 },
   gcName: { color: colors.text, fontWeight: "900", fontSize: 15 },
   gcMeta: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   gcArrow: { color: colors.brandPrimary, fontSize: 22, fontWeight: "900" },

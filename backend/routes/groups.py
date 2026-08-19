@@ -11,8 +11,42 @@ def _can_create(u: dict) -> bool:
                 or u.get("all_rooms_access") or u.get("is_admin"))
 
 
+XP_PER_GROUP_LEVEL = 1000
+
+# Tiers unlock a clan color + badge for the WHOLE group as it levels up.
+GROUP_TIERS = [
+    {"level": 1, "color": "#6EE7F9", "badge": "", "title": "Cyan Cell"},
+    {"level": 2, "color": "#6EE7F9", "badge": "🔥", "title": "Ignited"},
+    {"level": 3, "color": "#A78BFA", "badge": "🔥", "title": "Violet Vanguard"},
+    {"level": 5, "color": "#F472B6", "badge": "⚡", "title": "Charged"},
+    {"level": 8, "color": "#FBBF24", "badge": "⚡", "title": "Golden Order"},
+    {"level": 10, "color": "#F87171", "badge": "👑", "title": "Crimson Crown"},
+    {"level": 15, "color": "#34D399", "badge": "💀", "title": "Emerald Reapers"},
+    {"level": 20, "color": "#E879F9", "badge": "🏆", "title": "Apex Clan"},
+]
+
+
 def _group_level(xp: int) -> int:
-    return max(1, int(xp) // 1000 + 1)
+    return max(1, int(xp) // XP_PER_GROUP_LEVEL + 1)
+
+
+def _group_meta(xp: int) -> dict:
+    xp = int(xp or 0)
+    level = _group_level(xp)
+    unlocked = [t for t in GROUP_TIERS if t["level"] <= level]
+    color = next((t["color"] for t in reversed(unlocked) if t["color"]), GROUP_TIERS[0]["color"])
+    badge = next((t["badge"] for t in reversed(unlocked) if t["badge"]), "")
+    title = unlocked[-1]["title"] if unlocked else GROUP_TIERS[0]["title"]
+    nxt = next((t for t in GROUP_TIERS if t["level"] > level), None)
+    return {
+        "level": level,
+        "color": color,
+        "badge": badge,
+        "title": title,
+        "xp_into_level": xp % XP_PER_GROUP_LEVEL,
+        "xp_for_next": XP_PER_GROUP_LEVEL,
+        "next_tier": ({"level": nxt["level"], "color": nxt["color"], "badge": nxt["badge"], "title": nxt["title"]} if nxt else None),
+    }
 
 
 class GroupCreate(BaseModel):
@@ -35,7 +69,8 @@ async def _brief(g: dict, uid: str) -> dict:
     return {
         "id": g["id"], "name": g["name"], "description": g.get("description", ""),
         "creator_id": g.get("creator_id"), "member_count": len(members),
-        "xp": g.get("xp", 0), "level": _group_level(g.get("xp", 0)),
+        "xp": g.get("xp", 0),
+        **_group_meta(g.get("xp", 0)),
         "role": role, "pending_count": len(g.get("pending", [])),
     }
 
