@@ -15,6 +15,8 @@ import { StrengthChart } from "@/src/components/StrengthChart";
 import { RadarChart } from "@/src/components/RadarChart";
 import { HudSectionHeader } from "@/src/components/Hud";
 import { HealthCard } from "@/src/components/HealthCard";
+import { NutritionCard } from "@/src/components/NutritionCard";
+import { SocialLinksEditor } from "@/src/components/SocialLinks";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"], ["OHP", "ohp"]];
@@ -150,6 +152,14 @@ export default function Profile() {
         <Text style={styles.tapHint}>TAP THE CARD TO SWITCH YOUR CLASS</Text>
       </View>
 
+      {/* SOCIAL LINKS — TikTok / Instagram (shown on your card + others') */}
+      <SocialLinksEditor
+        token={token}
+        tiktok={user.social_tiktok}
+        instagram={user.social_instagram}
+        onSaved={refresh}
+      />
+
       {/* COMBAT STATS RADAR */}
       <HudSectionHeader label="COMBAT STATS" />
       <View style={styles.radarCard}>
@@ -177,6 +187,7 @@ export default function Profile() {
       {/* CONDITIONING — steps, heart rate, sprints */}
       <HudSectionHeader label="CONDITIONING" />
       <HealthCard token={token} onChange={() => { (async () => { try { setAttrs(await apiFetch(token, "/api/profile/attributes")); } catch {} })(); }} />
+      <NutritionCard />
 
       {showStats && (
         <>

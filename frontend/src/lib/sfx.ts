@@ -8,9 +8,12 @@ const SRC: Record<string, any> = {
 };
 
 const MUSIC = [
-  require("../../assets/sfx/amb1.wav"),
-  require("../../assets/sfx/amb2.wav"),
-  require("../../assets/sfx/amb3.wav"),
+  require("../../assets/sfx/zone0.wav"),
+  require("../../assets/sfx/zone1.wav"),
+  require("../../assets/sfx/zone2.wav"),
+  require("../../assets/sfx/zone3.wav"),
+  require("../../assets/sfx/zone4.wav"),
+  require("../../assets/sfx/zone5.wav"),
 ];
 
 let enabled = true;
@@ -44,7 +47,7 @@ export function playSfx(name: "slash" | "hit" | "victory") {
 // Looping ambient music, one track per zone-tier band (0-1 / 2-3 / 4-5).
 export function startZoneMusic(zoneIndex: number) {
   if (!enabled) return;
-  const idx = Math.min(2, Math.floor((zoneIndex || 0) / 2));
+  const idx = Math.max(0, Math.min(MUSIC.length - 1, zoneIndex || 0));
   try {
     if (music && musicIdx === idx) { music.play(); return; }
     stopMusic();

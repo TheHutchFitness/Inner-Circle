@@ -1,0 +1,28 @@
+{
+  "summary": "Iteration 17 — Full regression after backend refactor (server.py -> shared.py + routes/*.py) + verification of the 4 new features (Supplements tab, DB cleanup, Founding Beta, Social links). Backend: 31/31 pytest cases pass on the public preview URL, covering (a) all requested core endpoints post-split (auth/register|login|me, leaderboard xp/strength/ratio, exercises, nutrition GET/POST, supplements, workouts/log, journey, quests, enhanced/status, founders, founders/spots, cardio/leaderboard, active-count), (b) all 10 bot logins bot1..bot10@circle.ai / BotPass123!, (c) leaderboard/xp returns all 10 bot athletes (Plate Prophet, Iron Sentinel, Apex Prime confirmed) with ZERO leftover @test.com demo users, (d) active-count returns 18 (>=10), (e) fresh /auth/register marks the user is_founder=true with a small founder_number and /auth/me returns the same flags, (f) PATCH /profile/update normalized 'https://www.tiktok.com/@hutch.lifts?lang=en' -> 'hutch.lifts' and '@the_hutch' -> 'the_hutch', both retrievable via /auth/me and /api/users/{id}/public, (g) POST /supplements {on:true} adds + {on:false} removes and GET /supplements confirms persistence. Frontend (390x844 Expo web preview): (1) Login-screen founder-banner is visible with correct copy 'FOUNDING BETA · FREE ACCESS · Only 95 founder spots left'. (2) ENLIST -> register a fresh account -> Home renders premium-badge='★ FOUNDER'; The Judge opens without a subscription/Skool paywall (only the expected verify-email nudge appears); Community tab opens without a paywall. (3) Profile ME tab shows SOCIAL LINKS editor with social-tiktok-input and social-instagram-input; pasting a full URL and an @-handle then tapping social-save persists the values and re-renders tappable social-tiktok-link and social-instagram-link chips ('@hutch.lifts' / '@the_hutch'). (4) TODAY'S FUEL card has MACROS/SUPPLEMENTS toggle (nutri-tab-supps); tapping SUPPLEMENTS reveals '＋ ADD SUPPLEMENT' (supp-add) which opens a dropdown of 6 options (supp-opt-Multivitamin, ...Fish Oil (Omega-3), ...Creatine Monohydrate, ...Whey Protein, ...Vitamin D3, ...Magnesium); selecting Multivitamin adds a green 'Multivitamin' chip AND marks it with a checkmark in the list. No React Native red-screen or console errors observed on any tested route.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_refactor_regression.py",
+    "/app/test_reports/pytest/iter17_regression.xml",
+    "/app/test_reports/iteration_17.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "shared.py is ~1900+ lines with model classes, helpers, constants, and email/storage clients all mixed together. Post-refactor, the routers are clean but shared.py could benefit from a further split (models.py, helpers.py, storage.py, cosmetics.py) for maintainability. Not a functional issue.",
+    "GET /api/founders/spots correctly requires no auth (public banner works); however GET /api/active-count, /api/leaderboard/*, /api/cardio/leaderboard, /api/users/{id}/public all still require Bearer auth. That is fine, but note that /api/active-count being auth-gated means the login-screen banner cannot show live active count until AFTER login. If a live active count on the login screen is desired, main agent should make /api/active-count public like /founders/spots.",
+    "PATCH /profile/update strips '?lang=en' + '@' + URL prefix as expected via social_handle() in shared.py:95. Regex keeps [A-Za-z0-9._] up to 30 chars — this correctly blocks emoji handles but does not preserve dashes in some TikTok handles (TikTok allows '_' and '.' but not '-'; Instagram allows '_' and '.'). So the current whitelist is safe."
+  ],
+  "updated_files": ["/app/backend/tests/test_refactor_regression.py"],
+  "success_rate": {"backend": "100% (31/31)", "frontend": "100% (all 4 requested UI flows verified)"},
+  "seed_data_creation": "Registered one throwaway founder account TEST_ui_<ts>@example.com via ENLIST for the frontend gating + social + supplements verification (visible in DB, is_founder=true). Backend pytest fixture also registers a per-run TEST_iter17_<uuid>@example.com founder for the API-level founder + social tests. No production data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend split is fully functional — every endpoint listed under 'REFACTOR REGRESSION' in the review request works. All 10 bots (bot1..bot10@circle.ai / BotPass123!) can log in and show up on /leaderboard/xp. Founder auto-flag works on register + /auth/me. Social link sanitization strips URLs/@/query. Frontend banner + gating + social editor + supplements toggle all work. The Judge page shows an email-verification nudge (not a subscription paywall) for founders — that is expected because the founder gate only bypasses subscription/Skool checks, not verification. Only ~5 non-bot users exist so the founder flag will keep triggering for a while.",
+  "rca_of_issue": "n/a — no bugs found; every review-request bullet passes."
+}

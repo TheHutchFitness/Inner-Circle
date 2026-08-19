@@ -26,7 +26,7 @@ export default function AthletesCenter() {
   const { token, user } = useAuth();
   const { isSubscribed } = useSubscription();
   const router = useRouter();
-  const canAI = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.athletes_center_access;
+  const canAI = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.athletes_center_access || user?.is_founder;
   const canRank = rankIndex(user?.rank) >= 2 || user?.all_rooms_access || user?.athletes_center_access;
 
   const [goal, setGoal] = useState("Powerbuilding");

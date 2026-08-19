@@ -1,0 +1,1607 @@
+from fastapi import FastAPI, APIRouter, HTTPException, Header, Depends, UploadFile, File, Form, Request
+from fastapi.responses import Response
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
+import re
+import logging
+import uuid
+import httpx
+import bcrypt
+import secrets
+import ipaddress
+from html import escape
+from html.parser import HTMLParser
+from urllib.parse import urlparse
+from pathlib import Path
+from pydantic import BaseModel, EmailStr, Field
+from typing import List, Optional, Literal
+from datetime import datetime, timedelta, timezone
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+mongo_url = os.environ['MONGO_URL']
+client = AsyncIOMotorClient(mongo_url)
+db = client[os.environ['DB_NAME']]
+
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+SKOOL_CODE = os.environ.get('SKOOL_VERIFICATION_CODE', '4882')
+
+# ---------- RevenueCat server-side purchase verification ----------
+# Paid lifetime tiers (Custom Program $200, Founder Backer $25) grant PERSISTENT
+# server-side privileges, so they can NOT be granted on the client's word alone.
+# RevenueCat posts a signed purchase event to /api/revenuecat/webhook (authenticated
+# by this shared secret, configured in the RevenueCat dashboard) — that webhook is the
+# ONLY trusted source that can write to the `verified_purchases` collection and flip the
+# grant flags. The client /unlock and /back endpoints fail-closed unless a verified
+# purchase exists, closing the free-unlock exploit.
+RC_WEBHOOK_AUTH = os.environ.get("REVENUECAT_WEBHOOK_AUTH", "").strip()
+CUSTOM_PROGRAM_ENTITLEMENT = "custom_program"
+BACKER_ENTITLEMENT = "backer"
+# RevenueCat event types that represent an active/granted purchase
+RC_GRANT_EVENTS = {
+    "INITIAL_PURCHASE", "NON_RENEWING_PURCHASE", "RENEWAL",
+    "PRODUCT_CHANGE", "UNCANCELLATION", "TRANSFER", "SUBSCRIPTION_EXTENDED",
+}
+# Event types that revoke access (refund / chargeback)
+RC_REVOKE_EVENTS = {"REFUND"}
+# Only the actual "money changed hands" moments trigger a thank-you receipt email
+RC_RECEIPT_EVENTS = {"INITIAL_PURCHASE", "NON_RENEWING_PURCHASE"}
+
+# ---------- Emergent Object Storage (chat media) ----------
+STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+STORAGE_APP_NAME = "hutchs-inner-circle"
+_storage_key: Optional[str] = None
+
+# ---------- Emergent Managed Email (Resend) ----------
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"  # constant, never from env
+EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Hutch's Inner Circle")
+
+app = FastAPI()
+api_router = APIRouter(prefix="/api")
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+
+# ---------- Models ----------
+class RegisterInput(BaseModel):
+    email: EmailStr
+    password: str
+    display_name: str
+    sex: Optional[Literal["male", "female", "other"]] = None
+
+class LoginInput(BaseModel):
+    email: EmailStr
+    password: str
+
+class SessionInput(BaseModel):
+    session_id: str
+
+class ProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    bodyweight_lb: Optional[float] = None
+    age: Optional[int] = None
+    sex: Optional[Literal["male", "female", "other"]] = None
+    avatar_id: Optional[str] = None
+    social_tiktok: Optional[str] = None
+    social_instagram: Optional[str] = None
+
+
+def social_handle(raw: str) -> str:
+    """Normalize a TikTok/Instagram input (handle or full URL) to a bare username."""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    # pull the last path segment if a URL was pasted
+    if "/" in s:
+        s = s.rstrip("/").split("/")[-1]
+    s = s.lstrip("@").strip()
+    # strip query strings
+    s = s.split("?")[0]
+    # keep only valid handle chars
+    s = re.sub(r"[^A-Za-z0-9._]", "", s)
+    return s[:30]
+
+
+class WorkoutSet(BaseModel):
+    reps: int
+    weight_lb: float
+    rpe: float
+
+class WorkoutExercise(BaseModel):
+    name: str
+    sets: List[WorkoutSet]
+
+class WorkoutLog(BaseModel):
+    program_id: Optional[str] = None
+    workout_name: str
+    split_type: str  # ppl_push, ppl_pull, ppl_legs, upper, lower
+    exercises: List[WorkoutExercise]
+    rating: Optional[int] = None  # 1-5
+    critique: Optional[str] = None
+    duration_min: Optional[int] = None
+    source: Optional[str] = None  # "ai" | "monthly" | None
+    monthly_day: Optional[int] = None
+
+class MonthlyGenIn(BaseModel):
+    split: str
+
+class GoalsIn(BaseModel):
+    goals: str
+
+class PersonalCompleteIn(BaseModel):
+    quest_id: str
+
+class PRUpdate(BaseModel):
+    lift: Literal["bench", "squat", "deadlift", "ohp"]
+    weight_lb: float
+
+class ChatMessageIn(BaseModel):
+    text: Optional[str] = ""
+    media_id: Optional[str] = None
+
+class PhoneSendIn(BaseModel):
+    phone: str
+
+class CodeConfirmIn(BaseModel):
+    code: str
+
+class SkoolVerifyIn(BaseModel):
+    code: str
+
+class SubscriptionSet(BaseModel):
+    is_premium: bool
+
+class BackgroundSet(BaseModel):
+    background_id: str
+
+class AIWorkoutRequest(BaseModel):
+    goal: str
+    split: str
+    days_per_week: int
+    experience: str
+    notes: Optional[str] = ""
+
+class CardioLog(BaseModel):
+    activity_type: Literal["run", "bike"]
+    distance_km: float
+    duration_s: int
+    elevation_gain_m: Optional[float] = 0
+    temperature_c: Optional[float] = None
+    avg_pace_min_km: Optional[float] = None
+    route: Optional[List[dict]] = None
+
+class SprintLog(BaseModel):
+    sprint_type: Literal["40yd", "100m"]
+    seconds: float
+
+class CustomProgramIntake(BaseModel):
+    goals: str
+    injuries: Optional[str] = ""
+    schedule: Optional[str] = ""
+    days_per_week: Optional[str] = ""
+    experience: Optional[str] = ""
+    contact_method: Optional[str] = "email"
+    contact_value: Optional[str] = ""
+    notes: Optional[str] = ""
+
+
+# ---------- Helpers ----------
+def hash_password(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+def verify_password(pw: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(pw.encode(), hashed.encode())
+    except Exception:
+        return False
+
+def new_id(prefix: str) -> str:
+    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+# 8-tier rank ladder — each rank spans exactly 10 app levels (level = 1 + xp//250)
+RANK_ORDER = ["Beginner", "Intermediate", "Advanced", "Vanguard", "Warrior", "Boss", "Elite", "Freak"]
+LEVELS_PER_RANK = 10
+
+def level_from_xp(xp: int) -> int:
+    return 1 + xp // 250
+
+def rank_from_xp(xp: int) -> str:
+    lvl = level_from_xp(xp)
+    idx = min((lvl - 1) // LEVELS_PER_RANK, len(RANK_ORDER) - 1)
+    return RANK_ORDER[idx]
+
+def milestones_for(weight: float) -> List[int]:
+    milestones = []
+    for m in [135, 185, 225, 275, 315, 365, 405, 455, 495, 585, 675]:
+        if weight >= m:
+            milestones.append(m)
+    return milestones
+
+async def get_current_user(authorization: Optional[str] = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing token")
+    token = authorization.split(" ", 1)[1]
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    exp = session.get("expires_at")
+    if isinstance(exp, datetime):
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Session expired")
+    user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+async def create_session(user_id: str) -> str:
+    token = f"tok_{uuid.uuid4().hex}"
+    await db.user_sessions.insert_one({
+        "session_token": token,
+        "user_id": user_id,
+        "created_at": datetime.now(timezone.utc),
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+    })
+    return token
+
+def default_user_doc(email: str, name: str, picture: str = "") -> dict:
+    return {
+        "user_id": new_id("usr"),
+        "email": email.lower(),
+        "display_name": name,
+        "picture": picture,
+        "avatar_id": "avatar_ronin",
+        "bodyweight_lb": 180,
+        "age": 25,
+        "sex": "male",
+        "xp": 0,
+        "level": 1,
+        "prs": {"bench": 0, "squat": 0, "deadlift": 0, "ohp": 0},
+        "badges": [],
+        "workouts_logged": 0,
+        "streak_days": 0,
+        "last_workout_date": None,
+        "skool_verified": False,
+        "email_verified": False,
+        "phone_verified": False,
+        "phone": None,
+        "athletes_center_access": False,
+        "custom_program_purchased": False,
+        "active_background": "bg_default",
+        "created_at": datetime.now(timezone.utc),
+    }
+
+async def award_xp(user_id: str, amount: int):
+    await db.users.update_one({"user_id": user_id}, {"$inc": {"xp": amount}})
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if user:
+        new_level = level_from_xp(user["xp"])
+        await db.users.update_one({"user_id": user_id}, {"$set": {"level": new_level}})
+
+
+async def founder_status(user) -> dict:
+    """First FOUNDER_LIMIT real members (by signup order) are Founding Beta members and
+    get all subscription/Skool-gated perks free. Returns {is_founder, founder_number}."""
+    if not user or user.get("is_bot"):
+        return {"is_founder": False, "founder_number": None}
+    created = user.get("created_at")
+    if not created:
+        return {"is_founder": False, "founder_number": None}
+    ahead = await db.users.count_documents(
+        {"is_bot": {"$ne": True}, "created_at": {"$lt": created}}
+    )
+    num = ahead + 1
+    return {"is_founder": num <= FOUNDER_LIMIT, "founder_number": num if num <= FOUNDER_LIMIT else None}
+
+
+
+# ---------- Object Storage helpers ----------
+async def init_storage() -> str:
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    async with httpx.AsyncClient(timeout=30) as http:
+        r = await http.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_LLM_KEY})
+    r.raise_for_status()
+    _storage_key = r.json()["storage_key"]
+    return _storage_key
+
+async def storage_put(path: str, data: bytes, content_type: str) -> dict:
+    global _storage_key
+    key = await init_storage()
+    async with httpx.AsyncClient(timeout=120) as http:
+        r = await http.put(f"{STORAGE_URL}/objects/{path}",
+                           headers={"X-Storage-Key": key, "Content-Type": content_type}, content=data)
+    if r.status_code == 503:  # stale key — re-init once
+        _storage_key = None
+        key = await init_storage()
+        async with httpx.AsyncClient(timeout=120) as http:
+            r = await http.put(f"{STORAGE_URL}/objects/{path}",
+                               headers={"X-Storage-Key": key, "Content-Type": content_type}, content=data)
+    r.raise_for_status()
+    return r.json()
+
+async def storage_get(path: str) -> bytes:
+    global _storage_key
+    key = await init_storage()
+    async with httpx.AsyncClient(timeout=60) as http:
+        r = await http.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key})
+    if r.status_code == 503:
+        _storage_key = None
+        key = await init_storage()
+        async with httpx.AsyncClient(timeout=60) as http:
+            r = await http.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key})
+    r.raise_for_status()
+    return r.content
+
+
+# ---------- Email guardrail gate (per Emergent Resend playbook — do not weaken) ----------
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", re.I)
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+class _EmailScan(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan(); scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = urlparse(low).hostname or ""
+        if not _host_ok(host) or urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for mm in _HOSTISH.finditer(text):
+            if not _same_site(mm.group(1).lower(), real):
+                raise ValueError(f"Anchor text {mm.group(1)!r} != real link host {real!r} (G3)")
+
+async def send_email(*, to: str, subject: str, html: str) -> Optional[str]:
+    _assert_safe_email(subject, html)
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    try:
+        async with httpx.AsyncClient(timeout=30) as http:
+            resp = await http.post(f"{EMAIL_BASE_URL}/api/v1/email/send",
+                                   headers={"X-Email-Key": EMAIL_KEY}, json=payload)
+        resp.raise_for_status()
+        return resp.json().get("id")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Email send failed: {e.response.status_code} {e.response.text}")
+        raise HTTPException(status_code=400, detail="Couldn't send to that email address — try phone verification instead")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Email send error: {e}")
+        raise HTTPException(status_code=400, detail="Failed to send email — try again")
+
+
+
+
+
+
+
+
+
+
+
+async def _compute_attributes(user):
+    prs = user.get("prs", {}) or {}
+    bench = prs.get("bench", 0); squat = prs.get("squat", 0)
+    deadlift = prs.get("deadlift", 0); ohp = prs.get("ohp", 0)
+    bw = max(1, user.get("bodyweight_lb", 1) or 1)
+    total = bench + squat + deadlift + ohp
+    workouts = user.get("workouts_logged", 0) or 0
+    streak = user.get("streak_days", 0) or 0
+    xp = user.get("xp", 0) or 0
+    lvl = level_from_xp(xp)
+    badges = len(user.get("badges", []) or [])
+
+    def clamp(v):
+        return max(5, min(100, round(v)))
+
+    # In-app percentile for strength total (global-in-app comparison)
+    all_totals = []
+    async for u in db.users.find({}, {"_id": 0, "prs": 1}):
+        p = u.get("prs", {}) or {}
+        all_totals.append(p.get("bench", 0) + p.get("squat", 0) + p.get("deadlift", 0) + p.get("ohp", 0))
+    if all_totals:
+        below = sum(1 for t in all_totals if t <= total)
+        app_percentile = round(below / len(all_totals) * 100)
+    else:
+        app_percentile = 50
+
+    # Global benchmark: approx elite raw total ~1450 lb (bench 350 + squat 500 + dead 600 ... scaled)
+    global_strength = total / 1450 * 100
+    strength = clamp(0.6 * global_strength + 0.4 * app_percentile)
+    # Power = relative strength (total per bodyweight); ~7x bw = elite
+    power = clamp((total / bw) / 7.0 * 100)
+    # Speed = explosive/press proxy (ohp relative) + training frequency, boosted by sprint times
+    speed_base = (ohp / bw) / 0.9 * 60 + min(40, workouts * 0.8)
+    sprints = user.get("sprints", {}) or {}
+    sprint_scores = []
+    if sprints.get("40yd"):
+        sprint_scores.append(max(0, min(100, (6.5 - sprints["40yd"]) / (6.5 - 4.3) * 100)))
+    if sprints.get("100m"):
+        sprint_scores.append(max(0, min(100, (18.0 - sprints["100m"]) / (18.0 - 11.0) * 100)))
+    if sprint_scores:
+        speed = clamp(0.5 * speed_base + 0.5 * (sum(sprint_scores) / len(sprint_scores)))
+    else:
+        speed = clamp(speed_base)
+    # Endurance = volume/consistency, boosted by cardio distance + daily steps
+    cardio_km = 0.0
+    async for c in db.cardio.find({"user_id": user["user_id"]}, {"_id": 0, "distance_km": 1}):
+        cardio_km += c.get("distance_km", 0) or 0
+    step_rows = await db.steps.find({"user_id": user["user_id"]}, {"_id": 0, "steps": 1}).sort("date", -1).limit(7).to_list(7)
+    avg_steps = (sum(r.get("steps", 0) or 0 for r in step_rows) / len(step_rows)) if step_rows else 0
+    endurance = clamp(workouts * 1.0 + streak * 1.6 + min(30, cardio_km * 1.2) + min(20, avg_steps / 10000 * 20))
+    # Grit = progression + achievements
+    grit = clamp(lvl * 3.2 + badges * 3.5)
+
+    stats = {"strength": strength, "power": power, "speed": speed, "endurance": endurance, "grit": grit}
+    overall = round(sum(stats.values()) / len(stats))
+
+    # Class title from dominant axis
+    dominant = max(stats, key=stats.get)
+    spread = max(stats.values()) - min(stats.values())
+    titles = {
+        "strength": "JUGGERNAUT", "power": "POWERHOUSE", "speed": "STRIKER",
+        "endurance": "MARATHONER", "grit": "WARLORD",
+    }
+    class_title = "ALL-ROUNDER" if spread <= 12 else titles[dominant]
+
+    # Class tier from overall attribute score
+    if overall < 25: tier = "E"
+    elif overall < 40: tier = "D"
+    elif overall < 55: tier = "C"
+    elif overall < 70: tier = "B"
+    elif overall < 85: tier = "A"
+    else: tier = "S"
+
+    return {
+        "stats": stats,
+        "overall": overall,
+        "class_title": class_title,
+        "class_tier": tier,
+        "dominant": dominant,
+        "app_percentile": app_percentile,
+    }
+
+
+
+
+
+
+class StepsLog(BaseModel):
+    steps: int
+    date: Optional[str] = None
+
+
+
+class HeartRateLog(BaseModel):
+    resting_bpm: Optional[int] = None
+    avg_bpm: Optional[int] = None
+    max_bpm: Optional[int] = None
+    date: Optional[str] = None
+
+
+
+
+
+
+
+# ---------- Account verification (email + phone) ----------
+VERIFY_TTL_MIN = 10
+
+def gen_verify_code() -> str:
+    return f"{secrets.randbelow(1000000):06d}"
+
+async def _store_code(user_id: str, channel: str, code: str, extra: Optional[dict] = None):
+    doc = {
+        "user_id": user_id, "channel": channel, "code": code,
+        "created_at": datetime.now(timezone.utc),
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=VERIFY_TTL_MIN),
+        "attempts": 0,
+    }
+    if extra:
+        doc.update(extra)
+    await db.verification_codes.replace_one({"user_id": user_id, "channel": channel}, doc, upsert=True)
+
+async def _check_send_rate(user_id: str, channel: str):
+    rec = await db.verification_codes.find_one({"user_id": user_id, "channel": channel}, {"_id": 0})
+    if rec:
+        created = rec.get("created_at")
+        if isinstance(created, datetime):
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - created).total_seconds() < 60:
+                raise HTTPException(status_code=429, detail="Wait 60s before requesting another code")
+
+async def _consume_code(user_id: str, channel: str, code: str) -> dict:
+    rec = await db.verification_codes.find_one({"user_id": user_id, "channel": channel})
+    if not rec:
+        raise HTTPException(status_code=400, detail="No code requested — send one first")
+    exp = rec.get("expires_at")
+    if isinstance(exp, datetime):
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="Code expired — request a new one")
+    if rec.get("attempts", 0) >= 5:
+        raise HTTPException(status_code=400, detail="Too many attempts — request a new code")
+    if code.strip() != rec["code"]:
+        await db.verification_codes.update_one({"_id": rec["_id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(status_code=400, detail="Invalid code")
+    await db.verification_codes.delete_one({"_id": rec["_id"]})
+    return rec
+
+
+
+
+
+
+# ---------- Programs ----------
+DEFAULT_PROGRAMS = [
+    {
+        "program_id": "prog_ppl_intermediate",
+        "name": "Push/Pull/Legs — Intermediate",
+        "split": "ppl",
+        "min_rank": "Intermediate",
+        "days_per_week": 6,
+        "workouts": [
+            {"key": "push", "name": "Push Day", "exercises": ["Bench Press", "Overhead Press", "Incline DB Press", "Tricep Pushdown", "Lateral Raises"]},
+            {"key": "pull", "name": "Pull Day", "exercises": ["Deadlift", "Barbell Row", "Pull-Ups", "Face Pulls", "Barbell Curl"]},
+            {"key": "legs", "name": "Legs Day", "exercises": ["Back Squat", "Romanian Deadlift", "Leg Press", "Standing Calf Raises", "Leg Curl"]},
+        ],
+    },
+    {
+        "program_id": "prog_upper_lower",
+        "name": "Upper/Lower — Foundational",
+        "split": "upper_lower",
+        "min_rank": "Beginner",
+        "days_per_week": 4,
+        "workouts": [
+            {"key": "upper", "name": "Upper Body", "exercises": ["Bench Press", "Barbell Row", "Overhead Press", "Pull-Ups", "Bicep Curl"]},
+            {"key": "lower", "name": "Lower Body", "exercises": ["Back Squat", "Romanian Deadlift", "Bulgarian Split Squat", "Calf Raises"]},
+        ],
+    },
+    {
+        "program_id": "prog_ppl_advanced",
+        "name": "Push/Pull/Legs — Advanced Powerbuilder",
+        "split": "ppl",
+        "min_rank": "Advanced",
+        "days_per_week": 6,
+        "workouts": [
+            {"key": "push", "name": "Push (Heavy)", "exercises": ["Bench Press 5x5", "Weighted Dips", "Overhead Press", "Close-Grip Bench", "DB Lateral Raises"]},
+            {"key": "pull", "name": "Pull (Heavy)", "exercises": ["Deadlift 5x3", "Weighted Pull-Ups", "Pendlay Row", "Chest-Supported Row", "EZ Bar Curl"]},
+            {"key": "legs", "name": "Legs (Heavy)", "exercises": ["Back Squat 5x5", "Front Squat", "Romanian Deadlift", "Leg Press", "Calf Raises"]},
+        ],
+    },
+]
+
+
+
+# ---------- Exercise Library + Split Templates ----------
+EXERCISE_LIBRARY = [
+    # Chest
+    {"name": "Barbell Bench Press", "category": "Chest", "desc": "The primary flat-bench press. Retract your shoulder blades and drive the bar over mid-chest for max pec and triceps power."},
+    {"name": "Incline Barbell Bench Press", "category": "Chest", "desc": "Bench set to 30-45 degrees to emphasize the upper chest and front delts."},
+    {"name": "Decline Barbell Bench Press", "category": "Chest", "desc": "Bench angled downward to bias the lower-chest fibers."},
+    {"name": "Dumbbell Bench Press", "category": "Chest", "desc": "Flat press with dumbbells for a deeper stretch and even left/right development."},
+    {"name": "Incline Dumbbell Press", "category": "Chest", "desc": "Inclined dumbbell press that hits the upper chest with a bigger range of motion."},
+    {"name": "Machine Chest Press", "category": "Chest", "desc": "Fixed-path press, great for controlled volume and chasing a safe pump."},
+    {"name": "Cable Fly", "category": "Chest", "desc": "Standing cable flyes that keep constant tension across the chest through the full arc."},
+    {"name": "Pec Deck", "category": "Chest", "desc": "Seated machine flye that isolates the chest on a joint-friendly path."},
+    {"name": "Dumbbell Fly", "category": "Chest", "desc": "Flat-bench flye with a wide arc for a strong pec stretch and squeeze."},
+    {"name": "Push-Up", "category": "Chest", "desc": "Bodyweight press. Keep a tight plank and lower your chest to the floor."},
+    {"name": "Weighted Dip", "category": "Chest", "desc": "Dip leaning forward with added load to build the lower chest and triceps."},
+    {"name": "Incline Machine Press", "category": "Chest", "desc": "Machine incline press for stable, high-volume upper-chest work."},
+    {"name": "Cable Crossover", "category": "Chest", "desc": "Cables pulled down and together to target the lower and inner chest."},
+    {"name": "Landmine Press", "category": "Chest", "desc": "One-arm press with a barbell in a landmine, a shoulder-friendly upper-chest builder."},
+    {"name": "Smith Machine Bench Press", "category": "Chest", "desc": "Guided-bar bench for controlled pressing and safe overload."},
+    # Back
+    {"name": "Deadlift", "category": "Back", "desc": "The king of pulls. Hinge and drive the floor away to build the entire posterior chain."},
+    {"name": "Barbell Row", "category": "Back", "desc": "Bent-over row pulling to the lower ribs for mid-back thickness."},
+    {"name": "Pendlay Row", "category": "Back", "desc": "Explosive row from a dead stop on the floor every rep. Strict and powerful."},
+    {"name": "T-Bar Row", "category": "Back", "desc": "Chest-supported or landmine row for heavy mid-back loading."},
+    {"name": "Chest-Supported Row", "category": "Back", "desc": "Row with your torso braced on a pad to remove momentum and isolate the back."},
+    {"name": "Seated Cable Row", "category": "Back", "desc": "Seated row with a neutral grip. Squeeze the shoulder blades together at the back."},
+    {"name": "Lat Pulldown", "category": "Back", "desc": "Vertical pull to the collarbone that builds lat width."},
+    {"name": "Pulldowns", "category": "Back", "desc": "General cable pulldown variation for lat width and control."},
+    {"name": "Pull-Up", "category": "Back", "desc": "Bodyweight vertical pull. Dead-hang to chin-over-bar for lats and grip."},
+    {"name": "Chin-Up", "category": "Back", "desc": "Underhand pull-up that biases the lats and biceps."},
+    {"name": "Dumbbell Row", "category": "Back", "desc": "Single-arm braced row for a big stretch and balanced unilateral work."},
+    {"name": "Face Pull", "category": "Back", "desc": "Rope pull to the face for rear delts and healthier shoulders."},
+    {"name": "Straight-Arm Pulldown", "category": "Back", "desc": "Lat isolation with straight arms sweeping the bar toward your thighs."},
+    {"name": "Rack Pull", "category": "Back", "desc": "Partial deadlift from pins to overload the top-end pull and traps."},
+    {"name": "Meadows Row", "category": "Back", "desc": "Landmine single-arm row with a big stretch across the lats."},
+    {"name": "Inverted Row", "category": "Back", "desc": "Bodyweight horizontal row under a fixed bar, scalable for any level."},
+    {"name": "Machine Row", "category": "Back", "desc": "Plate- or pin-loaded row on a fixed path for easy progressive overload."},
+    {"name": "Snatch-Grip Deadlift", "category": "Back", "desc": "Wide-grip deadlift that increases range of motion and upper-back demand."},
+    {"name": "Reverse Pec Deck", "category": "Back", "desc": "Machine rear-delt flye for the upper back and posture."},
+    # Shoulders
+    {"name": "Overhead Press", "category": "Shoulders", "desc": "Standing barbell press overhead. Brace hard and press to full lockout."},
+    {"name": "Seated Dumbbell Press", "category": "Shoulders", "desc": "Seated overhead press with dumbbells for even delt development."},
+    {"name": "Arnold Press", "category": "Shoulders", "desc": "Rotating dumbbell press that hits all three delt heads."},
+    {"name": "Lateral Raise", "category": "Shoulders", "desc": "Raise dumbbells out to the sides to build lateral-delt width."},
+    {"name": "Cable Lateral Raise", "category": "Shoulders", "desc": "Cable side raise for constant tension on the side delts."},
+    {"name": "Rear Delt Fly", "category": "Shoulders", "desc": "Bent-over reverse flye targeting the rear delts."},
+    {"name": "Front Raise", "category": "Shoulders", "desc": "Raise the weight to shoulder height in front to hit the front delts."},
+    {"name": "Upright Row", "category": "Shoulders", "desc": "Pull the bar up along the body to the chest for delts and traps."},
+    {"name": "Shrug", "category": "Shoulders", "desc": "Elevate the shoulders straight up to build the traps."},
+    {"name": "Machine Shoulder Press", "category": "Shoulders", "desc": "Fixed-path overhead press for safe, high delt volume."},
+    {"name": "Landmine Shoulder Press", "category": "Shoulders", "desc": "Angled one-arm press that is easy on the shoulder joint."},
+    {"name": "Cable Rear Delt Fly", "category": "Shoulders", "desc": "Cross-cable reverse flye keeping tension on the rear delts."},
+    {"name": "Y-Raise", "category": "Shoulders", "desc": "Incline raise in a Y path for the lower traps and rear delts."},
+    # Legs
+    {"name": "Back Squat", "category": "Legs", "desc": "Barbell on the back. Squat to depth to build total-leg strength."},
+    {"name": "Front Squat", "category": "Legs", "desc": "Bar racked on the front delts with an upright torso that hammers the quads."},
+    {"name": "Hack Squat", "category": "Legs", "desc": "Machine squat on a fixed sled to overload the quads safely."},
+    {"name": "Leg Press", "category": "Legs", "desc": "Seated sled press for heavy quad and glute volume."},
+    {"name": "Romanian Deadlift", "category": "Legs", "desc": "Stiff-leg hinge with a big hamstring stretch. Keep the bar close."},
+    {"name": "Bulgarian Split Squat", "category": "Legs", "desc": "Rear-foot-elevated split squat for single-leg strength and balance."},
+    {"name": "Walking Lunge", "category": "Legs", "desc": "Alternating forward lunges for quads, glutes, and conditioning."},
+    {"name": "Leg Extension", "category": "Legs", "desc": "Seated machine knee extension that isolates the quads."},
+    {"name": "Leg Curl", "category": "Legs", "desc": "Lying machine curl that isolates the hamstrings."},
+    {"name": "Seated Leg Curl", "category": "Legs", "desc": "Seated hamstring curl with a strong stretch under load."},
+    {"name": "Standing Calf Raise", "category": "Legs", "desc": "Rise onto the toes standing to build the gastrocnemius."},
+    {"name": "Seated Calf Raise", "category": "Legs", "desc": "Seated toe raise that targets the soleus of the calf."},
+    {"name": "Hip Thrust", "category": "Legs", "desc": "Bench-supported barbell bridge for powerful glute development."},
+    {"name": "Goblet Squat", "category": "Legs", "desc": "Hold a dumbbell at the chest and squat. Great for depth and form."},
+    {"name": "Sumo Deadlift", "category": "Legs", "desc": "Wide-stance deadlift with more quad and adductor involvement."},
+    {"name": "Belt Squat", "category": "Legs", "desc": "Load hung from the hips to squat hard without loading the spine."},
+    {"name": "Step-Up", "category": "Legs", "desc": "Drive up onto a box one leg at a time for quads and glutes."},
+    {"name": "Reverse Lunge", "category": "Legs", "desc": "Step back into a lunge, easier on the knees than the forward version."},
+    {"name": "Nordic Curl", "category": "Legs", "desc": "Eccentric bodyweight hamstring curl for serious hamstring strength."},
+    {"name": "Glute-Ham Raise", "category": "Legs", "desc": "GHD hip-and-knee extension for the hamstrings and glutes."},
+    {"name": "Adductor Machine", "category": "Legs", "desc": "Squeeze the pads together to train the inner thighs."},
+    {"name": "Abductor Machine", "category": "Legs", "desc": "Press the pads apart to train the glute medius and outer hips."},
+    # Arms
+    {"name": "Barbell Curl", "category": "Arms", "desc": "Standing straight-bar curl to build overall biceps mass."},
+    {"name": "EZ-Bar Curl", "category": "Arms", "desc": "Curl on an angled bar that is easier on the wrists."},
+    {"name": "Dumbbell Curl", "category": "Arms", "desc": "Alternating or simultaneous curls with a supinating grip."},
+    {"name": "Hammer Curl", "category": "Arms", "desc": "Neutral-grip curl that targets the brachialis and forearms."},
+    {"name": "Preacher Curl", "category": "Arms", "desc": "Arm braced on a pad to strictly isolate the biceps."},
+    {"name": "Incline Dumbbell Curl", "category": "Arms", "desc": "Curl lying back on an incline for a long biceps stretch."},
+    {"name": "Cable Curl", "category": "Arms", "desc": "Standing cable curl for constant tension through the rep."},
+    {"name": "Tricep Pushdown", "category": "Arms", "desc": "Cable pushdown pressing the handle to lockout for the triceps."},
+    {"name": "Overhead Tricep Extension", "category": "Arms", "desc": "Extend a weight overhead to hit the long head of the triceps."},
+    {"name": "Skull Crusher", "category": "Arms", "desc": "Lying extension lowering the bar toward the forehead for the triceps."},
+    {"name": "Close-Grip Bench Press", "category": "Arms", "desc": "Narrow-grip bench that emphasizes the triceps."},
+    {"name": "Cable Overhead Extension", "category": "Arms", "desc": "Overhead rope extension keeping tension on the long head."},
+    {"name": "Wrist Curl", "category": "Arms", "desc": "Curl the wrists up to build the forearm flexors."},
+    {"name": "Concentration Curl", "category": "Arms", "desc": "Seated single-arm curl braced on the thigh for a peak contraction."},
+    {"name": "Spider Curl", "category": "Arms", "desc": "Curl with arms hanging over an incline bench for constant biceps tension."},
+    {"name": "Reverse Curl", "category": "Arms", "desc": "Overhand curl for the brachialis and forearm extensors."},
+    {"name": "Zottman Curl", "category": "Arms", "desc": "Curl up supinated and lower pronated to hit biceps and forearms."},
+    {"name": "Rope Pushdown", "category": "Arms", "desc": "Cable pushdown with a rope, spreading the ends apart at lockout."},
+    {"name": "Triceps Dip", "category": "Arms", "desc": "Upright bodyweight dip that biases the triceps."},
+    {"name": "Reverse Wrist Curl", "category": "Arms", "desc": "Curl the wrists upward to build the forearm extensors."},
+    # Core
+    {"name": "Hanging Leg Raise", "category": "Core", "desc": "Hang and raise the legs to hit the lower abs and hip flexors."},
+    {"name": "Cable Crunch", "category": "Core", "desc": "Kneeling rope crunch that lets you progressively load the abs."},
+    {"name": "Plank", "category": "Core", "desc": "Hold a rigid plank to build anti-extension core stability."},
+    {"name": "Ab Wheel Rollout", "category": "Core", "desc": "Roll out and back under control for total-core strength."},
+    {"name": "Russian Twist", "category": "Core", "desc": "Rotate side to side to train the obliques."},
+    {"name": "Weighted Sit-Up", "category": "Core", "desc": "Sit-up holding a plate for loaded ab work."},
+    {"name": "Decline Sit-Up", "category": "Core", "desc": "Sit-up on a decline for a longer range on the abs."},
+    {"name": "Hanging Knee Raise", "category": "Core", "desc": "Hang and drive the knees up, a scalable lower-ab builder."},
+    {"name": "Pallof Press", "category": "Core", "desc": "Press a cable straight out to resist rotation (anti-rotation)."},
+    {"name": "Side Plank", "category": "Core", "desc": "Hold on one forearm to train the obliques and lateral core."},
+    {"name": "Toes-to-Bar", "category": "Core", "desc": "Hang and bring the toes to the bar for advanced ab strength."},
+    {"name": "Cable Woodchopper", "category": "Core", "desc": "Cable chop across the body for rotational core power."},
+    {"name": "Machine Crunch", "category": "Core", "desc": "Seated machine crunch for easy, loadable ab volume."},
+    # Olympic / Power
+    {"name": "Power Clean", "category": "Olympic", "desc": "Explosively pull the bar from the floor to the shoulders."},
+    {"name": "Clean and Jerk", "category": "Olympic", "desc": "Clean to the shoulders, then jerk overhead. Full-body power."},
+    {"name": "Snatch", "category": "Olympic", "desc": "One explosive pull from floor to overhead, the most technical lift."},
+    {"name": "Push Press", "category": "Olympic", "desc": "Dip and drive to press the bar overhead using the legs."},
+    {"name": "Clean Pull", "category": "Olympic", "desc": "The pull portion of the clean to build power off the floor."},
+    {"name": "Hang Clean", "category": "Olympic", "desc": "Clean starting from the hang to train the explosive second pull."},
+    {"name": "Power Snatch", "category": "Olympic", "desc": "Snatch caught above parallel to emphasize speed and power."},
+    {"name": "Push Jerk", "category": "Olympic", "desc": "Dip, drive, and re-dip under the bar to lock it out overhead."},
+    {"name": "Kettlebell Swing", "category": "Olympic", "desc": "Hip-hinge swing for explosive glutes, hamstrings, and conditioning."},
+    {"name": "Box Jump", "category": "Olympic", "desc": "Explosive jump onto a box for lower-body power (log your reps)."},
+]
+
+
+# Aliases so PR tracking still recognizes the big lifts if a library variant is used
+_PR_ALIASES = {
+    "Barbell Bench Press": "bench", "Bench Press": "bench",
+    "Back Squat": "squat", "Deadlift": "deadlift", "Overhead Press": "ohp",
+}
+
+WORKOUT_TEMPLATES = [
+    {"id": "push", "name": "Push", "focus": "Chest · Shoulders · Triceps",
+     "exercises": ["Barbell Bench Press", "Overhead Press", "Incline Dumbbell Press", "Lateral Raise", "Tricep Pushdown"]},
+    {"id": "pull", "name": "Pull", "focus": "Back · Biceps · Rear Delts",
+     "exercises": ["Deadlift", "Barbell Row", "Lat Pulldown", "Face Pull", "Barbell Curl"]},
+    {"id": "legs", "name": "Legs", "focus": "Quads · Hams · Calves",
+     "exercises": ["Back Squat", "Romanian Deadlift", "Leg Press", "Leg Curl", "Standing Calf Raise"]},
+    {"id": "upper", "name": "Upper", "focus": "Chest · Back · Shoulders · Arms",
+     "exercises": ["Barbell Bench Press", "Barbell Row", "Overhead Press", "Pull-Up", "Barbell Curl", "Tricep Pushdown"]},
+    {"id": "lower", "name": "Lower", "focus": "Quads · Hams · Glutes · Calves",
+     "exercises": ["Back Squat", "Romanian Deadlift", "Bulgarian Split Squat", "Leg Extension", "Standing Calf Raise"]},
+    {"id": "arms", "name": "Arms", "focus": "Biceps · Triceps · Forearms",
+     "exercises": ["Barbell Curl", "Close-Grip Bench Press", "Hammer Curl", "Skull Crusher", "Cable Curl", "Tricep Pushdown", "Wrist Curl"]},
+    {"id": "core", "name": "Core", "focus": "Abs · Obliques · Stability",
+     "exercises": ["Hanging Leg Raise", "Cable Crunch", "Ab Wheel Rollout", "Russian Twist", "Weighted Sit-Up", "Plank"]},
+    {"id": "back", "name": "Back", "focus": "Lats · Traps · Erectors",
+     "exercises": ["Deadlift", "Barbell Row", "Pull-Up", "Lat Pulldown", "Seated Cable Row", "Shrug"]},
+    {"id": "fullbody", "name": "Full Body", "focus": "Total body compound day",
+     "exercises": ["Back Squat", "Barbell Bench Press", "Barbell Row", "Overhead Press", "Barbell Curl", "Hanging Leg Raise"]},
+    {"id": "custom", "name": "Custom", "focus": "Start blank · build your own",
+     "exercises": []},
+]
+
+
+class CustomExerciseIn(BaseModel):
+    name: str
+    category: Optional[str] = "Custom"
+    desc: Optional[str] = ""
+
+
+
+
+# ---------- Monthly training programs (auto-scheduled) ----------
+MONTHLY_SPLITS = {
+    "ppl": {"name": "Push/Pull/Legs", "days_per_week": 6,
+            "pattern": ["push", "pull", "legs", "push", "pull", "legs", "rest"]},
+    "upper_lower": {"name": "Upper/Lower", "days_per_week": 4,
+                    "pattern": ["upper", "lower", "rest", "upper", "lower", "rest", "rest"]},
+    "fullbody": {"name": "Full Body", "days_per_week": 3,
+                 "pattern": ["fullbody", "rest", "fullbody", "rest", "fullbody", "rest", "rest"]},
+    "bro": {"name": "Bro Split", "days_per_week": 5,
+            "pattern": ["push", "back", "legs", "arms", "core", "rest", "rest"]},
+}
+
+def _template_by_id(tid: str) -> Optional[dict]:
+    return next((t for t in WORKOUT_TEMPLATES if t["id"] == tid), None)
+
+
+
+
+
+# ---------- Personal goal quests (AI-curated, real-life) ----------
+def _fallback_personal_quests(goals: str) -> List[dict]:
+    return [
+        {"title": "Commit It To Paper", "description": f"Write down your goal ({goals[:60]}) and pin it where you train. Visible goals get chased.", "xp": 100, "timeframe": "This week"},
+        {"title": "Baseline Check", "description": "Record your current stats — bodyweight, main lifts, or mile time. You can't improve what you don't measure.", "xp": 150, "timeframe": "This week"},
+        {"title": "Meal Prep Mission", "description": "Prep 3 days of meals aligned with your goal. Nutrition is half the battle.", "xp": 200, "timeframe": "This week"},
+        {"title": "Accountability Post", "description": "Share your goal in the Circle chat. Public goals are 2x more likely to get done.", "xp": 150, "timeframe": "Anytime"},
+        {"title": "Four-Week Checkpoint", "description": "Re-test your baseline after 4 weeks of consistent work and log the difference.", "xp": 400, "timeframe": "This month"},
+    ]
+
+
+
+
+
+
+
+class FavouriteIn(BaseModel):
+    name: str
+    on: bool = True
+
+
+
+
+
+
+
+
+def _range_start(rng: str, now: datetime):
+    if rng == "1w":
+        return now - timedelta(days=7)
+    if rng == "1m":
+        return now - timedelta(days=30)
+    if rng == "3m":
+        return now - timedelta(days=90)
+    return None  # all
+
+
+async def _exercise_sessions(user_id: str, name: str, rng: str):
+    """Returns list of {date, sets:[{reps,weight_lb,rpe}], workout_name} for one exercise."""
+    now = datetime.now(timezone.utc)
+    start = _range_start(rng, now)
+    rows = await db.workouts.find({"user_id": user_id}, {"_id": 0}).sort("logged_at", -1).to_list(1000)
+    sessions = []
+    target = name.strip().lower()
+    for r in rows:
+        ts = r.get("logged_at")
+        if isinstance(ts, str):
+            try: ts = datetime.fromisoformat(ts)
+            except Exception: ts = None
+        if isinstance(ts, datetime) and ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if start and isinstance(ts, datetime) and ts < start:
+            continue
+        for ex in r.get("exercises", []) or []:
+            if (ex.get("name", "").strip().lower()) == target:
+                sets = [{"reps": s.get("reps", 0) or 0, "weight_lb": s.get("weight_lb", 0) or 0, "rpe": s.get("rpe", 0) or 0} for s in ex.get("sets", []) or []]
+                sessions.append({"date": ts.isoformat() if isinstance(ts, datetime) else None, "sets": sets, "workout_name": r.get("workout_name", "")})
+    return sessions
+
+
+
+
+
+
+
+
+# ---------- Unlockables (XP/level rewards) ----------
+BACKGROUNDS = [
+    {"id": "bg_default", "name": "Midnight Steel", "level": 1, "colors": ["#002A55", "#12141A"]},
+    {"id": "bg_cyber", "name": "Cyber Grid", "level": 11, "colors": ["#001A33", "#003A5C"]},
+    {"id": "bg_toxic", "name": "Toxic Surge", "level": 16, "colors": ["#0A2A00", "#12141A"]},
+    {"id": "bg_inferno", "name": "Inferno", "level": 21, "colors": ["#2A0010", "#12141A"]},
+    {"id": "bg_vanguard", "name": "Vanguard Sapphire", "level": 31, "colors": ["#0A2A66", "#050914"]},
+    {"id": "bg_warrior", "name": "Warrior's Forge", "level": 41, "colors": ["#3A1E00", "#140A00"]},
+    {"id": "bg_boss", "name": "Boss Throne", "level": 51, "colors": ["#052A1A", "#04120C"]},
+    {"id": "bg_void", "name": "The Void", "level": 61, "colors": ["#1A0033", "#050508"]},
+    {"id": "bg_freak", "name": "Freak Mode", "level": 71, "colors": ["#330000", "#0A0000"]},
+]
+WIDGETS = [
+    {"id": "w_streak", "name": "Streak Tracker", "level": 2, "desc": "Live consecutive-day counter"},
+    {"id": "w_volume", "name": "Volume Meter", "level": 5, "desc": "Weekly tonnage moved"},
+    {"id": "w_nextrank", "name": "Rank Progress", "level": 8, "desc": "XP-to-next-rank gauge"},
+    {"id": "w_quote", "name": "War Cry", "level": 12, "desc": "Daily motivation banner"},
+    {"id": "w_pr_radar", "name": "PR Radar", "level": 22, "desc": "Flags a lift primed for a new PR"},
+    {"id": "w_class", "name": "Class Insignia", "level": 32, "desc": "Combat class crest on your player card"},
+    {"id": "w_heatmap", "name": "Training Heatmap", "level": 42, "desc": "Yearly training-density grid"},
+    {"id": "w_aura", "name": "Rank Aura", "level": 52, "desc": "Animated aura around your avatar"},
+]
+
+RANK_PERK_BG = {
+    "Intermediate": "bg_cyber",
+    "Advanced": "bg_inferno",
+    "Vanguard": "bg_vanguard",
+    "Warrior": "bg_warrior",
+    "Boss": "bg_boss",
+    "Elite": "bg_void",
+    "Freak": "bg_freak",
+}
+
+# ---------- Quests ----------
+QUEST_TEMPLATES = {
+    "daily": [
+        {"id": "d_train", "title": "Answer the Call", "flavor": "A Daily Quest has arrived. Log a training session.", "reward_xp": 60, "objectives": [{"key": "workouts", "label": "Log workouts today", "target": 1}]},
+        {"id": "d_sets", "title": "Grind Sets", "flavor": "Volume builds the vessel. Complete your working sets.", "reward_xp": 70, "objectives": [{"key": "sets", "label": "Complete sets today", "target": 12}]},
+        {"id": "d_volume", "title": "Iron Tonnage", "flavor": "Move serious weight before the day resets.", "reward_xp": 80, "objectives": [{"key": "volume", "label": "Move total lb today", "target": 8000}]},
+    ],
+    "weekly": [
+        {"id": "w_consistency", "title": "Weekly Warrior", "flavor": "Show up. Discipline over motivation.", "reward_xp": 250, "objectives": [{"key": "workouts", "label": "Sessions this week", "target": 4}]},
+        {"id": "w_pr", "title": "Break Limits", "flavor": "Set a new personal record this week.", "reward_xp": 300, "objectives": [{"key": "prs", "label": "New PRs this week", "target": 1}]},
+        {"id": "w_volume", "title": "Mountain Mover", "flavor": "Accumulate massive weekly tonnage.", "reward_xp": 280, "objectives": [{"key": "volume", "label": "Move total lb this week", "target": 60000}]},
+    ],
+    "monthly": [
+        {"id": "m_grind", "title": "Monthly Monster", "flavor": "A month of relentless work.", "reward_type": "badge", "reward_value": "quest_monthly_monster", "reward_label": "Monthly Monster Badge", "objectives": [{"key": "workouts", "label": "Sessions this month", "target": 16}]},
+        {"id": "m_pr", "title": "Record Breaker", "flavor": "Rewrite your limits repeatedly.", "reward_type": "background", "reward_value": "bg_void", "reward_label": "The Void Background", "objectives": [{"key": "prs", "label": "New PRs this month", "target": 4}]},
+        {"id": "m_ascend", "title": "Ascendant", "flavor": "Pure dedication. Earn the Prime card.", "reward_type": "card", "reward_value": "prime_card", "reward_label": "Prime Card Badge", "objectives": [{"key": "xp", "label": "XP earned this month", "target": 2000}]},
+    ],
+    "boss": [
+        {"id": "boss_frame", "title": "SLAY THE GATEKEEPER", "flavor": "A rare Boss has appeared. Only the relentless claim its power. Unlock the coveted BOSS frame.", "reward_xp": 600, "reward_type": "frame", "reward_value": "boss", "reward_label": "BOSS Frame + 600 XP", "objectives": [{"key": "xp", "label": "XP earned this month", "target": 5000}, {"key": "workouts", "label": "Sessions this month", "target": 20}]},
+        {"id": "boss_bg", "title": "CLAIM THE THRONE", "flavor": "Dethrone the Boss. Seize the Boss Throne and rule the arena.", "reward_xp": 700, "reward_type": "background", "reward_value": "bg_boss", "reward_label": "Boss Throne BG + 700 XP", "objectives": [{"key": "prs", "label": "New PRs this month", "target": 6}, {"key": "volume", "label": "Move total lb this month", "target": 250000}]},
+    ],
+}
+
+
+def _period_key(scope: str, now: datetime) -> str:
+    if scope == "daily":
+        return now.strftime("%Y-%m-%d")
+    if scope == "weekly":
+        iso = now.isocalendar()
+        return f"{iso[0]}-W{iso[1]:02d}"
+    return now.strftime("%Y-%m")
+
+
+async def _metrics_for(user_id: str, scope: str, now: datetime):
+    if scope == "daily":
+        start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    elif scope == "weekly":
+        start = now - timedelta(days=7)
+    else:
+        start = now - timedelta(days=30)
+    rows = await db.workouts.find({"user_id": user_id}, {"_id": 0}).sort("logged_at", -1).to_list(1000)
+    workouts = sets = prs = xp = volume = 0
+    for r in rows:
+        ts = r.get("logged_at")
+        if isinstance(ts, str):
+            try: ts = datetime.fromisoformat(ts)
+            except Exception: ts = None
+        if not isinstance(ts, datetime):
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        if ts < start:
+            continue
+        workouts += 1
+        prs += len(r.get("pr_details", []) or [])
+        xp += r.get("xp_gained", 0) or 0
+        for ex in r.get("exercises", []) or []:
+            for s in ex.get("sets", []) or []:
+                sets += 1
+                volume += (s.get("reps", 0) or 0) * (s.get("weight_lb", 0) or 0)
+    return {"workouts": workouts, "sets": sets, "prs": prs, "xp": xp, "volume": int(volume)}
+
+
+async def _build_quests(user, scope: str, now: datetime):
+    metrics = await _metrics_for(user["user_id"], scope, now)
+    pkey = _period_key(scope, now)
+    total_users = max(1, await db.users.count_documents({}))
+    out = []
+    for tmpl in QUEST_TEMPLATES[scope]:
+        quest_key = f"{scope}:{tmpl['id']}:{pkey}"
+        objectives = []
+        complete = True
+        for ob in tmpl["objectives"]:
+            cur = min(metrics.get(ob["key"], 0), ob["target"])
+            if metrics.get(ob["key"], 0) < ob["target"]:
+                complete = False
+            objectives.append({"label": ob["label"], "current": cur, "target": ob["target"]})
+        claim = await db.quest_claims.find_one({"user_id": user["user_id"], "quest_key": quest_key})
+        completers = await db.quest_claims.count_documents({"quest_key": quest_key})
+        out.append({
+            "id": quest_key,
+            "scope": scope,
+            "title": tmpl["title"],
+            "flavor": tmpl["flavor"],
+            "objectives": objectives,
+            "complete": complete,
+            "claimed": bool(claim),
+            "reward_xp": tmpl.get("reward_xp", 0),
+            "reward_type": tmpl.get("reward_type", "xp"),
+            "reward_label": tmpl.get("reward_label", f"{tmpl.get('reward_xp', 0)} XP"),
+            "global_completions": completers,
+            "global_percent": round(completers / total_users * 100, 1),
+        })
+    return out
+
+
+
+
+# ---------- The Journey (RPG map mini-game) ----------
+_JOURNEY_ZONES = {
+    "E": {"name": "THE WASTES", "index": 0, "primary": "#3A4250", "accent": "#8792A6"},
+    "D": {"name": "IRON VALLEY", "index": 1, "primary": "#234E7A", "accent": "#4299E1"},
+    "C": {"name": "STORM RIDGE", "index": 2, "primary": "#1E6C8C", "accent": "#00E5FF"},
+    "B": {"name": "EMBER PEAKS", "index": 3, "primary": "#A2521B", "accent": "#F6A040"},
+    "A": {"name": "CRIMSON CITADEL", "index": 4, "primary": "#8E1B24", "accent": "#FF4D5E"},
+    "S": {"name": "ASCENSION", "index": 5, "primary": "#5B2E9B", "accent": "#C08BFF"},
+}
+
+
+def _zone_for_tier(t: str):
+    return {"tier": t, **_JOURNEY_ZONES.get(t, _JOURNEY_ZONES["E"])}
+
+
+
+
+
+
+class NutritionIn(BaseModel):
+    calories: float = 0
+    protein: float = 0
+    carbs: float = 0
+    fats: float = 0
+
+
+
+
+
+
+class SupplementIn(BaseModel):
+    name: str
+    on: bool = True
+
+
+
+
+
+
+class ChallengeIn(BaseModel):
+    to_user_id: str
+
+
+
+
+
+
+
+
+def unlocked_frames_for(user) -> list:
+    """Every card frame the athlete has earned: all frames up to their rank + quest-unlocked frames."""
+    rank = rank_from_xp(user.get("xp", 0))
+    frames = list(RANK_ORDER[: RANK_ORDER.index(rank) + 1])
+    for u in (user.get("extra_unlocks") or []):
+        if isinstance(u, str) and u.startswith("frame_"):
+            fname = u[len("frame_"):].capitalize()
+            if fname in RANK_ORDER and fname not in frames:
+                frames.append(fname)
+    return frames
+
+
+
+# ---------- Cosmetics: emblems, auras, titles (equippable overlays) ----------
+# Each item unlocks at a level (and/or via coach grant). level=999 => coach-grant only.
+COSMETICS = {
+    "emblem": [
+        {"id": "em_none", "name": "None", "icon": "", "level": 1},
+        {"id": "em_flame", "name": "Flame", "icon": "🔥", "level": 3},
+        {"id": "em_bolt", "name": "Bolt", "icon": "⚡", "level": 6},
+        {"id": "em_skull", "name": "Skull", "icon": "💀", "level": 10},
+        {"id": "em_dragon", "name": "Dragon", "icon": "🐉", "level": 15},
+        {"id": "em_crown", "name": "Crown", "icon": "👑", "level": 20},
+        {"id": "em_star", "name": "Founder Star", "icon": "⭐", "level": 999},
+    ],
+    "aura": [
+        {"id": "au_none", "name": "None", "color": "", "level": 1},
+        {"id": "au_blue", "name": "Ion Blue", "color": "#00E5FF", "level": 2},
+        {"id": "au_green", "name": "Toxic", "color": "#00E5B4", "level": 8},
+        {"id": "au_gold", "name": "Champion Gold", "color": "#FFD700", "level": 12},
+        {"id": "au_violet", "name": "Void", "color": "#B14CFF", "level": 18},
+        {"id": "au_red", "name": "Freak Red", "color": "#FF3B5C", "level": 999},
+    ],
+    "title": [
+        {"id": "ti_none", "name": "None", "text": "", "level": 1},
+        {"id": "ti_iron", "name": "Iron Will", "text": "IRON WILL", "level": 4},
+        {"id": "ti_beast", "name": "Beast", "text": "BEAST MODE", "level": 9},
+        {"id": "ti_quest", "name": "Quest Master", "text": "QUEST MASTER", "level": 11},
+        {"id": "ti_slayer", "name": "Boss Slayer", "text": "BOSS SLAYER", "level": 14},
+        {"id": "ti_boss", "name": "Boss Killer", "text": "BOSS KILLER", "level": 22},
+        {"id": "ti_legend", "name": "Legend", "text": "LIVING LEGEND", "level": 25},
+        {"id": "ti_enhanced", "name": "Enhanced", "text": "ENHANCED", "level": 999},
+        {"id": "ti_founder", "name": "Founder", "text": "FOUNDER", "level": 999},
+    ],
+}
+_COSMETIC_BY_ID = {it["id"]: (slot, it) for slot, items in COSMETICS.items() for it in items}
+
+def _cosmetic_owned(user, item) -> bool:
+    if item["id"].endswith("_none"):
+        return True
+    if item["id"] == "ti_enhanced" and user.get("enhanced"):
+        return True
+    if item.get("level", 999) <= int(user.get("level", 1)):
+        return True
+    return item["id"] in (user.get("granted_items") or [])
+
+def _clean_loadout(user):
+    lo = user.get("loadout") or {}
+    return {"emblem": lo.get("emblem") or "em_none", "aura": lo.get("aura") or "au_none", "title": lo.get("title") or "ti_none"}
+
+
+class LoadoutIn(BaseModel):
+    emblem: Optional[str] = None
+    aura: Optional[str] = None
+    title: Optional[str] = None
+    use_photo: Optional[bool] = None
+
+
+
+class GrantItemIn(BaseModel):
+    user_id: str
+    item_id: str
+
+
+# ---------- The Enhanced (age-gated PED discussion room) ----------
+PED_LIBRARY = [
+    {"name": "Testosterone", "class": "Anabolic steroid", "desc": "The base of most cycles; androgen used to raise training volume and recovery. Commonly run as a base with other compounds."},
+    {"name": "Trenbolone", "class": "Anabolic steroid", "desc": "Potent 19-nor known for strength and conditioning effects. Frequently discussed for aggressive body recomposition."},
+    {"name": "Nandrolone (Deca)", "class": "Anabolic steroid", "desc": "Long-ester 19-nor often discussed for joint comfort and mass during bulking phases."},
+    {"name": "Boldenone (EQ)", "class": "Anabolic steroid", "desc": "Slow-acting compound often used for lean mass and appetite/endurance over long blocks."},
+    {"name": "Oxandrolone (Anavar)", "class": "Oral steroid", "desc": "Mild oral often discussed for strength and dryness with lower water retention."},
+    {"name": "Methandrostenolone (Dbol)", "class": "Oral steroid", "desc": "Fast-acting oral discussed for rapid size/strength kick-starts."},
+    {"name": "Stanozolol (Winstrol)", "class": "Oral/injectable steroid", "desc": "Discussed for a hard, dry look in the lead-up to peak conditioning."},
+    {"name": "Human Growth Hormone (HGH)", "class": "Peptide hormone", "desc": "Discussed for recovery, body composition and connective-tissue support over long durations."},
+    {"name": "IGF-1 LR3", "class": "Peptide", "desc": "Insulin-like growth factor analog discussed around localized growth and recovery."},
+    {"name": "BPC-157", "class": "Peptide", "desc": "Research peptide widely discussed for soft-tissue and tendon recovery."},
+    {"name": "TB-500", "class": "Peptide", "desc": "Research peptide discussed alongside BPC-157 for recovery and mobility."},
+    {"name": "Ipamorelin", "class": "Peptide (GH secretagogue)", "desc": "GH-releasing peptide discussed for sleep, recovery and gradual GH support."},
+    {"name": "CJC-1295", "class": "Peptide (GHRH)", "desc": "Often paired with Ipamorelin in discussions of GH pulse support."},
+    {"name": "Clenbuterol", "class": "Beta-2 agonist", "desc": "Non-steroid stimulant discussed for fat loss and its cardiovascular considerations."},
+    {"name": "Semaglutide", "class": "GLP-1 peptide", "desc": "GLP-1 agonist discussed for appetite regulation and body-fat management."},
+]
+PED_DISCLAIMER = "This is not medical advice. The Enhanced is a discussion space only. Nothing here recommends, prescribes or endorses using any substance. Consult a licensed physician."
+
+class AgeIn(BaseModel):
+    dob: str  # ISO yyyy-mm-dd
+
+def _age_from_dob(dob: str) -> int:
+    try:
+        y, m, d = [int(x) for x in dob.split("-")]
+        today = datetime.now(timezone.utc).date()
+        from datetime import date
+        b = date(y, m, d)
+        return today.year - b.year - ((today.month, today.day) < (b.month, b.day))
+    except Exception:
+        return -1
+
+
+
+class ConsentIn(BaseModel):
+    accept: bool
+
+
+
+class RegimenItem(BaseModel):
+    name: str
+    dosage: str
+    schedule: str
+    notes: str = ""
+
+class RegimenIn(BaseModel):
+    items: list[RegimenItem]
+
+
+
+class RegimenNoteIn(BaseModel):
+    index: int
+    notes: str
+
+
+_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+def _dose_due_today(schedule: str) -> bool:
+    s = (schedule or "").lower()
+    if not s:
+        return False
+    if any(w in s for w in ["daily", "every day", "everyday", "each day", " ed", "ed ", "am/pm", "morning", "evening", "night"]):
+        return True
+    today = _WEEKDAYS[datetime.now(timezone.utc).weekday()]
+    return today in s
+
+
+# ---------- Set Presets (favourite rep/weight combos) ----------
+class PresetIn(BaseModel):
+    reps: int
+    weight_lb: float
+    rpe: float = 7
+    label: str = ""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ---------- Chat media (Emergent Object Storage) ----------
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"}
+ALLOWED_VIDEO_TYPES = {"video/mp4", "video/quicktime", "video/webm", "video/3gpp", "video/x-matroska"}
+MAX_IMAGE_BYTES = 15 * 1024 * 1024   # 15 MB
+MAX_VIDEO_BYTES = 80 * 1024 * 1024   # 80 MB (~1 min of phone video)
+_EXT_MAP = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+            "image/heic": "heic", "image/heif": "heif", "video/mp4": "mp4", "video/quicktime": "mov",
+            "video/webm": "webm", "video/3gpp": "3gp", "video/x-matroska": "mkv"}
+
+
+
+
+
+
+
+# ---------- RevenueCat webhook + server-side purchase verification ----------
+def _grant_set_for_entitlement(ent: str):
+    if ent == CUSTOM_PROGRAM_ENTITLEMENT:
+        return {"custom_program_purchased": True, "athletes_center_access": True,
+                "custom_program_purchased_at": datetime.now(timezone.utc)}
+    if ent == BACKER_ENTITLEMENT:
+        return {"founder_backer": True, "backed_at": datetime.now(timezone.utc)}
+    return None
+
+def _revoke_set_for_entitlement(ent: str):
+    if ent == CUSTOM_PROGRAM_ENTITLEMENT:
+        return {"custom_program_purchased": False, "athletes_center_access": False}
+    if ent == BACKER_ENTITLEMENT:
+        return {"founder_backer": False}
+    return None
+
+async def _find_user_by_candidates(candidates):
+    ids = [c for c in candidates if c and not str(c).startswith("$RCAnonymousID:")]
+    if not ids:
+        return None
+    return await db.users.find_one({"user_id": {"$in": ids}}, {"_id": 0, "password_hash": 0})
+
+def _new_order_number() -> str:
+    return "HIC-" + secrets.token_hex(4).upper()
+
+async def has_verified_purchase(user_id: str, entitlement: str) -> bool:
+    row = await db.verified_purchases.find_one(
+        {"user_id": user_id, "entitlement": entitlement, "revoked": {"$ne": True}}
+    )
+    return bool(row)
+
+# Human-readable product metadata for receipts / order history
+PURCHASE_PRODUCTS = {
+    CUSTOM_PROGRAM_ENTITLEMENT: ("1-on-1 Custom Program", "$200.00"),
+    BACKER_ENTITLEMENT: ("Founder Backer", "$25.00"),
+}
+
+def _receipt_resend_email(user: dict, ent: str, vp: dict):
+    """A formatted receipt email (includes order number + amount) for the resend action."""
+    name = escape((user.get("display_name") or "Athlete").strip())
+    product, amount = PURCHASE_PRODUCTS.get(ent, (ent, ""))
+    order = escape(str(vp.get("order_number") or "—"))
+    when = vp.get("verified_at")
+    date_str = when.strftime("%b %d, %Y") if isinstance(when, datetime) else "—"
+    subject = f"Your Hutch's Inner Circle receipt — {order}"
+    html = f"""
+    <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0b0b0e;">
+      <h2 style="letter-spacing:1px;">HUTCH'S INNER CIRCLE</h2>
+      <p>Hey {name}, here's your receipt.</p>
+      <table style="width:100%;border-collapse:collapse;margin-top:12px;">
+        <tr><td style="padding:6px 0;color:#666;">Order #</td><td style="padding:6px 0;text-align:right;font-weight:bold;">{order}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Item</td><td style="padding:6px 0;text-align:right;">{escape(product)}</td></tr>
+        <tr><td style="padding:6px 0;color:#666;">Date</td><td style="padding:6px 0;text-align:right;">{date_str}</td></tr>
+        <tr><td style="padding:10px 0;border-top:1px solid #ddd;color:#666;">Total</td><td style="padding:10px 0;border-top:1px solid #ddd;text-align:right;font-weight:bold;">{escape(amount)}</td></tr>
+      </table>
+      <p style="color:#666;font-size:13px;margin-top:12px;">One-time payment. Keep this order number for your records.</p>
+      <p>— Coach Hutch</p>
+    </div>"""
+    return subject, html
+
+
+
+def _receipt_email_for(user: dict, ent: str):
+    """Returns (subject, html) for the purchase thank-you/receipt, or None."""
+    name = escape((user.get("display_name") or "Athlete").strip())
+    if ent == CUSTOM_PROGRAM_ENTITLEMENT:
+        subject = "Your 1-on-1 Custom Program is confirmed — welcome to the Inner Circle"
+        html = f"""
+        <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0b0b0e;">
+          <h2 style="letter-spacing:1px;">HUTCH'S INNER CIRCLE</h2>
+          <p>Hey {name},</p>
+          <p><strong>Your 1-on-1 Custom Program purchase is confirmed.</strong> Thank you for going all in.</p>
+          <p>Here's what happens next:</p>
+          <ul>
+            <li>Coach Hutch will personally build your program around your goals, injuries and schedule.</li>
+            <li>Open the app and complete your <strong>intake form</strong> (Home &rarr; 1-on-1 Custom Program) so Coach has everything he needs.</li>
+            <li>Your <strong>Athlete's Center</strong> is unlocked and yours for life.</li>
+          </ul>
+          <p>This is a one-time payment — no subscription, no renewals.</p>
+          <p>Let's get to work.<br/>— Coach Hutch</p>
+        </div>"""
+        return subject, html
+    if ent == BACKER_ENTITLEMENT:
+        subject = "Thank you for backing Hutch's Inner Circle"
+        html = f"""
+        <div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;color:#0b0b0e;">
+          <h2 style="letter-spacing:1px;">HUTCH'S INNER CIRCLE</h2>
+          <p>Hey {name},</p>
+          <p><strong>You're officially a Development Backer.</strong> Thank you for helping fuel the build.</p>
+          <p>Your name is now etched into the Backers hall inside the app — forever. Every feature we ship, you helped make happen.</p>
+          <p>Respect.<br/>— Coach Hutch</p>
+        </div>"""
+        return subject, html
+    return None
+
+async def _send_purchase_receipt(user: dict, ent: str):
+    """Fire-and-forget thank-you email. Never let an email failure break the webhook."""
+    to = (user.get("email") or "").strip()
+    if not to:
+        return
+    built = _receipt_email_for(user, ent)
+    if not built:
+        return
+    subject, html = built
+    try:
+        await send_email(to=to, subject=subject, html=html)
+    except Exception as e:
+        logger.warning(f"Purchase receipt email failed for {to} ({ent}): {e}")
+
+
+
+
+
+
+
+
+class DownloadedIn(BaseModel):
+    media_id: str
+
+
+def _is_owner(user) -> bool:
+    return (user.get("email", "").lower() in [e.lower() for e in OWNER_EMAILS]) or bool(user.get("all_rooms_access"))
+
+
+
+
+# ---------- Founders (first 100 members + development backers) ----------
+FOUNDER_LIMIT = 100
+
+
+
+
+
+class ReceiptResendIn(BaseModel):
+    entitlement: str
+
+
+
+
+
+
+class RemindIn(BaseModel):
+    user_id: str
+
+
+
+# ---------- The Judge (AI physique critique + member comments) ----------
+JUDGE_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_JUDGE_BYTES = 15 * 1024 * 1024
+
+JUDGE_SYSTEM = (
+    "You are 'The Judge', a world-class IFBB head bodybuilding judge with decades on the Olympia "
+    "panel. You are tough, precise, and fair. Critique the physique shown in the photo. Score each "
+    "category from 1.0 to 10.0 (one decimal). Return ONLY a single valid JSON object, no markdown, "
+    'with EXACTLY these keys: {"overall": number, "symmetry": number, "conditioning": number, '
+    '"size": number, "posing": number, "notes": string}. "notes" must be 2-4 sentences in a blunt '
+    "but constructive pro-judge voice, naming specific strengths and what to bring up next. If the "
+    "image does not clearly show a human physique, set all scores to 0 and use notes to ask for a "
+    "clear, well-lit physique photo."
+)
+
+class JudgeComment(BaseModel):
+    text: str
+
+def _parse_judge_json(text: str):
+    import json as _json, re as _re
+    m = _re.search(r"\{.*\}", text or "", _re.DOTALL)
+    if not m:
+        return None
+    try:
+        d = _json.loads(m.group(0))
+    except Exception:
+        return None
+    def num(k):
+        try:
+            return max(0.0, min(10.0, round(float(d.get(k, 0)), 1)))
+        except Exception:
+            return 0.0
+    return {
+        "overall": num("overall"),
+        "symmetry": num("symmetry"),
+        "conditioning": num("conditioning"),
+        "size": num("size"),
+        "posing": num("posing"),
+        "notes": str(d.get("notes", ""))[:800],
+    }
+
+
+
+
+
+
+
+
+# ---------- AI Coach (GPT-5.4 conversational training/nutrition assistant) ----------
+COACH_SYSTEM = (
+    "You are the AI Coach for 'Hutch's Inner Circle', an elite strength & performance training app. "
+    "You are an expert strength coach — powerlifting, hypertrophy, athletic performance, conditioning, "
+    "mobility, and sports nutrition. Voice: blunt, motivating, no-fluff, like a hardcore but caring coach. "
+    "Give concise, actionable answers (a few short paragraphs or tight bullet points max). Prescribe real "
+    "sets/reps/loads and concrete nutrition numbers when asked. You are not a medical professional — if a "
+    "user mentions pain, injury, or medical issues, add one short line advising them to consult a professional. "
+    "Stay on training, nutrition, recovery, and mindset; politely redirect off-topic questions back to fitness. "
+    "Format for a mobile chat bubble: PLAIN TEXT ONLY — no markdown symbols (do not use *, **, #, or ##). "
+    "Use short lines, simple '-' bullets, and 1) 2) 3) numbering when listing."
+)
+
+class CoachMessageIn(BaseModel):
+    text: str
+
+
+
+
+
+
+
+# ---------- Save Plan (store a coach-generated plan, show in Train) ----------
+class CoachPlanIn(BaseModel):
+    title: Optional[str] = None
+    text: str
+
+
+
+
+
+# ---------- Voice Ask (Whisper STT) ----------
+_STT = None
+
+
+# ---------- Seed ----------
+# Owner accounts get full access to every chatroom regardless of rank/subscription
+OWNER_EMAILS = ["the9hutch@gmail.com"]
+
+async def seed():
+    # Grant owner accounts full room access (persists across restarts)
+    await db.users.update_many(
+        {"email": {"$in": OWNER_EMAILS}},
+        {"$set": {"all_rooms_access": True, "skool_verified": True}},
+    )
+    # Indexes
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("user_id", unique=True)
+    await db.user_sessions.create_index("session_token", unique=True)
+    await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
+    await db.chat_messages.create_index([("room", 1), ("created_at", -1)])
+    await db.chat_media.create_index("media_id", unique=True)
+    await db.verification_codes.create_index([("user_id", 1), ("channel", 1)], unique=True)
+    await db.verified_purchases.create_index([("user_id", 1), ("entitlement", 1)], unique=True)
+    await db.rc_webhook_events.create_index("event_id", unique=True)
+    await db.set_presets.create_index("user_id")
+    await db.exercise_demos.create_index("name", unique=True)
+
+    # Warm up object storage (non-fatal if it fails at boot)
+    try:
+        await init_storage()
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.warning(f"Object storage init failed at startup (will retry lazily): {e}")
+
+    # NOTE: demo/test human accounts are intentionally NOT seeded. Leaderboards are
+    # populated by the 10 permanent AI bot athletes below + real member signups.
+    # Purge the legacy canonical demo accounts if they still exist (idempotent).
+    await db.users.delete_many({"email": {"$in": [
+        "athlete@test.com", "elite@test.com", "freak@test.com", "delivered@resend.dev",
+    ]}})
+    # Seed 10 permanent "milestone" bot athletes so leaderboards are always populated
+    BOTS = [
+        {"name": "Plate Prophet", "xp": 620, "prs": {"bench": 185, "squat": 275, "deadlift": 315, "ohp": 115}, "bw": 175, "avatar": "avatar_ronin", "sprints": {"40yd": 5.3, "100m": 14.1}, "cardio": [("run", 5.2, 1620), ("run", 3.1, 960)]},
+        {"name": "Iron Sentinel", "xp": 1350, "prs": {"bench": 225, "squat": 315, "deadlift": 405, "ohp": 135}, "bw": 190, "avatar": "avatar_titan", "sprints": {"40yd": 5.0, "100m": 13.4}, "cardio": [("bike", 22.0, 3600)]},
+        {"name": "Gravitas", "xp": 2100, "prs": {"bench": 275, "squat": 365, "deadlift": 455, "ohp": 155}, "bw": 205, "avatar": "avatar_kaido", "sprints": {"40yd": 4.9, "100m": 13.0}, "cardio": [("run", 10.0, 2820)]},
+        {"name": "Warhound", "xp": 2800, "prs": {"bench": 315, "squat": 405, "deadlift": 500, "ohp": 175}, "bw": 198, "avatar": "avatar_demon", "sprints": {"40yd": 4.7, "100m": 12.5}, "cardio": [("run", 8.0, 2160), ("bike", 30.0, 4500)]},
+        {"name": "Vanguard", "xp": 3600, "prs": {"bench": 335, "squat": 455, "deadlift": 545, "ohp": 185}, "bw": 210, "avatar": "avatar_saiyan", "sprints": {"40yd": 4.6, "100m": 12.2}, "cardio": [("run", 12.0, 3300)]},
+        {"name": "Colossus", "xp": 4500, "prs": {"bench": 365, "squat": 495, "deadlift": 585, "ohp": 205}, "bw": 235, "avatar": "avatar_titan", "sprints": {"40yd": 4.9, "100m": 13.1}, "cardio": [("bike", 40.0, 5400)]},
+        {"name": "Nightfall", "xp": 5400, "prs": {"bench": 385, "squat": 515, "deadlift": 605, "ohp": 215}, "bw": 215, "avatar": "avatar_reaper", "sprints": {"40yd": 4.5, "100m": 11.9}, "cardio": [("run", 15.0, 3900)]},
+        {"name": "Bastion", "xp": 6600, "prs": {"bench": 405, "squat": 545, "deadlift": 635, "ohp": 225}, "bw": 228, "avatar": "avatar_shinobi", "sprints": {"40yd": 4.6, "100m": 12.0}, "cardio": [("run", 10.0, 2640), ("bike", 35.0, 4800)]},
+        {"name": "Overkill", "xp": 8200, "prs": {"bench": 455, "squat": 585, "deadlift": 675, "ohp": 245}, "bw": 245, "avatar": "avatar_phoenix", "sprints": {"40yd": 4.5, "100m": 11.7}, "cardio": [("run", 6.0, 1560)]},
+        {"name": "Apex Prime", "xp": 11000, "prs": {"bench": 495, "squat": 635, "deadlift": 725, "ohp": 275}, "bw": 250, "avatar": "avatar_saiyan", "sprints": {"40yd": 4.4, "100m": 11.4}, "cardio": [("run", 21.1, 5400), ("bike", 50.0, 6300)]},
+    ]
+    for i, b in enumerate(BOTS):
+        email = f"bot{i+1}@circle.ai"
+        badges = set()
+        for lk, w in b["prs"].items():
+            for m in milestones_for(w):
+                badges.add(f"{lk}_{m}")
+        canonical = {
+            "display_name": b["name"],
+            "avatar_id": b["avatar"],
+            "bodyweight_lb": b["bw"],
+            "age": 26,
+            "sex": "male",
+            "xp": b["xp"],
+            "level": level_from_xp(b["xp"]),
+            "prs": b["prs"],
+            "badges": list(badges) + ["pr_hunter"],
+            "workouts_logged": 30 + i * 4,
+            "streak_days": 6 + i,
+            "skool_verified": i % 2 == 0,
+            "active_background": "bg_default",
+            "sprints": b.get("sprints", {}),
+            "is_bot": True,
+            # Known password so the AI profiles double as deterministic test logins.
+            "password_hash": hash_password("BotPass123!"),
+        }
+        existing = await db.users.find_one({"email": email})
+        if existing:
+            uid = existing["user_id"]
+            await db.users.update_one({"email": email}, {"$set": canonical})
+        else:
+            uid = new_id("usr")
+            await db.users.insert_one({
+                "user_id": uid, "email": email, "picture": "", "password_hash": "",
+                "created_at": datetime.now(timezone.utc), **canonical,
+            })
+        # Reset bot cardio each startup so cardio boards stay deterministic
+        await db.cardio.delete_many({"user_id": uid})
+        for act, km, dur in b.get("cardio", []):
+            await db.cardio.insert_one({
+                "cardio_id": new_id("cardio"), "user_id": uid, "activity_type": act,
+                "distance_km": km, "duration_s": dur, "elevation_gain_m": 0, "temperature_c": None,
+                "avg_pace_min_km": round((dur / 60) / km, 2) if km else 0,
+                "avg_speed_kmh": round(km / (dur / 3600), 2) if dur else 0,
+                "route": [], "logged_at": datetime.now(timezone.utc),
+            })
+
+    # Seed a couple of welcome chat messages
+    existing_msg = await db.chat_messages.count_documents({"room": "main"})
+    if existing_msg == 0:
+        for msg in [
+            {"text": "Welcome to the Inner Circle. Post your PRs, ask questions, get after it.", "name": "Coach Hutch", "avatar": "avatar_hutch"},
+            {"text": "Just hit 315 bench for the first time. Feeling like a freak.", "name": "Kaido", "avatar": "avatar_kaido"},
+        ]:
+            await db.chat_messages.insert_one({
+                "message_id": new_id("msg"),
+                "room": "main",
+                "user_id": "system",
+                "display_name": msg["name"],
+                "avatar_id": msg["avatar"],
+                "rank": "Freak",
+                "skool_verified": True,
+                "text": msg["text"],
+                "created_at": datetime.now(timezone.utc),
+            })
+    logger.info("Seeded DB")
+
+
+@app.on_event("startup")
+async def on_start():
+    await seed()
+
+
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    client.close()
+
+# Auto-exported so route modules can `from shared import *`.
+__all__ = [name for name in dir() if not name.startswith('__')]

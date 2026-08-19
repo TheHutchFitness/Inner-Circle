@@ -12,7 +12,7 @@ export default function TheRoom() {
   const { isSubscribed } = useSubscription();
   const router = useRouter();
   const canRank = ["Elite","Freak"].includes(user?.rank || "") || user?.all_rooms_access;
-  const canPremium = isSubscribed || user?.skool_verified || user?.all_rooms_access;
+  const canPremium = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
   const canAccess = canRank && canPremium;
 
   if (!canAccess) {

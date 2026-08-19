@@ -54,7 +54,7 @@ export default function WorkoutScreen() {
 
   const rank = user?.rank || "Beginner";
   const canAC = (rankIndex(rank) >= 2 || user?.all_rooms_access || user?.athletes_center_access)
-    && (isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.athletes_center_access);
+    && (isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.athletes_center_access || user?.is_founder);
 
   useEffect(() => {
     if (!restActive) return;

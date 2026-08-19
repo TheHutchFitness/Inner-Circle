@@ -21,6 +21,16 @@ export default function Index() {
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [spots, setSpots] = useState<{ remaining: number; limit: number } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`${API}/api/founders/spots`);
+        if (r.ok) setSpots(await r.json());
+      } catch {}
+    })();
+  }, []);
 
   useEffect(() => {
     if (!loading && user) router.replace("/(tabs)");
@@ -126,6 +136,15 @@ export default function Index() {
         </View>
 
         <View style={styles.card}>
+          {spots && spots.remaining > 0 && (
+            <View testID="founder-banner" style={styles.founderBanner}>
+              <Text style={styles.founderTitle}>★ FOUNDING BETA · FREE ACCESS</Text>
+              <Text style={styles.founderSub}>
+                The first {spots.limit} members unlock ALL premium features free — for life.
+                Only {spots.remaining} founder spot{spots.remaining === 1 ? "" : "s"} left.
+              </Text>
+            </View>
+          )}
           <View style={styles.tabRow}>
             <Pressable testID="tab-login" onPress={() => setMode("login")} style={[styles.tab, mode === "login" && styles.tabActive]}>
               <Text style={[styles.tabText, mode === "login" && styles.tabTextActive]}>LOGIN</Text>
@@ -205,6 +224,9 @@ const styles = StyleSheet.create({
   brandBig: { color: colors.text, fontSize: 34, fontWeight: "900", letterSpacing: 3, marginTop: 4 },
   tagline: { color: colors.textDim, letterSpacing: 4, marginTop: spacing.sm, fontSize: 12 },
   card: { marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  founderBanner: { marginBottom: spacing.lg, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.1)" },
+  founderTitle: { color: colors.warning, fontSize: 12, fontWeight: "900", letterSpacing: 1.5, textAlign: "center" },
+  founderSub: { color: colors.text, fontSize: 12, lineHeight: 17, marginTop: 6, textAlign: "center" },
   tabRow: { flexDirection: "row", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.lg, overflow: "hidden" },
   tab: { flex: 1, paddingVertical: spacing.md, alignItems: "center" },
   tabActive: { backgroundColor: colors.brandTertiary, borderBottomWidth: 2, borderBottomColor: colors.brandPrimary },

@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, avatarFor, avatarImage, RANK_COLORS, loadoutTitle } from "@/src/lib/theme";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
+import { SocialLinksBar } from "@/src/components/SocialLinks";
 
 const LIFTS: [string, string][] = [["bench", "BENCH"], ["squat", "SQUAT"], ["deadlift", "DEAD"], ["ohp", "OHP"]];
 
@@ -66,6 +67,8 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
                 <Stat label="LOGS" value={`${m.workouts_logged}`} />
                 <Stat label="BADGES" value={`${m.badges_count}`} />
               </View>
+
+              <SocialLinksBar tiktok={m.social_tiktok} instagram={m.social_instagram} />
             </>
           )}
           <Pressable testID="member-sheet-close" onPress={onClose} style={styles.closeBtn}>

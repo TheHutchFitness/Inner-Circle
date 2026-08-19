@@ -107,7 +107,7 @@ export default function Judge() {
   const { token, user } = useAuth();
   const { isSubscribed } = useSubscription();
 
-  const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access;
+  const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
   const isVerified = !!(user?.email_verified || user?.phone_verified);
   const [verifyOpen, setVerifyOpen] = useState(false);
 

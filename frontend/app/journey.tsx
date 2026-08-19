@@ -194,8 +194,13 @@ function Reward({ label, boss, accent, onClose }: { label: string; boss: boolean
         <Text style={[styles.rewardTitle, { color: accent }]}>{isLoot ? "★ LOOT DROP ★" : "REWARD UNLOCKED"}</Text>
         <Text style={styles.rewardLabel}>{label}</Text>
         {isLoot && <Text style={styles.lootSub}>Equip it in your Locker / Loadout</Text>}
-        <Pressable testID="reward-continue" onPress={onClose} style={[styles.primaryBtn, { backgroundColor: accent }]}>
-          <Text style={styles.primaryBtnText}>CONTINUE THE JOURNEY</Text>
+        {isLoot && (
+          <Pressable testID="loot-equip" onPress={() => { onClose(); router.push("/loadout"); }} style={[styles.primaryBtn, { backgroundColor: accent, marginBottom: spacing.sm }]}>
+            <Text style={styles.primaryBtnText}>⚙ EQUIP NOW</Text>
+          </Pressable>
+        )}
+        <Pressable testID="reward-continue" onPress={onClose} style={[styles.primaryBtn, isLoot ? styles.secondaryBtn : { backgroundColor: accent }]}>
+          <Text style={[styles.primaryBtnText, isLoot && { color: accent }]}>CONTINUE THE JOURNEY</Text>
         </Pressable>
       </Animated.View>
     </View>
@@ -318,6 +323,14 @@ export default function Journey() {
 
   const toggleSfx = async () => { const n = !sfxOn; setSfxOn(n); await setSfxEnabled(n); if (n) { playSfx("slash"); startZoneMusic(data?.zone?.index ?? 0); } };
 
+  const sendChallenge = async (nb: any) => {
+    setTaunt(null);
+    try {
+      const r = await apiFetch(token, "/api/journey/challenge", { method: "POST", body: JSON.stringify({ to_user_id: nb.user_id }) });
+      flash(`⚔ Challenge sent to ${r?.to_name || nb.name}!`);
+    } catch { flash("Couldn't send challenge"); }
+  };
+
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 1600); };
 
   const accent = data?.zone?.accent || colors.brandPrimary;
@@ -357,7 +370,27 @@ export default function Journey() {
   }
 
   const nodes: any[] = data?.nodes || [];
-  const neighbors: any[] = data?.neighbors || [];
+  const realNeighbors: any[] = (data?.neighbors || []).filter((n: any) => !n.is_me);
+  const myXp = data?.me?.xp || 0;
+  const myLevel = data?.me?.level || 1;
+
+  // Filler NPCs so the road never feels empty when few real rivals are nearby.
+  const FILLER = [
+    { n: "Ronin", d: -1 }, { n: "Vesper", d: 1 }, { n: "Kael", d: -2 }, { n: "Nyx", d: 2 },
+    { n: "Draven", d: -1 }, { n: "Astra", d: 1 }, { n: "Orion", d: 2 }, { n: "Rin", d: -2 },
+  ];
+  const fillers = realNeighbors.length >= 4 ? [] : FILLER.slice(0, 4 - realNeighbors.length).map((f, i) => ({
+    user_id: `npc_${i}`,
+    name: f.n,
+    level: Math.max(1, myLevel + f.d),
+    xp: Math.max(0, myXp + f.d * 220 + (i % 2 ? 60 : -60)),
+    is_me: false,
+    ahead: f.d > 0,
+    enhanced: false,
+    founder: false,
+    filler: true,
+  }));
+  const neighbors: any[] = [...realNeighbors, ...fillers];
   const claimedCount = nodes.filter((n) => n.claimed).length;
   const heroIndex = Math.min(claimedCount, Math.max(0, nodes.length - 1));
 
@@ -397,6 +430,12 @@ export default function Journey() {
         ))}
       </View>
 
+      {(data?.challenges?.length || 0) > 0 && (
+        <View style={[styles.challengeBanner, { borderColor: accent }]}>
+          <Text style={styles.challengeBannerText}>🔥 {data.challenges[0].from_name} {data.challenges.length > 1 ? `+${data.challenges.length - 1} more ` : ""}challenged you to catch them!</Text>
+        </View>
+      )}
+
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ width: contentW }} style={styles.mapScroll}>
         <View style={{ width: contentW, height: 340 }}>
           <Svg width={contentW} height={340} style={StyleSheet.absoluteFill}>
@@ -426,10 +465,17 @@ export default function Journey() {
               {taunt?.id === nb.user_id && (
                 <View style={[styles.taunt, { borderColor: accent }]}>
                   <Text style={styles.tauntText}>{taunt?.text}</Text>
+                  {nb.filler ? (
+                    <Text style={styles.npcTag}>WANDERER</Text>
+                  ) : (
+                    <Pressable testID={`challenge-${nb.user_id}`} onPress={() => sendChallenge(nb)} style={[styles.challengeBtn, { borderColor: accent }]}>
+                      <Text style={[styles.challengeText, { color: accent }]}>⚔ CATCH ME</Text>
+                    </Pressable>
+                  )}
                 </View>
               )}
-              <View style={[styles.neighborDot, nb.founder && { borderColor: colors.warning }]}>
-                <Text style={styles.neighborInit}>{(nb.name || "A")[0].toUpperCase()}</Text>
+              <View style={[styles.neighborDot, nb.filler && styles.neighborDotNpc, nb.founder && { borderColor: colors.warning }]}>
+                <Text style={[styles.neighborInit, nb.filler && { color: colors.textDim }]}>{(nb.name || "A")[0].toUpperCase()}</Text>
               </View>
               <Text style={styles.neighborName} numberOfLines={1}>{nb.enhanced ? "☣" : ""}{nb.name}</Text>
               <Text style={styles.neighborLv}>Lv{nb.level}</Text>
@@ -478,7 +524,14 @@ const styles = StyleSheet.create({
   neighbor: { position: "absolute", width: 44, alignItems: "center" },
   taunt: { position: "absolute", bottom: 44, width: 108, marginLeft: -32, backgroundColor: "rgba(5,5,8,0.95)", borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 4, zIndex: 20 },
   tauntText: { color: colors.text, fontSize: 9, fontWeight: "700", textAlign: "center" },
+  challengeBtn: { marginTop: 4, borderWidth: 1, borderRadius: radius.sm, paddingVertical: 3, alignItems: "center" },
+  challengeText: { fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  challengeBanner: { marginHorizontal: spacing.lg, marginBottom: spacing.xs, padding: spacing.sm, borderWidth: 1, borderRadius: radius.sm, backgroundColor: "rgba(0,0,0,0.4)" },
+  challengeBannerText: { color: colors.text, fontSize: 11, fontWeight: "700", textAlign: "center" },
+  secondaryBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.border },
   neighborDot: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surface3, borderWidth: 2, borderColor: colors.textDim, alignItems: "center", justifyContent: "center" },
+  neighborDotNpc: { borderStyle: "dashed", opacity: 0.7 },
+  npcTag: { color: colors.textDim, fontSize: 8, fontWeight: "900", letterSpacing: 1, textAlign: "center", marginTop: 3 },
   neighborInit: { color: colors.text, fontWeight: "900", fontSize: 12 },
   neighborName: { color: colors.textMid, fontSize: 8, marginTop: 2, maxWidth: 52, textAlign: "center" },
   neighborLv: { color: colors.textDim, fontSize: 8 },

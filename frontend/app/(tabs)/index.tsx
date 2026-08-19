@@ -59,10 +59,10 @@ export default function Dashboard() {
   const next = nextRankInfo(user.xp);
   const progress = next.name === "MAX" ? 1 : Math.min(1, user.xp / next.xp);
 
-  const isPremium = isSubscribed || user.skool_verified;
+  const isPremium = isSubscribed || user.skool_verified || user?.is_founder;
   const canAthletesCenter = rankIndex(rank) >= 2 || user?.all_rooms_access || user?.athletes_center_access;
   const canRoom = rankIndex(rank) >= 6 || user?.all_rooms_access;
-  const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access;
+  const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
 
   return (
     <SwipeTabs current="index">
@@ -109,7 +109,7 @@ export default function Dashboard() {
           </View>
         </View>
         <View style={styles.badgeRow}>
-          {isPremium && <View testID="premium-badge" style={styles.premiumBadge}><Text style={styles.premiumBadgeText}>{isSubscribed ? "★ PREMIUM" : "✓ SKOOL"}</Text></View>}
+          {isPremium && <View testID="premium-badge" style={styles.premiumBadge}><Text style={styles.premiumBadgeText}>{isSubscribed ? "★ PREMIUM" : user?.skool_verified ? "✓ SKOOL" : "★ FOUNDER"}</Text></View>}
         </View>
       </LinearGradient>
 

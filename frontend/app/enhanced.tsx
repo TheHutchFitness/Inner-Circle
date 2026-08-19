@@ -17,7 +17,7 @@ export default function Enhanced() {
   const router = useRouter();
   const { token, user, refresh } = useAuth();
   const { isSubscribed } = useSubscription();
-  const hasSub = isSubscribed || user?.all_rooms_access;
+  const hasSub = isSubscribed || user?.all_rooms_access || user?.is_founder;
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [dob, setDob] = useState("");

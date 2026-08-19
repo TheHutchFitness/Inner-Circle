@@ -13,7 +13,7 @@ export default function Community() {
   const { isSubscribed } = useSubscription();
   const router = useRouter();
 
-  const canChat = isSubscribed || user?.skool_verified || user?.all_rooms_access;
+  const canChat = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
 
   if (!canChat) {
     return (
