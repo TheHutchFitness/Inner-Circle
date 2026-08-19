@@ -21,6 +21,7 @@ from routes import (  # noqa: F401
     profile,
     programs,
     quests,
+    store,
     verify,
     workouts,
 )

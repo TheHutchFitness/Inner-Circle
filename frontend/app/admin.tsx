@@ -18,6 +18,8 @@ export default function Admin() {
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const [redOn, setRedOn] = useState(!!user?.enhanced);
+  const [storeItems, setStoreItems] = useState<any[]>([]);
+  const [nf, setNf] = useState<any>({ kind: "aura", name: "", description: "", rarity: "legendary", icon: "★", colors: "#7A5CFF,#00E5FF", motion: "pulse" });
 
   const loadMembers = async (query = "") => {
     try {
@@ -29,7 +31,24 @@ export default function Admin() {
   const loadFeatured = async () => {
     try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
   };
-  useEffect(() => { if (token) { loadMembers(); loadFeatured(); } /* eslint-disable-line */ }, [token]);
+  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); } /* eslint-disable-line */ }, [token]);
+
+  const loadStore = async () => {
+    try { setStoreItems((await apiFetch(token, "/api/admin/store")).items || []); } catch {}
+  };
+  const createDrop = async () => {
+    if (!nf.name.trim()) { flash("Name required"); return; }
+    try {
+      await apiFetch(token, "/api/admin/store", { method: "POST", body: JSON.stringify({
+        kind: nf.kind, name: nf.name.trim(), description: nf.description.trim(), rarity: nf.rarity,
+        icon: nf.icon, motion: nf.motion, colors: nf.colors.split(",").map((c: string) => c.trim()).filter(Boolean),
+      }) });
+      flash("Drop created ✓"); setNf({ ...nf, name: "", description: "" }); await loadStore();
+    } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const deleteDrop = async (id: string) => {
+    try { await apiFetch(token, `/api/admin/store/${id}`, { method: "DELETE" }); await loadStore(); } catch {}
+  };
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 2000); };
 
@@ -100,6 +119,41 @@ export default function Admin() {
             <Switch testID="admin-red-toggle" value={redOn} onValueChange={toggleRed} trackColor={{ true: "#FF2A3C", false: colors.border }} />
           </View>
         </View>
+
+        {/* Store drop creator */}
+        <Text style={st.section}>🛒 STORE DROPS ({storeItems.length})</Text>
+        <View style={st.card}>
+          <Text style={st.cardSub}>Create this month's exclusive cosmetic ($1, current month, never returns).</Text>
+          <View style={st.chipWrap}>
+            {["avatar", "banner", "title", "badge", "background", "aura"].map((k) => (
+              <Pressable key={k} onPress={() => setNf((s: any) => ({ ...s, kind: k }))} style={[st.miniChip, nf.kind === k && st.miniChipOn]}><Text style={[st.miniChipText, nf.kind === k && st.miniChipTextOn]}>{k}</Text></Pressable>
+            ))}
+          </View>
+          <TextInput testID="drop-name" value={nf.name} onChangeText={(v) => setNf((s: any) => ({ ...s, name: v }))} placeholder="Name (e.g. Void Flame Aura)" placeholderTextColor={colors.textDim} style={st.annInput2} />
+          <TextInput value={nf.description} onChangeText={(v) => setNf((s: any) => ({ ...s, description: v }))} placeholder="Description" placeholderTextColor={colors.textDim} style={st.annInput2} />
+          <View style={st.chipWrap}>
+            {["legendary", "mythic", "exalted", "eternal"].map((r) => (
+              <Pressable key={r} onPress={() => setNf((s: any) => ({ ...s, rarity: r }))} style={[st.miniChip, nf.rarity === r && st.miniChipOn]}><Text style={[st.miniChipText, nf.rarity === r && st.miniChipTextOn]}>{r}</Text></Pressable>
+            ))}
+          </View>
+          <View style={st.chipWrap}>
+            {["pulse", "shimmer", "orbit", "flame", "none"].map((m) => (
+              <Pressable key={m} onPress={() => setNf((s: any) => ({ ...s, motion: m }))} style={[st.miniChip, nf.motion === m && st.miniChipOn]}><Text style={[st.miniChipText, nf.motion === m && st.miniChipTextOn]}>{m}</Text></Pressable>
+            ))}
+          </View>
+          <TextInput value={nf.colors} onChangeText={(v) => setNf((s: any) => ({ ...s, colors: v }))} placeholder="Colors (hex, comma-separated)" placeholderTextColor={colors.textDim} style={st.annInput2} autoCapitalize="none" />
+          <TextInput value={nf.icon} onChangeText={(v) => setNf((s: any) => ({ ...s, icon: v }))} placeholder="Icon/emoji (e.g. 🔥 or ★)" placeholderTextColor={colors.textDim} style={st.annInput2} />
+          <Pressable testID="create-drop" onPress={createDrop} style={st.annBtn}><Text style={st.annBtnText}>+ CREATE DROP (this month)</Text></Pressable>
+        </View>
+        {storeItems.map((it) => (
+          <View key={it.item_id} style={st.featRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={st.name}>{it.name} <Text style={{ color: colors.textDim, fontSize: 11 }}>· {it.kind} · {it.drop_month}</Text></Text>
+              <Text style={st.reason}>{it.rarity} · {it.motion}</Text>
+            </View>
+            <Pressable testID={`del-drop-${it.item_id}`} onPress={() => deleteDrop(it.item_id)} style={st.removeBtn}><Text style={st.removeText}>REMOVE</Text></Pressable>
+          </View>
+        ))}
 
         {/* Featured members */}
         <Text style={st.section}>★ HOME SPOTLIGHT ({featured.length})</Text>
@@ -185,6 +239,12 @@ const st = StyleSheet.create({
   annInput: { marginTop: spacing.md, minHeight: 72, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, fontSize: 14, textAlignVertical: "top" },
   annBtn: { marginTop: spacing.sm, paddingVertical: 12, alignItems: "center", borderRadius: radius.sm, backgroundColor: colors.brandPrimary },
   annBtnText: { color: "#001122", fontWeight: "900", letterSpacing: 1.5, fontSize: 12 },
+  annInput2: { marginTop: spacing.sm, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
+  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: spacing.sm },
+  miniChip: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
+  miniChipOn: { borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.14)" },
+  miniChipText: { color: colors.textDim, fontSize: 11, fontWeight: "800" },
+  miniChipTextOn: { color: colors.warning },
   section: { color: colors.brandPrimary, letterSpacing: 3, fontWeight: "900", fontSize: 12, marginTop: spacing.md, marginBottom: spacing.sm },
   dim: { color: colors.textDim, fontSize: 12, marginBottom: spacing.md },
   featRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, backgroundColor: "rgba(255,234,0,0.06)", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, marginBottom: spacing.sm },

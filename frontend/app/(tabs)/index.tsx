@@ -120,6 +120,7 @@ export default function Dashboard() {
         <View style={styles.badgeRow}>
           {isPremium && <View testID="premium-badge" style={styles.premiumBadge}><Text style={styles.premiumBadgeText}>{isSubscribed ? "★ PREMIUM" : user?.skool_verified ? "✓ SKOOL" : "★ FOUNDER"}</Text></View>}
           {user?.is_admin && <Pressable testID="admin-entry" onPress={() => router.push("/admin")} style={styles.adminBtn}><Text style={styles.adminBtnText}>⚙ ADMIN</Text></Pressable>}
+          <Pressable testID="store-entry" onPress={() => router.push("/store")} style={styles.storeBtn}><Text style={styles.storeBtnText}>🛒 STORE</Text></Pressable>
         </View>
       </LinearGradient>
 
@@ -328,6 +329,8 @@ const styles = StyleSheet.create({
   premiumBadgeText: { color: "#332200", fontWeight: "900", fontSize: 11, letterSpacing: 2 },
   adminBtn: { backgroundColor: colors.surface3, borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 12 },
   adminBtnText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 11, letterSpacing: 2 },
+  storeBtn: { backgroundColor: "rgba(255,234,0,0.1)", borderWidth: 1, borderColor: colors.warning, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 12 },
+  storeBtnText: { color: colors.warning, fontWeight: "900", fontSize: 11, letterSpacing: 2 },
   spotCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.06)" },
   spotDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warning },
   spotName: { color: colors.text, fontWeight: "900", fontSize: 14 },
