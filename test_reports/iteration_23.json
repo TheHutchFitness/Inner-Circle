@@ -1,0 +1,30 @@
+{
+  "summary": "Tested Lite/Full app mode + Gym association features end-to-end. Backend: 14/14 tests PASS (public /api/gyms, PATCH /profile/update {lite_mode} sets mode_selected, {gym} -> inperson_gym, {inperson_request:true} returns 400 without gym and 200 with, /auth/register with gym+inperson_request persists both, regression on /auth/login /auth/me /profile/me /quests /leaderboard/xp). Frontend (mobile 390x844): signup shows gym input + suggestion chips + in-person checkbox that is aria-disabled=true before a gym is typed and enabled after (verified). Mode intro (pick-lite / pick-full) appears immediately after registering a fresh user. LITE mode correctly reduces tab bar to HOME/TRAIN/RANK/QUESTS/ME (SOCIAL hidden) and hides STORE / THE JUDGE / THE ROOM / THE ENHANCED / SPOTLIGHT / REIGNING on Home, and hides Armory + Inventory on Profile. Profile shows APP MODE toggle (mode-lite / mode-full) + MY GYM section (gym-edit -> gym-input -> gym-save persisted 'Updated Test Gym'). Switching to FULL brings SOCIAL tab back and re-exposes Inventory/Armory/Manage Premium on Profile. QUESTS tab still loads with content after mode switching. No red screens, no console errors of significance (only benign RN-web shadow* deprecation warnings). Lite<->Full flip does NOT break underlying features.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RN-Web style props", "issue": "Console warnings: 'textShadow*' and 'shadow*' style props are deprecated. Use single 'textShadow' / 'boxShadow' props. Not caused by this feature, but present across app. Reference: pre-existing (see /var/log/supervisor/expo.*.log)."}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_lite_mode_gym.py", "/app/test_reports/pytest/iter23_lite_gym.xml"],
+  "action_items": [
+    "OPTIONAL: Add testIDs to the tab bar buttons (tab-home, tab-train, tab-rank, tab-me, tab-social). Currently only tab-quests and tab-profile expose testIDs, so automated tab navigation has to rely on text labels for the other tabs.",
+    "OPTIONAL (unrelated to this feature): migrate deprecated 'textShadow*' and 'shadow*' style props to 'textShadow' / 'boxShadow' to silence RN-web warnings."
+  ],
+  "critical_code_review_comments": [
+    "profile.py PATCH /profile/update correctly guards inperson_request against missing gym in the same request or on the user doc (checks both update.get('inperson_gym') and user.get('inperson_gym')). Good.",
+    "auth.py register truncates gym to 60 chars and only sets inperson_request when explicitly true — consistent with the profile update contract.",
+    "GET /api/gyms is public (no Depends(get_current_user)) as required so the signup screen can load it pre-auth.",
+    "ProfileUpdate model in shared.py exposes only whitelisted fields (lite_mode, gym, inperson_request, etc.), so client cannot slip in arbitrary keys like mode_selected — the backend flips mode_selected server-side when lite_mode is provided. Correct."
+  ],
+  "updated_files": ["/app/backend/tests/test_lite_mode_gym.py (NEW)"],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "Registered fresh test users prefixed TEST_ui_* and TEST_litegym_* via /auth/register; created gyms like 'TEST UI Gym', 'TEST Iron Temple', 'TEST Coach Gym', 'TEST Combo Gym', 'TEST Register Gym' visible in GET /api/gyms. Test users are inert (no purchases/bans) and can be cleaned up by db.users.delete_many({email:/^TEST_/}).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend tests live in /app/backend/tests/test_lite_mode_gym.py — reuse for regression on Lite/Full + Gym flows. Use bots (bot6..bot10) for a fresh first-login intro (any bot that has NOT yet had mode-lite/mode-full clicked will trigger AppModeIntro). Leaderboard endpoint is /api/leaderboard/{board_type} (e.g. /api/leaderboard/xp), NOT /api/leaderboard.",
+  "rca_of_issue": "N/A — no bugs found for the Lite/Full + Gym feature set. All acceptance criteria from the review request are met."
+}

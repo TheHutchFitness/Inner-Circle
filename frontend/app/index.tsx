@@ -20,6 +20,9 @@ export default function Index() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [referralCode, setReferralCode] = useState("");
+  const [gym, setGym] = useState("");
+  const [inpersonReq, setInpersonReq] = useState(false);
+  const [gyms, setGyms] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [spots, setSpots] = useState<{ remaining: number; limit: number } | null>(null);
@@ -59,6 +62,10 @@ export default function Index() {
         const r = await fetch(`${API}/api/founders/spots`);
         if (r.ok) setSpots(await r.json());
       } catch {}
+      try {
+        const g = await fetch(`${API}/api/gyms`);
+        if (g.ok) setGyms((await g.json()).gyms || []);
+      } catch {}
     })();
   }, []);
 
@@ -82,7 +89,7 @@ export default function Index() {
     setSubmitting(true);
     try {
       if (mode === "login") await loginEmail(email.trim(), password);
-      else await registerEmail(email.trim(), password, name.trim() || email.split("@")[0], sex, referralCode.trim());
+      else await registerEmail(email.trim(), password, name.trim() || email.split("@")[0], sex, referralCode.trim(), gym.trim(), inpersonReq);
     } catch (e: any) {
       setErr(e.message || "Auth failed");
     } finally {
@@ -201,6 +208,47 @@ export default function Index() {
             />
           )}
 
+          {mode === "signup" && (
+            <>
+              <TextInput
+                testID="input-gym"
+                value={gym}
+                onChangeText={setGym}
+                placeholder="Your gym (optional)"
+                placeholderTextColor={colors.textDim}
+                style={styles.input}
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+              {gyms.length > 0 && (
+                <View style={styles.gymChips}>
+                  {gyms
+                    .filter((g) => !gym.trim() || g.toLowerCase().includes(gym.trim().toLowerCase()))
+                    .slice(0, 6)
+                    .map((g) => (
+                      <Pressable key={g} testID={`gym-chip-${g}`} onPress={() => setGym(g)} style={[styles.gymChip, gym.trim().toLowerCase() === g.toLowerCase() && styles.gymChipOn]}>
+                        <Text style={[styles.gymChipText, gym.trim().toLowerCase() === g.toLowerCase() && styles.gymChipTextOn]}>{g}</Text>
+                      </Pressable>
+                    ))}
+                </View>
+              )}
+              <Pressable
+                testID="toggle-inperson-request"
+                onPress={() => setInpersonReq((v) => !v)}
+                disabled={!gym.trim()}
+                style={[styles.ipRow, inpersonReq && styles.ipRowOn, !gym.trim() && styles.ipRowDisabled]}
+              >
+                <View style={[styles.ipCheck, inpersonReq && styles.ipCheckOn]}>
+                  {inpersonReq && <Text style={styles.ipCheckMark}>✓</Text>}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.ipTitle}>I train in-person & want coaching</Text>
+                  <Text style={styles.ipSub}>{gym.trim() ? "Coach Hutch will review your request" : "Enter your gym above to enable"}</Text>
+                </View>
+              </Pressable>
+            </>
+          )}
+
           {err && <Text testID="auth-error" style={styles.err}>{err}</Text>}
 
           <Pressable testID="submit-auth" onPress={submit} disabled={submitting} style={styles.primaryBtn}>
@@ -260,4 +308,17 @@ const styles = StyleSheet.create({
   dividerText: { color: colors.textDim, marginHorizontal: spacing.md, letterSpacing: 2, fontSize: 12 },
   googleBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingVertical: 14, alignItems: "center", borderRadius: radius.sm },
   googleText: { color: colors.brandPrimary, fontWeight: "800", letterSpacing: 2 },
+  gymChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: -4, marginBottom: spacing.md },
+  gymChip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
+  gymChipOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  gymChipText: { color: colors.textDim, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  gymChipTextOn: { color: colors.brandPrimary },
+  ipRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, marginBottom: spacing.md },
+  ipRowOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  ipRowDisabled: { opacity: 0.5 },
+  ipCheck: { width: 24, height: 24, borderRadius: 5, borderWidth: 1.5, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
+  ipCheckOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandPrimary },
+  ipCheckMark: { color: "#001122", fontWeight: "900", fontSize: 14 },
+  ipTitle: { color: colors.text, fontWeight: "800", fontSize: 13 },
+  ipSub: { color: colors.textDim, fontSize: 10, marginTop: 2 },
 });

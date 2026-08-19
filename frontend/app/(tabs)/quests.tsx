@@ -9,6 +9,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, bgImage, skinImage, weaponImage, rarityColor, rarityLabel } from "@/src/lib/theme";
 import { HudSectionHeader } from "@/src/components/Hud";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
+import { GymWatermark } from "@/src/components/GymWatermark";
 
 function BossReveal({ data, onClose }: { data: { label: string; title: string; loot?: any[] }; onClose: () => void }) {
   const scale = useSharedValue(0.4);
@@ -211,6 +212,7 @@ export default function Quests() {
         locations={[0, 0.5, 0.85]}
         style={styles.questBgFade}
       />
+      <GymWatermark />
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
         <Text style={styles.eyebrow}>▚ QUEST LOG //</Text>
         <Text style={styles.h1}>QUESTS</Text>

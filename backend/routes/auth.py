@@ -12,6 +12,10 @@ async def register(inp: RegisterInput):
     doc["password_hash"] = hash_password(inp.password)
     if inp.sex:
         doc["sex"] = inp.sex
+    if inp.gym:
+        doc["inperson_gym"] = inp.gym.strip()[:60]
+    if inp.inperson_request:
+        doc["inperson_request"] = True
     await db.users.insert_one(doc)
     if inp.referral_code:
         try:

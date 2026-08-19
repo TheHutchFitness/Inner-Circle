@@ -75,6 +75,8 @@ class RegisterInput(BaseModel):
     display_name: str
     sex: Optional[Literal["male", "female", "other"]] = None
     referral_code: Optional[str] = None
+    gym: Optional[str] = None
+    inperson_request: Optional[bool] = None
 
 class LoginInput(BaseModel):
     email: EmailStr
@@ -93,6 +95,9 @@ class ProfileUpdate(BaseModel):
     equipped_beard: Optional[str] = None
     social_tiktok: Optional[str] = None
     social_instagram: Optional[str] = None
+    gym: Optional[str] = None
+    lite_mode: Optional[bool] = None
+    inperson_request: Optional[bool] = None
 
 
 def social_handle(raw: str) -> str:

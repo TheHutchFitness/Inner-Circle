@@ -12,6 +12,8 @@ import { MemberSheet } from "@/src/components/MemberSheet";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
+import { GymWatermark, GymBadge } from "@/src/components/GymWatermark";
+import { isLite } from "@/src/lib/mode";
 
 function nextRankInfo(xp: number) {
   const thresholds = [
@@ -74,6 +76,7 @@ export default function Dashboard() {
 
   if (!user) return null;
   const avatar = avatarFor(user.avatar_id);
+  const lite = isLite(user);
   const rank = user.rank || "Beginner";
   const rankColor = RANK_COLORS[rank] || colors.brandPrimary;
   const next = nextRankInfo(user.xp);
@@ -93,11 +96,13 @@ export default function Dashboard() {
         locations={[0, 0.5, 0.82]}
         style={StyleSheet.absoluteFill}
       />
+      <GymWatermark />
       <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <View style={styles.topBar}>
         <Pressable testID="open-recap" onPress={() => router.push("/recap")} style={styles.hudBtn}>
           <Text style={styles.hudBtnText}>▤ RECAP</Text>
         </Pressable>
+        <GymBadge />
         <Pressable testID="open-progression" onPress={() => router.push("/progression")} style={styles.hudBtn}>
           <Text style={styles.hudBtnText}>◈ RANKS</Text>
         </Pressable>
@@ -128,11 +133,11 @@ export default function Dashboard() {
         <View style={styles.badgeRow}>
           {isPremium && <View testID="premium-badge" style={styles.premiumBadge}><Text style={styles.premiumBadgeText}>{isSubscribed ? "★ PREMIUM" : user?.skool_verified ? "✓ SKOOL" : "★ FOUNDER"}</Text></View>}
           {user?.is_admin && <Pressable testID="admin-entry" onPress={() => router.push("/admin")} style={styles.adminBtn}><Text style={styles.adminBtnText}>⚙ ADMIN</Text></Pressable>}
-          <Pressable testID="store-entry" onPress={() => router.push("/store")} style={styles.storeBtn}><Text style={styles.storeBtnText}>🛒 STORE</Text></Pressable>
+          {!lite && <Pressable testID="store-entry" onPress={() => router.push("/store")} style={styles.storeBtn}><Text style={styles.storeBtnText}>🛒 STORE</Text></Pressable>}
         </View>
       </LinearGradient>
 
-      {champion && (
+      {!lite && champion && (
         <Pressable testID="reigning-champion" onPress={() => setSpotId(champion.user_id)} style={styles.champCard}>
           <View style={styles.champAvatar}><PlayerAvatar person={champion} token={token} size={56} /></View>
           <View style={{ flex: 1 }}>
@@ -145,7 +150,7 @@ export default function Dashboard() {
         </Pressable>
       )}
 
-      {featured.length > 0 && (
+      {!lite && featured.length > 0 && (
         <>
           <HudSectionHeader label="★ SPOTLIGHT" />
           {featured.map((f) => (
@@ -219,6 +224,7 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
 
+      {!lite && (
       <Pressable testID="open-the-room" onPress={() => router.push("/the-room")} style={[styles.ctaCard, !canRoom && styles.locked]}>
         <View>
           <Text style={styles.ctaTitle}>THE ROOM {canRoom ? "" : "🔒"}</Text>
@@ -226,6 +232,7 @@ export default function Dashboard() {
         </View>
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
+      )}
 
       <Pressable testID="open-cardio" onPress={() => router.push("/cardio")} style={styles.ctaCard}>
         <View>
@@ -261,6 +268,7 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
 
+      {!lite && (
       <Pressable testID="open-judge" onPress={() => router.push("/judge")} style={[styles.ctaCard, !canJudge && styles.locked]}>
         <View>
           <Text style={styles.ctaTitle}>THE JUDGE {canJudge ? "" : "🔒"}</Text>
@@ -268,7 +276,9 @@ export default function Dashboard() {
         </View>
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
+      )}
 
+      {!lite && (
       <Pressable testID="open-enhanced" onPress={() => router.push("/enhanced")} style={styles.enhancedCta}>
         <View style={{ flex: 1 }}>
           <Text style={styles.enhancedTitle}>☣ THE ENHANCED {user?.enhanced ? "· ENTER" : "· 20+ · MEMBERS"}</Text>
@@ -276,8 +286,9 @@ export default function Dashboard() {
         </View>
         <Text style={styles.enhancedArrow}>▶</Text>
       </Pressable>
+      )}
 
-      {user?.enhanced && nextDose?.active && (
+      {!lite && user?.enhanced && nextDose?.active && (
         <Pressable testID="protocol-reminder" onPress={() => router.push("/enhanced")} style={styles.doseCard}>
           <View style={styles.doseHead}>
             <Text style={styles.doseTitle}>{`⏱ TODAY'S PROTOCOL · ${nextDose.today}`}</Text>
@@ -312,7 +323,7 @@ export default function Dashboard() {
         <Text style={styles.customProgArrow}>▶</Text>
       </Pressable>
 
-      {!isPremium && (
+      {!lite && !isPremium && (
         <Pressable testID="open-paywall" onPress={() => router.push("/paywall")} style={styles.premiumCta}>
           <Text style={styles.premiumCtaText}>UNLOCK PREMIUM · $5/mo</Text>
           <Text style={styles.premiumCtaSub}>Chatrooms + AI Programming</Text>

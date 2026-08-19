@@ -9,6 +9,7 @@ import { colors, spacing, radius, avatarFor, RANK_COLORS, loadoutTitle } from "@
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { MemberSheet } from "@/src/components/MemberSheet";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
+import { GymWatermark } from "@/src/components/GymWatermark";
 
 function HeroSweep() {
   const x = useSharedValue(-0.4);
@@ -130,6 +131,7 @@ export default function Leaderboards() {
         locations={[0, 0.45, 0.8]}
         style={StyleSheet.absoluteFill}
       />
+      <GymWatermark />
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <Text style={styles.eyebrow}>RANKINGS</Text>
       <View style={styles.titleRow}>

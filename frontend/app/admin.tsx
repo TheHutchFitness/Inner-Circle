@@ -196,6 +196,11 @@ export default function Admin() {
             </View>
 
             <Text style={st.miniLabel}>IN-PERSON CLIENT</Text>
+            {m.inperson_request && !m.inperson_client && (
+              <View style={st.reqBanner}>
+                <Text style={st.reqBannerText}>⏳ REQUESTED IN-PERSON COACHING{m.inperson_gym ? ` · ${m.inperson_gym}` : ""}</Text>
+              </View>
+            )}
             <View style={st.tagRow}>
               <Pressable testID={`inperson-${m.user_id}`} onPress={() => toggleInperson(m)} style={[st.tag, m.inperson_client && st.tagOn]}>
                 <Text style={[st.tagText, m.inperson_client && st.tagTextOn]}>🏋 {m.inperson_client ? "ENROLLED" : "ENROLL"}</Text>
@@ -301,6 +306,8 @@ const st = StyleSheet.create({
   unbanBtn: { paddingVertical: 9, paddingHorizontal: 16, borderRadius: radius.sm, backgroundColor: colors.success, justifyContent: "center" },
   unbanText: { color: "#00220A", fontWeight: "900", fontSize: 11, letterSpacing: 1 },
   miniLabel: { color: colors.textDim, fontSize: 9, letterSpacing: 1.5, fontWeight: "800", marginTop: spacing.md },
+  reqBanner: { marginTop: 6, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.12)", borderRadius: radius.sm, paddingVertical: 6, paddingHorizontal: 8 },
+  reqBannerText: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   badgeWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
   badge: { paddingVertical: 5, paddingHorizontal: 9, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
   badgeOn: { borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.14)" },

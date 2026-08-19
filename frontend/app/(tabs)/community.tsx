@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from "react-native";
+import { useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
@@ -12,6 +13,12 @@ export default function Community() {
   const { user } = useAuth();
   const { isSubscribed } = useSubscription();
   const router = useRouter();
+
+  // Lite mode has no chatrooms — bounce back home if somehow reached.
+  useEffect(() => {
+    if (user?.lite_mode) router.replace("/(tabs)");
+  }, [user?.lite_mode]);
+  if (user?.lite_mode) return null;
 
   const canChat = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
 

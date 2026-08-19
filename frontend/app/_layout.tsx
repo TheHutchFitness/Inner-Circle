@@ -12,6 +12,7 @@ import { UnitsProvider } from "@/src/lib/units";
 import { initializeRevenueCat, SubscriptionProvider, useRCIdentityBinder } from "@/src/lib/revenuecat";
 import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
 import { HeroIntro } from "@/src/components/HeroIntro";
+import { AppModeIntro } from "@/src/components/AppModeIntro";
 import { isEnhancedPalette, applyEnhancedPalette, colors } from "@/src/lib/theme";
 import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
 
@@ -36,6 +37,15 @@ function IntroGate() {
   const { intro, user, clearIntro } = useAuth();
   if (!intro || !user) return null;
   return <HeroIntro user={user} mode={intro.mode} onDone={clearIntro} />;
+}
+
+// After the hero intro finishes, first-time users pick Lite or Full mode.
+// Shows only when logged in, no mode chosen yet, and the hero intro isn't playing.
+function ModeGate() {
+  const { user, intro, loading } = useAuth();
+  if (loading || !user || intro) return null;
+  if (user.mode_selected === true) return null;
+  return <AppModeIntro />;
 }
 
 // Keeps the red palette in sync with the logged-in athlete's Enhanced status.
@@ -88,6 +98,7 @@ export default function RootLayout() {
               <ScanlineOverlay />
               <EnhancedSync />
               <IntroGate />
+              <ModeGate />
               </UnitsProvider>
             </RCIdentity>
           </SubscriptionProvider>

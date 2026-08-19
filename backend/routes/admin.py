@@ -26,6 +26,7 @@ async def _member_brief(u: dict) -> dict:
         "ban_until": b["until"].isoformat() if b else None,
         "inperson_client": bool(u.get("inperson_client")),
         "inperson_gym": u.get("inperson_gym", "") or "",
+        "inperson_request": bool(u.get("inperson_request")),
     }
 
 
@@ -40,6 +41,8 @@ async def admin_inperson(payload: dict, user=Depends(get_current_user)):
     updates: dict = {}
     if "on" in payload:
         updates["inperson_client"] = bool(payload.get("on"))
+        if payload.get("on"):
+            updates["inperson_request"] = False
     if "gym" in payload:
         updates["inperson_gym"] = (payload.get("gym") or "").strip()[:60]
     if updates:

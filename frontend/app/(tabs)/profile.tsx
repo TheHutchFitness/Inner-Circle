@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Modal } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming, Easing } from "react-native-reanimated";
@@ -21,6 +21,8 @@ import { FoundingRibbon, CreatorBadge, SeasonChampBadge } from "@/src/components
 import { PetCompanion } from "@/src/components/PetCompanion";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
+import { GymWatermark } from "@/src/components/GymWatermark";
+import { isLite } from "@/src/lib/mode";
 
 const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"], ["OHP", "ohp"]];
 
@@ -37,6 +39,9 @@ export default function Profile() {
   const [liftTab, setLiftTab] = useState("bench");
   const [showStats, setShowStats] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
+  const [gymInput, setGymInput] = useState<string>("");
+  const [gyms, setGyms] = useState<string[]>([]);
+  const [gymEditing, setGymEditing] = useState(false);
   const cardRef = useRef<View>(null);
 
   const shimmer = useSharedValue(0);
@@ -47,11 +52,13 @@ export default function Profile() {
     (async () => {
       try { setChart(await apiFetch(token, "/api/progress/chart")); } catch {}
       try { setAttrs(await apiFetch(token, "/api/profile/attributes")); } catch {}
+      try { setGyms((await apiFetch(token, "/api/gyms")).gyms || []); } catch {}
     })();
   }, [token, user?.xp]);
 
   if (!user) return null;
   const av = avatarFor(user.avatar_id);
+  const lite = isLite(user);
   const rank = user.rank || "Beginner";
   const rankColor = RANK_COLORS[rank];
   const portrait = bodyImage(user);
@@ -98,9 +105,37 @@ export default function Profile() {
     } catch { setMsg("Sharing unavailable here — try on a device."); }
   };
 
+  const setAppMode = async (nextLite: boolean) => {
+    if (!!user.lite_mode === nextLite) return;
+    try {
+      await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ lite_mode: nextLite }) });
+      await refresh();
+      setMsg(nextLite ? "Switched to Lite mode" : "Switched to Full mode");
+    } catch (e: any) { setMsg(e?.message || "Failed to switch"); }
+  };
+
+  const saveGym = async () => {
+    try {
+      await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ gym: gymInput.trim() }) });
+      await refresh();
+      setGymEditing(false);
+      setMsg("Gym saved ✓");
+    } catch (e: any) { setMsg(e?.message || "Failed to save gym"); }
+  };
+
+  const requestInperson = async () => {
+    try {
+      await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ inperson_request: true }) });
+      await refresh();
+      setMsg("Request sent — Coach Hutch will review it");
+    } catch (e: any) { setMsg(e?.message || "Select your gym first"); }
+  };
+
   return (
     <SwipeTabs current="profile">
-    <ScrollView style={{ flex: 1, backgroundColor: colors.surface }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
+    <View style={{ flex: 1, backgroundColor: colors.surface }}>
+    <GymWatermark />
+    <ScrollView style={{ flex: 1, backgroundColor: "transparent" }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
       <View style={styles.topRow}>
         <Text style={styles.hudTag}>⌁ PLAYER CARD</Text>
         <Pressable testID="open-settings" onPress={() => router.push("/settings")} style={styles.gearBtn}><Text style={styles.gearText}>⚙ CONFIG</Text></Pressable>
@@ -273,15 +308,97 @@ export default function Profile() {
         </>
       )}
 
+      {/* APP MODE — switch between Lite (utility) and Full (game) */}
+      <HudSectionHeader label="APP MODE" />
+      <View style={styles.modeRow}>
+        <Pressable testID="mode-full" onPress={() => setAppMode(false)} style={[styles.modeBtn, !lite && styles.modeBtnOn]}>
+          <Text style={[styles.modeTitle, !lite && styles.modeTitleOn]}>◆ FULL</Text>
+          <Text style={styles.modeSub}>Games, cosmetics, chat & more</Text>
+        </Pressable>
+        <Pressable testID="mode-lite" onPress={() => setAppMode(true)} style={[styles.modeBtn, lite && styles.modeBtnOn]}>
+          <Text style={[styles.modeTitle, lite && styles.modeTitleOn]}>▤ LITE</Text>
+          <Text style={styles.modeSub}>Pure tracking, no distractions</Text>
+        </Pressable>
+      </View>
+
+      {/* MY GYM — association + in-person coaching request */}
+      <HudSectionHeader label="MY GYM" />
+      <View style={styles.gymCard}>
+        {gymEditing ? (
+          <>
+            <TextInput
+              testID="gym-input"
+              value={gymInput}
+              onChangeText={setGymInput}
+              placeholder="Enter your gym name…"
+              placeholderTextColor={colors.textDim}
+              style={styles.gymInput}
+              autoCapitalize="words"
+            />
+            {gyms.length > 0 && (
+              <View style={styles.gymChips}>
+                {gyms
+                  .filter((g) => !gymInput.trim() || g.toLowerCase().includes(gymInput.trim().toLowerCase()))
+                  .slice(0, 6)
+                  .map((g) => (
+                    <Pressable key={g} testID={`profile-gym-chip-${g}`} onPress={() => setGymInput(g)} style={styles.gymChip}>
+                      <Text style={styles.gymChipText}>{g}</Text>
+                    </Pressable>
+                  ))}
+              </View>
+            )}
+            <View style={styles.gymBtnRow}>
+              <Pressable testID="gym-save" onPress={saveGym} style={styles.gymSaveBtn}><Text style={styles.gymSaveText}>SAVE</Text></Pressable>
+              <Pressable testID="gym-cancel" onPress={() => setGymEditing(false)} style={styles.gymCancelBtn}><Text style={styles.gymCancelText}>CANCEL</Text></Pressable>
+            </View>
+          </>
+        ) : (
+          <View style={styles.gymViewRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.gymName}>{user.inperson_gym ? user.inperson_gym : "No gym set"}</Text>
+              <Text style={styles.gymHint}>{user.inperson_gym ? "You're associated with this gym" : "Add your gym to unlock in-person coaching"}</Text>
+            </View>
+            <Pressable testID="gym-edit" onPress={() => { setGymInput(user.inperson_gym || ""); setGymEditing(true); }} style={styles.gymEditBtn}>
+              <Text style={styles.gymEditText}>{user.inperson_gym ? "EDIT" : "ADD"}</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {user.inperson_client ? (
+          <View style={[styles.ipStatus, { borderColor: colors.success }]}>
+            <Text style={[styles.ipStatusText, { color: colors.success }]}>✓ ENROLLED · IN-PERSON CLIENT</Text>
+          </View>
+        ) : user.inperson_request ? (
+          <View style={[styles.ipStatus, { borderColor: colors.warning }]}>
+            <Text style={[styles.ipStatusText, { color: colors.warning }]}>⏳ REQUEST PENDING APPROVAL</Text>
+          </View>
+        ) : (
+          <Pressable
+            testID="request-inperson"
+            onPress={requestInperson}
+            disabled={!user.inperson_gym}
+            style={[styles.ipRequestBtn, !user.inperson_gym && styles.ipRequestDisabled]}
+          >
+            <Text style={styles.ipRequestText}>🏋 REQUEST IN-PERSON COACHING</Text>
+          </Pressable>
+        )}
+      </View>
+
+      {!lite && (
       <Pressable testID="open-loadout" onPress={() => router.push("/loadout")} style={styles.linkBtn}>
         <Text style={styles.linkText}>◆ INVENTORY — GEAR, FRAMES & BACKGROUNDS</Text>
       </Pressable>
+      )}
+      {!lite && (
       <Pressable testID="open-armory" onPress={() => router.push("/gear")} style={[styles.linkBtn, { borderColor: colors.warning }]}>
         <Text style={[styles.linkText, { color: colors.warning }]}>⚔ THE ARMORY — SKINS & WEAPONS</Text>
       </Pressable>
+      )}
+      {!lite && (
       <Pressable testID="open-paywall-profile" onPress={() => router.push("/paywall")} style={styles.linkBtn}>
         <Text style={styles.linkText}>MANAGE PREMIUM</Text>
       </Pressable>
+      )}
       <Pressable testID="open-purchases" onPress={() => router.push("/purchases")} style={styles.linkBtn}>
         <Text style={styles.linkText}>MY PURCHASES</Text>
       </Pressable>
@@ -365,6 +482,7 @@ export default function Profile() {
         </View>
       </Modal>
     </ScrollView>
+    </View>
     </SwipeTabs>
   );
 }
@@ -487,4 +605,30 @@ const styles = StyleSheet.create({
   genderBtnActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
   genderText: { color: colors.textDim, fontWeight: "800", fontSize: 11, letterSpacing: 1 },
   genderTextActive: { color: colors.brandPrimary },
+  modeRow: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg },
+  modeBtn: { flex: 1, padding: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface2 },
+  modeBtnOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  modeTitle: { color: colors.textDim, fontSize: 15, fontWeight: "900", letterSpacing: 2 },
+  modeTitleOn: { color: colors.brandPrimary },
+  modeSub: { color: colors.textDim, fontSize: 10, marginTop: 4, lineHeight: 14 },
+  gymCard: { marginHorizontal: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
+  gymViewRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  gymName: { color: colors.text, fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },
+  gymHint: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  gymEditBtn: { borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 8 },
+  gymEditText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  gymInput: { backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 12, borderWidth: 1, borderColor: colors.border, fontSize: 15 },
+  gymChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: spacing.sm },
+  gymChip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
+  gymChipText: { color: colors.textMid, fontSize: 11, fontWeight: "700" },
+  gymBtnRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  gymSaveBtn: { flex: 1, backgroundColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 12, alignItems: "center" },
+  gymSaveText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },
+  gymCancelBtn: { flex: 1, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm, paddingVertical: 12, alignItems: "center" },
+  gymCancelText: { color: colors.textDim, fontWeight: "900", letterSpacing: 2 },
+  ipStatus: { marginTop: spacing.md, borderWidth: 1, borderRadius: radius.sm, paddingVertical: 10, alignItems: "center" },
+  ipStatusText: { fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  ipRequestBtn: { marginTop: spacing.md, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 12, alignItems: "center" },
+  ipRequestDisabled: { opacity: 0.45 },
+  ipRequestText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
 });

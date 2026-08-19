@@ -3,8 +3,9 @@ import { View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { useRouter } from "expo-router";
+import { useAuth } from "@/src/lib/auth";
 
-const ORDER = ["index", "workout", "leaderboard", "quests", "community", "profile"];
+const FULL_ORDER = ["index", "workout", "leaderboard", "quests", "community", "profile"];
 const PATHS: Record<string, string> = {
   index: "/(tabs)",
   workout: "/(tabs)/workout",
@@ -18,6 +19,8 @@ const PATHS: Record<string, string> = {
 // Horizontal-only activation so vertical scrolling keeps working.
 export function SwipeTabs({ current, children }: { current: string; children: React.ReactNode }) {
   const router = useRouter();
+  const { user } = useAuth();
+  const ORDER = user?.lite_mode ? FULL_ORDER.filter((t) => t !== "community") : FULL_ORDER;
 
   const go = (dir: number) => {
     const i = ORDER.indexOf(current);
