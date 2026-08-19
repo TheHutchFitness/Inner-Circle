@@ -1369,7 +1369,21 @@ MAX_IMAGE_BYTES = 15 * 1024 * 1024   # 15 MB
 MAX_VIDEO_BYTES = 80 * 1024 * 1024   # 80 MB (~1 min of phone video)
 _EXT_MAP = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
             "image/heic": "heic", "image/heif": "heif", "video/mp4": "mp4", "video/quicktime": "mov",
-            "video/webm": "webm", "video/3gpp": "3gp", "video/x-matroska": "mkv"}
+            "video/webm": "webm", "video/3gpp": "3gp", "video/x-matroska": "mkv",
+            "application/pdf": "pdf", "application/msword": "doc",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+            "text/plain": "txt", "application/vnd.ms-excel": "xls",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+            "text/csv": "csv"}
+
+# Documents allowed in the In-Person Clients room (in addition to images)
+ALLOWED_DOC_TYPES = {
+    "application/pdf", "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/plain", "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "text/csv",
+}
+MAX_DOC_BYTES = 25 * 1024 * 1024   # 25 MB
 
 
 

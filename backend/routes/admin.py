@@ -24,7 +24,28 @@ async def _member_brief(u: dict) -> dict:
         "ban_active": bool(b),
         "ban_scope": b["scope"] if b else None,
         "ban_until": b["until"].isoformat() if b else None,
+        "inperson_client": bool(u.get("inperson_client")),
+        "inperson_gym": u.get("inperson_gym", "") or "",
     }
+
+
+@api_router.post("/admin/inperson")
+async def admin_inperson(payload: dict, user=Depends(get_current_user)):
+    """Mark a member as an in-person client and/or set the gym they train at."""
+    _require_admin(user)
+    uid = payload.get("user_id")
+    target = await db.users.find_one({"user_id": uid})
+    if not target:
+        raise HTTPException(status_code=404, detail="Member not found")
+    updates: dict = {}
+    if "on" in payload:
+        updates["inperson_client"] = bool(payload.get("on"))
+    if "gym" in payload:
+        updates["inperson_gym"] = (payload.get("gym") or "").strip()[:60]
+    if updates:
+        await db.users.update_one({"user_id": uid}, {"$set": updates})
+    updated = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    return await _member_brief(updated)
 
 
 @api_router.get("/admin/members")

@@ -16,6 +16,7 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [featured, setFeatured] = useState<any[]>([]);
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [gyms, setGyms] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
   const [redOn, setRedOn] = useState(!!user?.enhanced);
   const [storeItems, setStoreItems] = useState<any[]>([]);
@@ -53,6 +54,14 @@ export default function Admin() {
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 2000); };
 
   const patchMember = (m: any) => setMembers((list) => list.map((x) => (x.user_id === m.user_id ? m : x)));
+
+  const toggleInperson = async (m: any) => {
+    try { patchMember(await apiFetch(token, "/api/admin/inperson", { method: "POST", body: JSON.stringify({ user_id: m.user_id, on: !m.inperson_client }) })); flash("Updated ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const saveGym = async (m: any) => {
+    const gym = gyms[m.user_id] ?? m.inperson_gym ?? "";
+    try { patchMember(await apiFetch(token, "/api/admin/inperson", { method: "POST", body: JSON.stringify({ user_id: m.user_id, gym }) })); flash("Gym saved ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
 
   const toggleBadge = async (m: any, badge: string) => {
     const has = (m.badges || []).includes(badge);
@@ -185,6 +194,24 @@ export default function Admin() {
               <Pressable onPress={() => toggleSkool(m)} style={[st.tag, m.skool_verified && st.tagOn]}><Text style={[st.tagText, m.skool_verified && st.tagTextOn]}>✓ SKOOL</Text></Pressable>
               <Pressable onPress={() => toggleFounder(m)} style={[st.tag, m.founder_grant && st.tagOn]}><Text style={[st.tagText, m.founder_grant && st.tagTextOn]}>★ FOUNDER</Text></Pressable>
             </View>
+
+            <Text style={st.miniLabel}>IN-PERSON CLIENT</Text>
+            <View style={st.tagRow}>
+              <Pressable testID={`inperson-${m.user_id}`} onPress={() => toggleInperson(m)} style={[st.tag, m.inperson_client && st.tagOn]}>
+                <Text style={[st.tagText, m.inperson_client && st.tagTextOn]}>🏋 {m.inperson_client ? "ENROLLED" : "ENROLL"}</Text>
+              </Pressable>
+            </View>
+            {m.inperson_client && (
+              <View style={st.featInput}>
+                <TextInput
+                  testID={`gym-${m.user_id}`}
+                  value={gyms[m.user_id] ?? m.inperson_gym ?? ""}
+                  onChangeText={(t) => setGyms((g) => ({ ...g, [m.user_id]: t }))}
+                  placeholder="Gym they train at…" placeholderTextColor={colors.textDim} style={st.reasonInput}
+                />
+                <Pressable testID={`save-gym-${m.user_id}`} onPress={() => saveGym(m)} style={st.featBtn}><Text style={st.featBtnText}>SET GYM</Text></Pressable>
+              </View>
+            )}
 
             <Text style={st.miniLabel}>RANK</Text>
             <View style={st.tagRow}>

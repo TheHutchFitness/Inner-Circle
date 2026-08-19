@@ -63,10 +63,12 @@ export default function Dashboard() {
   const [featured, setFeatured] = useState<any[]>([]);
   const [spotId, setSpotId] = useState<string | null>(null);
   const [champion, setChampion] = useState<any>(null);
+  const [ipUnread, setIpUnread] = useState(0);
   useEffect(() => {
     (async () => {
       try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
       try { const h = await apiFetch(token, "/api/leaderboard/season/history"); setChampion((h || [])[0] || null); } catch {}
+      try { setIpUnread((await apiFetch(token, "/api/inperson/unread")).unread || 0); } catch {}
     })();
   }, [token]);
 
@@ -233,6 +235,16 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
 
+      {(user?.is_admin || user?.inperson_client) && (
+        <Pressable testID="open-inperson" onPress={() => router.push("/inperson")} style={styles.inpersonCta}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.inpersonTitle}>🏋 IN-PERSON COACHING ROOM</Text>
+            <Text style={styles.ctaSub}>{user?.is_admin ? "Chat, files & assigned workouts for your in-person clients" : "Private room with Coach Hutch · plans, files & chat"}</Text>
+          </View>
+          {ipUnread > 0 ? <View style={styles.ipBadge}><Text style={styles.ipBadgeText}>{ipUnread}</Text></View> : <Text style={styles.ctaArrow}>▶</Text>}
+        </Pressable>
+      )}
+
       <Pressable testID="open-coach" onPress={() => router.push("/coach")} style={styles.ctaCard}>
         <View>
           <Text style={styles.ctaTitle}>AI COACH · CHAT</Text>
@@ -372,6 +384,10 @@ const styles = StyleSheet.create({
   prLabel: { color: colors.brandPrimary, fontSize: 11, letterSpacing: 3, fontWeight: "800" },
   prValue: { color: colors.text, fontSize: 22, fontWeight: "900", marginTop: 4 },
   ctaCard: { marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  inpersonCta: { marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.lg, backgroundColor: "rgba(0,229,255,0.06)", borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.brandPrimary, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  inpersonTitle: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 14 },
+  ipBadge: { minWidth: 24, height: 24, borderRadius: 12, backgroundColor: colors.error, alignItems: "center", justifyContent: "center", paddingHorizontal: 7 },
+  ipBadgeText: { color: "#fff", fontWeight: "900", fontSize: 12 },
   ctaTitle: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 15 },
   ctaSub: { color: colors.textDim, fontSize: 11, marginTop: 4, letterSpacing: 1 },
   ctaArrow: { color: colors.brandPrimary, fontSize: 18 },

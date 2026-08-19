@@ -13,6 +13,7 @@ from routes import (  # noqa: F401
     enhanced,
     exercises,
     gear,
+    inperson,
     judge,
     leaderboard,
     misc,

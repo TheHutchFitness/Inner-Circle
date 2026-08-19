@@ -30,3 +30,22 @@ export function takePendingWorkout(): PendingSession {
   pending = null;
   return w;
 }
+
+// Load a workout that already has explicit sets arrays (e.g. an admin-assigned
+// in-person program) directly into the logger without collapsing sets to a count.
+export function setPendingWorkoutExact(session: any) {
+  if (!session) { pending = null; return; }
+  pending = {
+    name: session.name || "Assigned Workout",
+    split_key: session.split_key || "custom",
+    source: session.source || "coach",
+    exercises: (session.exercises || []).map((ex: any) => ({
+      name: ex.name || "Exercise",
+      sets: (ex.sets || []).map((s: any) => ({
+        reps: Number(s.reps) || 5,
+        weight_lb: Number(s.weight_lb) || 0,
+        rpe: Number(s.rpe) || 7,
+      })),
+    })),
+  };
+}
