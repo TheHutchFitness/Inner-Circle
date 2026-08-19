@@ -415,3 +415,8 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - GOAL PROGRESS: user field inperson_goal_progress (0-100, set via /notes endpoint accepting goal_progress). Thread returns goal_progress (both roles). inperson.tsx goal banner now shows a cyan progress bar + "N% there"; admin has −/+ (5%) nudge buttons that instantly save. Verified (40→45% persists).
 - CHECK-IN STREAK: helper _checkin_streak counts consecutive ISO weeks with ≥1 check-in (alive if checked in this or last week). Thread + clients list return checkin_streak. inperson.tsx shows an orange "🔥 N WEEK CHECK-IN STREAK" chip in the room (both roles) and a "🔥 Nw" mini-badge on admin client rows. Verified (3-week streak).
 - Test data cleaned (launch DB clean).
+
+## Implemented (2026-06 — In-Person: Streak Milestones + Weight Chart)
+- STREAK MILESTONES: when a check-in pushes the consecutive-week streak to a multiple of 4 (4/8/12...), inperson_checkin auto-posts a one-time celebratory system message (deduped via a milestone field): 4=🥉 LOCKED IN, 8=🥈 ELITE, 12+=🏆 LEGEND. inperson.tsx renders 🎉 system messages as a gold celebration pill, and the streak chip is now tiered (bronze/silver/gold color + label) via streakTier(). Verified (4-week streak triggered 🥉 message + badge).
+- WEIGHT CHART: new MetricsChart component (react-native-svg) renders the body-metrics weights as a line graph (polyline + dots + min/max lb axis) above the metrics list, shown when ≥2 weight entries exist. Verified (220→211 lb downward trend renders).
+- Test data cleaned (launch DB clean).

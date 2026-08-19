@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView, Platform, Modal, Linking,
 } from "react-native";
 import { Image } from "expo-image";
+import Svg, { Polyline, Circle, Line as SvgLine } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -14,6 +15,41 @@ import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { setPendingWorkoutExact } from "@/src/lib/pendingWorkout";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
+
+function streakTier(n: number) {
+  if (n >= 12) return { style: { borderColor: "#FFD700", backgroundColor: "rgba(255,215,0,0.12)" }, textStyle: { color: "#FFD700" }, label: (x: number) => `🏆 ${x}-WEEK STREAK · LEGEND` };
+  if (n >= 8) return { style: { borderColor: "#C0C7D1", backgroundColor: "rgba(192,199,209,0.12)" }, textStyle: { color: "#D6DCE6" }, label: (x: number) => `🥈 ${x}-WEEK STREAK · ELITE` };
+  if (n >= 4) return { style: { borderColor: "#CD7F32", backgroundColor: "rgba(205,127,50,0.14)" }, textStyle: { color: "#E39A5C" }, label: (x: number) => `🥉 ${x}-WEEK STREAK · LOCKED IN` };
+  return { style: {}, textStyle: {}, label: (x: number) => `🔥 ${x} WEEK CHECK-IN STREAK` };
+}
+
+function MetricsChart({ data }: { data: any[] }) {
+  const pts = (data || []).filter((d) => typeof d.weight === "number");
+  if (pts.length < 2) return null;
+  const W = 300, H = 84, PAD = 8;
+  const ws = pts.map((p) => p.weight as number);
+  const min = Math.min(...ws), max = Math.max(...ws);
+  const span = max - min || 1;
+  const xy = pts.map((p, i) => {
+    const x = PAD + (i * (W - PAD * 2)) / (pts.length - 1);
+    const y = PAD + (1 - ((p.weight as number) - min) / span) * (H - PAD * 2);
+    return { x, y };
+  });
+  const poly = xy.map((p) => `${p.x},${p.y}`).join(" ");
+  return (
+    <View style={{ marginBottom: spacing.sm }}>
+      <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
+        <SvgLine x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke={colors.border} strokeWidth={1} />
+        <Polyline points={poly} fill="none" stroke={colors.brandPrimary} strokeWidth={2.5} strokeLinejoin="round" />
+        {xy.map((p, i) => (<Circle key={i} cx={p.x} cy={p.y} r={3.5} fill={colors.brandPrimary} />))}
+      </Svg>
+      <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+        <Text style={styles.chartAxis}>{min} lb</Text>
+        <Text style={styles.chartAxis}>{max} lb</Text>
+      </View>
+    </View>
+  );
+}
 
 export default function InPersonRoom() {
   const insets = useSafeAreaInsets();
@@ -311,7 +347,9 @@ export default function InPersonRoom() {
           {(!!nextSession || isAdmin || (thread.checkin_streak || 0) > 0 || (thread.checkin_photos?.length || 0) > 0 || (thread.metrics_timeline?.length || 0) > 0) && (
             <View style={styles.topPanel}>
               {(thread.checkin_streak || 0) > 0 && (
-                <View style={styles.streakChip}><Text style={styles.streakText}>🔥 {thread.checkin_streak} WEEK CHECK-IN STREAK</Text></View>
+                <View style={[styles.streakChip, streakTier(thread.checkin_streak).style]}>
+                  <Text style={[styles.streakText, streakTier(thread.checkin_streak).textStyle]}>{streakTier(thread.checkin_streak).label(thread.checkin_streak)}</Text>
+                </View>
               )}
               {isAdmin ? (
                 <View style={styles.schedRow}>
@@ -350,6 +388,7 @@ export default function InPersonRoom() {
               {(thread.metrics_timeline?.length || 0) > 0 && (
                 <View style={styles.metricsBox}>
                   <Text style={styles.photoLabel}>📈 BODY METRICS</Text>
+                  <MetricsChart data={thread.metrics_timeline} />
                   {thread.metrics_timeline.map((m: any, i: number) => {
                     const prev = i > 0 ? thread.metrics_timeline[i - 1].weight : null;
                     const delta = (m.weight != null && prev != null) ? Math.round((m.weight - prev) * 10) / 10 : null;
@@ -451,6 +490,13 @@ export default function InPersonRoom() {
             {thread.messages.map((m: any) => {
               const mine = m.sender_id === user?.user_id;
               if (m.kind === "system") {
+                if ((m.text || "").startsWith("🎉")) {
+                  return (
+                    <View key={m.id} style={styles.milestoneCard}>
+                      <Text style={styles.milestoneText}>{m.text}</Text>
+                    </View>
+                  );
+                }
                 return <Text key={m.id} style={styles.systemMsg}>{m.text}</Text>;
               }
               if (m.kind === "checkin") {
@@ -702,6 +748,9 @@ const styles = StyleSheet.create({
   streakChip: { alignSelf: "flex-start", flexDirection: "row", paddingVertical: 5, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: "#FF7A1A", backgroundColor: "rgba(255,122,26,0.10)", marginBottom: spacing.sm },
   streakText: { color: "#FF9A4A", fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
   streakMini: { color: "#FF9A4A", fontSize: 10, fontWeight: "900" },
+  milestoneCard: { alignSelf: "center", marginVertical: spacing.sm, paddingVertical: 10, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: "#FFD700", backgroundColor: "rgba(255,215,0,0.12)" },
+  milestoneText: { color: "#FFD700", fontWeight: "900", fontSize: 12, letterSpacing: 0.3, textAlign: "center" },
+  chartAxis: { color: colors.textDim, fontSize: 9, fontWeight: "700" },
   goalInput: { color: colors.brandPrimary, backgroundColor: colors.surface, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: 8, marginTop: 6, fontSize: 13, fontWeight: "700" },
   metricsBox: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
   metricsRowLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: 6 },

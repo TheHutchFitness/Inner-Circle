@@ -312,6 +312,18 @@ async def inperson_checkin(client_id: str, payload: dict, user=Depends(get_curre
         "read_by_client": role == "client",
     }
     await db.inperson_messages.insert_one(doc)
+    # Celebrate consecutive-week streak milestones (4 / 8 / 12 ...)
+    streak = await _checkin_streak(cid)
+    if streak and streak % 4 == 0:
+        exists = await db.inperson_messages.find_one({"client_id": cid, "kind": "system", "milestone": streak})
+        if not exists:
+            tier = "🏆 LEGEND" if streak >= 12 else "🥈 ELITE" if streak >= 8 else "🥉 LOCKED IN"
+            await db.inperson_messages.insert_one({
+                "id": new_id("ipm"), "client_id": cid, "sender_id": user["user_id"], "sender_role": role,
+                "kind": "system", "milestone": streak,
+                "text": f"🎉 {streak}-WEEK CHECK-IN STREAK! {tier} — consistency is paying off.",
+                "created_at": datetime.now(timezone.utc), "read_by_admin": False, "read_by_client": False,
+            })
     return _msg_public(doc)
 
 
