@@ -134,6 +134,24 @@ async def _sessions_this_month(cid: str) -> int:
     return await db.inperson_attendance.count_documents({"client_id": cid, "date": {"$gte": start}})
 
 
+def _clean_metrics(m) -> dict:
+    """Keep only sane optional numeric body metrics from a check-in."""
+    if not isinstance(m, dict):
+        return {}
+    out = {}
+    for k in ("weight", "waist", "arms"):
+        v = m.get(k)
+        try:
+            if v is None or v == "":
+                continue
+            f = round(float(v), 1)
+            if 0 < f < 2000:
+                out[k] = f
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 @api_router.get("/inperson/thread/{client_id}")
 async def inperson_thread(client_id: str, user=Depends(get_current_user)):
     cid = await _resolve_thread(client_id, user)
@@ -160,7 +178,12 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         {"media_id": m["media_id"], "date": m["created_at"].isoformat() if hasattr(m.get("created_at"), "isoformat") else m.get("created_at")}
         for m in msgs if m.get("kind") == "checkin" and m.get("media_id") and m.get("media_type") == "image"
     ]
-    cdoc = await db.users.find_one({"user_id": cid}, {"_id": 0, "inperson_notes": 1})
+    # Body-metrics timeline (chronological) from check-ins that logged metrics
+    metrics_timeline = [
+        {"date": m["created_at"].isoformat() if hasattr(m.get("created_at"), "isoformat") else m.get("created_at"), **(m.get("metrics") or {})}
+        for m in msgs if m.get("kind") == "checkin" and m.get("metrics")
+    ]
+    cdoc = await db.users.find_one({"user_id": cid}, {"_id": 0, "inperson_notes": 1, "inperson_goal": 1})
     return {
         "client": await _person_brief(cid),
         "messages": [_msg_public(m) for m in msgs],
@@ -172,18 +195,44 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         "sessions_this_month": await _sessions_this_month(cid),
         "checkin_due": checkin_due,
         "checkin_photos": checkin_photos,
+        "metrics_timeline": metrics_timeline,
+        "goal": (cdoc or {}).get("inperson_goal", "") or "",
         "coach_notes": ((cdoc or {}).get("inperson_notes", "") or "") if _is_admin(user) else None,
     }
 
 
 @api_router.post("/inperson/thread/{client_id}/notes")
 async def inperson_notes(client_id: str, payload: dict, user=Depends(get_current_user)):
-    """Private coach-only notes per client (injuries, goals). Admin only."""
+    """Private coach-only notes + a shared goal per client. Admin only."""
     _require_admin_ip(user)
     cid = await _resolve_thread(client_id, user)
-    notes = (payload.get("notes") or "").strip()[:2000]
-    await db.users.update_one({"user_id": cid}, {"$set": {"inperson_notes": notes}})
-    return {"ok": True, "coach_notes": notes}
+    updates: dict = {}
+    if payload.get("notes") is not None:
+        updates["inperson_notes"] = (payload.get("notes") or "").strip()[:2000]
+    if payload.get("goal") is not None:
+        updates["inperson_goal"] = (payload.get("goal") or "").strip()[:120]
+    if updates:
+        await db.users.update_one({"user_id": cid}, {"$set": updates})
+    return {"ok": True, "coach_notes": updates.get("inperson_notes"), "goal": updates.get("inperson_goal")}
+
+
+@api_router.post("/inperson/nudge")
+async def inperson_nudge(payload: dict, user=Depends(get_current_user)):
+    """One-tap reminder to every client overdue on their weekly check-in."""
+    _require_admin_ip(user)
+    text = (payload.get("text") or "👋 Coach here — time for your weekly check-in! How's training, diet & recovery going?").strip()[:500]
+    rows = await db.users.find({"inperson_client": True, "is_admin": {"$ne": True}}).to_list(500)
+    now = datetime.now(timezone.utc)
+    nudged = 0
+    for u in rows:
+        cid = u["user_id"]
+        if await _checkin_due(cid):
+            await db.inperson_messages.insert_one({
+                "id": new_id("ipm"), "client_id": cid, "sender_id": user["user_id"], "sender_role": "admin",
+                "kind": "msg", "text": text, "created_at": now, "read_by_admin": True, "read_by_client": False,
+            })
+            nudged += 1
+    return {"nudged": nudged}
 
 
 @api_router.post("/inperson/thread/{client_id}/checkin")
@@ -202,6 +251,7 @@ async def inperson_checkin(client_id: str, payload: dict, user=Depends(get_curre
         file_name = rec.get("original_name")
     if not text and not media_id:
         raise HTTPException(status_code=400, detail="Add a note or a photo")
+    metrics = _clean_metrics(payload.get("metrics"))
     role = "admin" if _is_admin(user) else "client"
     doc = {
         "id": new_id("ipm"),
@@ -213,6 +263,7 @@ async def inperson_checkin(client_id: str, payload: dict, user=Depends(get_curre
         "media_id": media_id,
         "media_type": media_type,
         "file_name": file_name,
+        "metrics": metrics,
         "created_at": datetime.now(timezone.utc),
         "read_by_admin": role == "admin",
         "read_by_client": role == "client",

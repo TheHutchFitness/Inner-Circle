@@ -404,3 +404,9 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - SESSION GOAL: attendance endpoint already stored note; now the "MARK SESSION DONE" button opens an AttendanceModal to capture a focus/goal, saved on the attendance entry + system message. inperson.tsx admin has a collapsible "📋 SESSION LOG (N)" listing each session date + focus note (training log). Verified.
 - PROGRESS PHOTOS TIMELINE: thread returns checkin_photos = [{media_id,date}] (chronological, from image check-ins). inperson.tsx shows a horizontal "📸 PROGRESS PHOTOS · before → now" thumbnail strip (both roles) when photos exist; tap opens full image. Verified endpoint (populates from check-in image uploads).
 - Test data cleaned (launch DB clean).
+
+## Implemented (2026-06 — In-Person: Overdue Roundup + Body Metrics + Goals Dashboard)
+- OVERDUE ROUNDUP: POST /inperson/nudge (admin) messages every client currently overdue on their weekly check-in (uses _checkin_due); returns {nudged}. inperson.tsx client list shows a "🔔 NUDGE N OVERDUE CLIENT(S)" button when any are due, with a confirmation toast. Verified (nudged only the overdue client, skipped the one who checked in).
+- BODY METRICS: check-in now accepts metrics {weight, waist, arms} (sanitized via _clean_metrics), stored on the checkin message. Thread returns metrics_timeline (chronological). CheckinModal gained 3 optional numeric inputs (lb / waist" / arms"). Admin+client see a "📈 BODY METRICS" panel listing each entry date + weight (with Δ vs previous) + waist/arms. Verified (212.5→210 shows -2.5).
+- GOALS DASHBOARD: new user field inperson_goal (set alongside coach notes via /notes endpoint, accepts goal). Thread returns goal to BOTH roles. inperson.tsx pins a cyan "🎯 GOAL · <goal>" banner at the very top of the room (client sees it too as motivation); admin edits it via a dedicated goal input in the Coach Notes card. Verified.
+- Test data cleaned (launch DB clean).

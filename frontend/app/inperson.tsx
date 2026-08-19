@@ -35,6 +35,8 @@ export default function InPersonRoom() {
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
   const [notesInput, setNotesInput] = useState("");
+  const [goalInput, setGoalInput] = useState("");
+  const [nudgeMsg, setNudgeMsg] = useState<string | null>(null);
   const [attOpen, setAttOpen] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
@@ -45,6 +47,15 @@ export default function InPersonRoom() {
   const loadClients = useCallback(async () => {
     try { setClients(await apiFetch(token, "/api/inperson/clients")); } catch {}
   }, [token]);
+
+  const nudgeAll = async () => {
+    try {
+      const r = await apiFetch(token, "/api/inperson/nudge", { method: "POST", body: JSON.stringify({}) });
+      setNudgeMsg(`🔔 Nudged ${r.nudged} client${r.nudged === 1 ? "" : "s"}`);
+      setTimeout(() => setNudgeMsg(null), 2500);
+      await loadClients();
+    } catch (e: any) { setNudgeMsg(e.message); }
+  };
 
   const loadThread = useCallback(async (cid: string) => {
     try {
@@ -163,6 +174,7 @@ export default function InPersonRoom() {
 
   useEffect(() => { setSchedInput(nextSession); }, [nextSession, selected]);
   useEffect(() => { setNotesInput(thread?.coach_notes || ""); }, [thread?.coach_notes, selected]);
+  useEffect(() => { setGoalInput(thread?.goal || ""); }, [thread?.goal, selected]);
 
   const saveSchedule = async () => {
     if (!selected) return;
@@ -186,13 +198,14 @@ export default function InPersonRoom() {
   const saveNotes = async () => {
     if (!selected) return;
     try {
-      await apiFetch(token, `/api/inperson/thread/${selected}/notes`, { method: "POST", body: JSON.stringify({ notes: notesInput }) });
+      await apiFetch(token, `/api/inperson/thread/${selected}/notes`, { method: "POST", body: JSON.stringify({ notes: notesInput, goal: goalInput }) });
       setNotesSaved(true);
       setTimeout(() => setNotesSaved(false), 1800);
+      await loadThread(selected);
     } catch (e: any) { setErr(e.message); }
   };
 
-  const submitCheckin = async (note: string, asset: any) => {
+  const submitCheckin = async (note: string, asset: any, metrics: any) => {
     if (!selected || (!note.trim() && !asset)) { setCheckinOpen(false); return; }
     setErr(null);
     try {
@@ -209,7 +222,7 @@ export default function InPersonRoom() {
         if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Upload failed"); }
         media_id = (await r.json()).media_id;
       }
-      await apiFetch(token, `/api/inperson/thread/${selected}/checkin`, { method: "POST", body: JSON.stringify({ text: note.trim(), media_id }) });
+      await apiFetch(token, `/api/inperson/thread/${selected}/checkin`, { method: "POST", body: JSON.stringify({ text: note.trim(), media_id, metrics }) });
       setCheckinOpen(false);
       await loadThread(selected);
     } catch (e: any) { setErr(e.message); }
@@ -222,6 +235,12 @@ export default function InPersonRoom() {
         <Header title="IN-PERSON CLIENTS" subtitle="Private coaching rooms" onBack={() => router.back()} />
         {loading ? <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} /> : (
           <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
+            {clients.some((c) => c.checkin_due) && (
+              <Pressable testID="ip-nudge-all" onPress={nudgeAll} style={styles.nudgeBtn}>
+                <Text style={styles.nudgeBtnText}>🔔 NUDGE {clients.filter((c) => c.checkin_due).length} OVERDUE CLIENT{clients.filter((c) => c.checkin_due).length === 1 ? "" : "S"}</Text>
+              </Pressable>
+            )}
+            {nudgeMsg && <Text style={styles.nudgeMsg}>{nudgeMsg}</Text>}
             {clients.length === 0 ? (
               <Text style={styles.empty}>No in-person clients yet. Mark a member as an in-person client in the Admin Panel.</Text>
             ) : clients.map((c) => (
@@ -267,8 +286,13 @@ export default function InPersonRoom() {
         <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} />
       ) : (
         <>
+          {!!thread.goal && (
+            <View style={styles.goalBanner}>
+              <Text style={styles.goalBannerText} numberOfLines={2}>🎯 GOAL · {thread.goal}</Text>
+            </View>
+          )}
           {/* Next session + coaching context */}
-          {(!!nextSession || isAdmin || (thread.checkin_photos?.length || 0) > 0) && (
+          {(!!nextSession || isAdmin || (thread.checkin_photos?.length || 0) > 0 || (thread.metrics_timeline?.length || 0) > 0) && (
             <View style={styles.topPanel}>
               {isAdmin ? (
                 <View style={styles.schedRow}>
@@ -286,14 +310,42 @@ export default function InPersonRoom() {
 
               {isAdmin && (
                 <View style={styles.notesCard}>
-                  <Text style={styles.notesLabel}>🔒 COACH NOTES · private (injuries, goals){notesSaved ? "  · saved ✓" : ""}</Text>
+                  <Text style={styles.notesLabel}>🔒 COACH NOTES · private (injuries, form cues){notesSaved ? "  · saved ✓" : ""}</Text>
+                  <TextInput
+                    testID="ip-goal-input" value={goalInput} onChangeText={setGoalInput}
+                    placeholder="🎯 Top goal (shown to client, e.g. 315 bench by Q3)"
+                    placeholderTextColor={colors.textDim}
+                    style={styles.goalInput}
+                  />
                   <TextInput
                     testID="ip-notes-input" value={notesInput} onChangeText={setNotesInput}
-                    placeholder="e.g. Right shoulder impingement — avoid overhead. Goal: 315 bench by Q3."
+                    placeholder="Private notes: e.g. Right shoulder impingement — avoid overhead."
                     placeholderTextColor={colors.textDim} multiline
                     style={styles.notesInput}
                   />
-                  <Pressable testID="ip-notes-save" onPress={saveNotes} style={styles.notesBtn}><Text style={styles.notesBtnText}>SAVE NOTES</Text></Pressable>
+                  <Pressable testID="ip-notes-save" onPress={saveNotes} style={styles.notesBtn}><Text style={styles.notesBtnText}>SAVE</Text></Pressable>
+                </View>
+              )}
+
+              {/* Body-metrics timeline (both roles) */}
+              {(thread.metrics_timeline?.length || 0) > 0 && (
+                <View style={styles.metricsBox}>
+                  <Text style={styles.photoLabel}>📈 BODY METRICS</Text>
+                  {thread.metrics_timeline.map((m: any, i: number) => {
+                    const prev = i > 0 ? thread.metrics_timeline[i - 1].weight : null;
+                    const delta = (m.weight != null && prev != null) ? Math.round((m.weight - prev) * 10) / 10 : null;
+                    return (
+                      <View key={i} style={styles.recentRow}>
+                        <Text style={styles.recentName}>{new Date(m.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</Text>
+                        <Text style={styles.recentMeta}>
+                          {m.weight != null ? `${m.weight} lb` : "—"}
+                          {delta != null && delta !== 0 ? `  (${delta > 0 ? "+" : ""}${delta})` : ""}
+                          {m.waist != null ? `  · waist ${m.waist}"` : ""}
+                          {m.arms != null ? `  · arms ${m.arms}"` : ""}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
 
@@ -510,11 +562,14 @@ function AttendanceModal({ visible, onClose, onSubmit }: { visible: boolean; onC
   );
 }
 
-function CheckinModal({ visible, onClose, onSubmit }: { visible: boolean; onClose: () => void; onSubmit: (note: string, asset: any) => void }) {
+function CheckinModal({ visible, onClose, onSubmit }: { visible: boolean; onClose: () => void; onSubmit: (note: string, asset: any, metrics: any) => void }) {
   const [note, setNote] = useState("");
   const [asset, setAsset] = useState<any>(null);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (visible) { setNote(""); setAsset(null); setBusy(false); } }, [visible]);
+  const [weight, setWeight] = useState("");
+  const [waist, setWaist] = useState("");
+  const [arms, setArms] = useState("");
+  useEffect(() => { if (visible) { setNote(""); setAsset(null); setBusy(false); setWeight(""); setWaist(""); setArms(""); } }, [visible]);
   const pick = async () => {
     const cur = await ImagePicker.getMediaLibraryPermissionsAsync();
     let status = cur.status;
@@ -531,13 +586,19 @@ function CheckinModal({ visible, onClose, onSubmit }: { visible: boolean; onClos
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>WEEKLY CHECK-IN</Text>
           <Text style={styles.modalHint}>Log how training, diet & recovery went this week for your coach.</Text>
-          <TextInput testID="ip-checkin-note" value={note} onChangeText={setNote} placeholder="This week I…" placeholderTextColor={colors.textDim} style={[styles.mInput, { height: 110, textAlignVertical: "top" }]} multiline />
+          <TextInput testID="ip-checkin-note" value={note} onChangeText={setNote} placeholder="This week I…" placeholderTextColor={colors.textDim} style={[styles.mInput, { height: 90, textAlignVertical: "top" }]} multiline />
+          <Text style={styles.metricsRowLabel}>BODY METRICS (optional)</Text>
+          <View style={styles.metricsInputRow}>
+            <View style={styles.metricField}><TextInput testID="ip-checkin-weight" value={weight} onChangeText={(t) => setWeight(t.replace(/[^0-9.]/g, ""))} placeholder="0" placeholderTextColor={colors.textDim} keyboardType="decimal-pad" style={styles.metricInput} /><Text style={styles.metricUnit}>lb</Text></View>
+            <View style={styles.metricField}><TextInput testID="ip-checkin-waist" value={waist} onChangeText={(t) => setWaist(t.replace(/[^0-9.]/g, ""))} placeholder="0" placeholderTextColor={colors.textDim} keyboardType="decimal-pad" style={styles.metricInput} /><Text style={styles.metricUnit}>waist"</Text></View>
+            <View style={styles.metricField}><TextInput testID="ip-checkin-arms" value={arms} onChangeText={(t) => setArms(t.replace(/[^0-9.]/g, ""))} placeholder="0" placeholderTextColor={colors.textDim} keyboardType="decimal-pad" style={styles.metricInput} /><Text style={styles.metricUnit}>arms"</Text></View>
+          </View>
           <Pressable testID="ip-checkin-photo" onPress={pick} style={styles.checkinPhotoBtn}>
             <Text style={styles.checkinPhotoText}>{asset ? "✓ Photo attached — tap to change" : "📷 Add a progress photo (optional)"}</Text>
           </Pressable>
           <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
             <Pressable onPress={onClose} style={[styles.mBtn, styles.mCancel]}><Text style={styles.mCancelText}>CANCEL</Text></Pressable>
-            <Pressable testID="ip-checkin-submit" disabled={busy} onPress={() => { setBusy(true); onSubmit(note, asset); }} style={[styles.mBtn, styles.mAssign]}><Text style={styles.mAssignText}>{busy ? "…" : "SUBMIT"}</Text></Pressable>
+            <Pressable testID="ip-checkin-submit" disabled={busy} onPress={() => { setBusy(true); onSubmit(note, asset, { weight, waist, arms }); }} style={[styles.mBtn, styles.mAssign]}><Text style={styles.mAssignText}>{busy ? "…" : "SUBMIT"}</Text></Pressable>
           </View>
         </View>
       </View>
@@ -608,6 +669,18 @@ const styles = StyleSheet.create({
   badge: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: colors.error, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, marginRight: 6 },
   badgeText: { color: "#fff", fontWeight: "900", fontSize: 11 },
   chevron: { color: colors.textDim, fontSize: 22 },
+  nudgeBtn: { padding: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.warning, backgroundColor: "rgba(255,214,0,0.08)", alignItems: "center", marginBottom: spacing.sm },
+  nudgeBtnText: { color: colors.warning, fontWeight: "900", letterSpacing: 0.5, fontSize: 13 },
+  nudgeMsg: { color: colors.success, textAlign: "center", fontWeight: "800", marginBottom: spacing.sm },
+  goalBanner: { marginHorizontal: spacing.lg, marginTop: spacing.sm, paddingVertical: 10, paddingHorizontal: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.10)" },
+  goalBannerText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 13, letterSpacing: 0.3 },
+  goalInput: { color: colors.brandPrimary, backgroundColor: colors.surface, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, paddingHorizontal: spacing.md, paddingVertical: 8, marginTop: 6, fontSize: 13, fontWeight: "700" },
+  metricsBox: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  metricsRowLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: 6 },
+  metricsInputRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+  metricField: { flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8 },
+  metricInput: { flex: 1, color: colors.text, fontSize: 15, fontWeight: "800", height: 42, textAlign: "center" },
+  metricUnit: { color: colors.textDim, fontSize: 10, fontWeight: "700" },
   watermarkWrap: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
   watermark: { color: colors.brandPrimary, opacity: 0.05, fontSize: 54, fontWeight: "900", letterSpacing: 4, textAlign: "center", transform: [{ rotate: "-18deg" }] },
   topPanel: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: spacing.sm },
