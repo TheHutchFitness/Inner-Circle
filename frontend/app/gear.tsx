@@ -4,12 +4,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius, skinImage, weaponImage } from "@/src/lib/theme";
+import { colors, spacing, radius, skinImage, weaponImage, RARITY, rarityColor, rarityLabel } from "@/src/lib/theme";
 
-const RARITY_COLOR: Record<string, string> = {
-  legendary: "#FFD24A", mythic: "#C77DFF", exalted: "#00E5FF", eternal: "#FF3B5C", rare: "#7A5CFF",
-};
-const SOURCE_LABEL: Record<string, string> = { paid: "VAULT", level: "LEVEL", quest: "QUEST" };
+const SOURCE_LABEL: Record<string, string> = { paid: "STORE", level: "LEVEL", quest: "QUEST" };
 
 export default function GearLocker() {
   const insets = useSafeAreaInsets();
@@ -65,42 +62,72 @@ export default function GearLocker() {
         <Text style={st.h1}>THE ARMORY</Text>
         <Text style={st.sub}>Full-body hero skins + weapons. Earn them by leveling and clearing hard quests, or unlock premium sets for $1.</Text>
 
+        <Pressable testID="armory-open-store" onPress={() => router.push("/store")} style={st.storeLink}>
+          <Text style={st.storeLinkText}>🛒 THE STORE — BADGES, TITLES, SKINS & MORE →</Text>
+        </Pressable>
+
         <View style={st.tabRow}>
           <Pressable testID="gear-tab-skins" onPress={() => setTab("skins")} style={[st.tab, tab === "skins" && st.tabOn]}><Text style={[st.tabText, tab === "skins" && st.tabTextOn]}>SKINS</Text></Pressable>
           <Pressable testID="gear-tab-weapons" onPress={() => setTab("weapons")} style={[st.tab, tab === "weapons" && st.tabOn]}><Text style={[st.tabText, tab === "weapons" && st.tabTextOn]}>WEAPONS</Text></Pressable>
         </View>
 
-        {loading ? <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing.xl }} /> :
-        list.map((item: any) => {
-          const rc = RARITY_COLOR[item.rarity] || RARITY_COLOR.rare;
-          const art = tab === "skins" ? skinImage(item.id) : weaponImage(item.id);
-          const canEquip = item.unlocked || item.owned;
-          return (
-            <View key={item.id} testID={`gear-item-${item.id}`} style={[st.card, { borderColor: item.equipped ? colors.success : colors.border }]}>
-              <View style={[st.thumb, tab === "weapons" && st.thumbWeap, { borderColor: rc }]}>
-                {art ? <Image source={art} style={{ width: "100%", height: "100%" }} contentFit={tab === "skins" ? "cover" : "contain"} /> : null}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.name}>{item.name}</Text>
-                <Text style={st.meta}>
-                  <Text style={{ color: rc }}>{(item.rarity || "").toUpperCase()}</Text>
-                  <Text style={{ color: colors.textDim }}>  ·  {SOURCE_LABEL[item.source]}</Text>
-                </Text>
-                {canEquip ? (
-                  <Pressable testID={`equip-${item.id}`} onPress={() => equip(item, kind, !item.equipped)} disabled={busy === item.id} style={[st.btn, item.equipped ? st.btnEquipped : st.btnEquip]}>
-                    <Text style={[st.btnText, { color: item.equipped ? colors.success : colors.brandPrimary }]}>{busy === item.id ? "…" : item.equipped ? "✓ EQUIPPED" : "EQUIP"}</Text>
-                  </Pressable>
-                ) : item.source === "paid" ? (
-                  <Pressable testID={`buy-${item.id}`} onPress={() => buy(item, kind)} disabled={busy === item.id} style={[st.btn, st.btnBuy]}>
-                    <Text style={[st.btnText, { color: "#221900" }]}>{busy === item.id ? "…" : `UNLOCK · $${item.price_usd}`}</Text>
-                  </Pressable>
-                ) : (
-                  <Text style={st.locked}>{lockText(item)}</Text>
-                )}
-              </View>
+        <View style={st.legend}>
+          {Object.keys(RARITY).map((k) => (
+            <View key={k} style={st.legendItem}>
+              <View style={[st.legendDot, { backgroundColor: RARITY[k].color }]} />
+              <Text style={[st.legendText, { color: RARITY[k].color }]}>{RARITY[k].label}</Text>
             </View>
+          ))}
+        </View>
+
+        {loading ? <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing.xl }} /> : (() => {
+          const unlocked = list.filter((i: any) => i.unlocked || i.owned);
+          const locked = list.filter((i: any) => !(i.unlocked || i.owned));
+          const renderCard = (item: any) => {
+            const rc = rarityColor(item.rarity);
+            const art = tab === "skins" ? skinImage(item.id) : weaponImage(item.id);
+            const canEquip = item.unlocked || item.owned;
+            return (
+              <View key={item.id} testID={`gear-item-${item.id}`} style={[st.card, { borderColor: item.equipped ? colors.success : rc + "55" }]}>
+                <View style={[st.thumb, tab === "weapons" && st.thumbWeap, { borderColor: rc }]}>
+                  {art ? <Image source={art} style={{ width: "100%", height: "100%", opacity: canEquip ? 1 : 0.4 }} contentFit={tab === "skins" ? "cover" : "contain"} /> : null}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.name}>{item.name}</Text>
+                  <Text style={st.meta}>
+                    <Text style={{ color: rc }}>{rarityLabel(item.rarity)}</Text>
+                    <Text style={{ color: colors.textDim }}>  ·  {SOURCE_LABEL[item.source]}</Text>
+                  </Text>
+                  {canEquip ? (
+                    <Pressable testID={`equip-${item.id}`} onPress={() => equip(item, kind, !item.equipped)} disabled={busy === item.id} style={[st.btn, item.equipped ? st.btnEquipped : st.btnEquip]}>
+                      <Text style={[st.btnText, { color: item.equipped ? colors.success : colors.brandPrimary }]}>{busy === item.id ? "…" : item.equipped ? "✓ EQUIPPED" : "EQUIP"}</Text>
+                    </Pressable>
+                  ) : item.source === "paid" ? (
+                    item.available ? (
+                      <Pressable testID={`buy-${item.id}`} onPress={() => buy(item, kind)} disabled={busy === item.id} style={[st.btn, st.btnBuy]}>
+                        <Text style={[st.btnText, { color: "#221900" }]}>{busy === item.id ? "…" : `UNLOCK · $${item.price_usd}`}</Text>
+                      </Pressable>
+                    ) : item.upcoming ? (
+                      <Text style={st.locked}>🗓 DROPS {item.drop_label}</Text>
+                    ) : (
+                      <Text style={[st.locked, { color: colors.error }]}>⛔ VAULTED — GONE</Text>
+                    )
+                  ) : (
+                    <Text style={st.locked}>{lockText(item)}</Text>
+                  )}
+                </View>
+              </View>
+            );
+          };
+          return (
+            <>
+              <Text style={st.sectionHead}>✓ UNLOCKED ({unlocked.length})</Text>
+              {unlocked.length ? unlocked.map(renderCard) : <Text style={st.sectionEmpty}>Nothing here yet — level up or clear quests.</Text>}
+              <Text style={[st.sectionHead, { marginTop: spacing.lg }]}>🔒 LOCKED ({locked.length})</Text>
+              {locked.length ? locked.map(renderCard) : <Text style={st.sectionEmpty}>You've unlocked everything. Legend.</Text>}
+            </>
           );
-        })}
+        })()}
         {msg && <Text style={st.msg}>{msg}</Text>}
         {Platform.OS !== "web" && <Text style={st.finePrint}>Premium skins & weapons are one-time $1 purchases.</Text>}
       </ScrollView>
@@ -119,6 +146,14 @@ const st = StyleSheet.create({
   tabOn: { borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.1)" },
   tabText: { color: colors.textDim, fontWeight: "900", fontSize: 12, letterSpacing: 1 },
   tabTextOn: { color: colors.warning },
+  legend: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md, alignItems: "center" },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  sectionHead: { color: colors.text, fontSize: 13, fontWeight: "900", letterSpacing: 1.5, marginBottom: spacing.sm },
+  sectionEmpty: { color: colors.textDim, fontSize: 12, marginBottom: spacing.sm },
+  storeLink: { padding: spacing.md, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.08)", marginBottom: spacing.md },
+  storeLinkText: { color: colors.warning, fontWeight: "900", letterSpacing: 0.5, fontSize: 12 },
   card: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, borderRadius: radius.md, borderWidth: 1, backgroundColor: colors.surface2, marginBottom: spacing.md },
   thumb: { width: 66, height: 88, borderRadius: radius.sm, overflow: "hidden", borderWidth: 1, backgroundColor: "#05070C" },
   thumbWeap: { width: 66, height: 66, alignItems: "center", justifyContent: "center" },

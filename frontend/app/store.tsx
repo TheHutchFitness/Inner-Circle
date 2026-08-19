@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius } from "@/src/lib/theme";
+import { colors, spacing, radius, rarityColor, rarityLabel, skinImage, weaponImage } from "@/src/lib/theme";
 import { StoreCosmetic } from "@/src/components/StoreCosmetic";
 
 const KIND_LABEL: Record<string, string> = {
@@ -22,9 +23,21 @@ export default function Store() {
 
   const load = async () => {
     try { setData(await apiFetch(token, "/api/store")); } catch {}
+    try { setGear(await apiFetch(token, "/api/gear")); } catch {}
     setLoading(false);
   };
   useEffect(() => { if (token) load(); /* eslint-disable-line */ }, [token]);
+
+  const [gear, setGear] = useState<any>(null);
+  const buyGear = async (item: any, gkind: "skin" | "weapon") => {
+    setBusy(item.id);
+    try {
+      await apiFetch(token, "/api/gear/purchase", { method: "POST", body: JSON.stringify({ kind: gkind, id: item.id }) });
+      flash(`Unlocked ${item.name}!`);
+      await load();
+    } catch (e: any) { flash(e?.message || "Purchase failed"); }
+    setBusy(null);
+  };
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 2200); };
 
@@ -58,7 +71,7 @@ export default function Store() {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, padding: spacing.lg, paddingBottom: 60 }}>
         <Pressable onPress={() => router.back()}><Text style={st.back}>← BACK</Text></Pressable>
         <Text style={st.eyebrow}>▚ BLACK MARKET //</Text>
-        <Text style={st.h1}>THE VAULT</Text>
+        <Text style={st.h1}>THE STORE</Text>
         <Text style={st.sub}>Exclusive cosmetics — ${1} each. This month only. When {monthLabel} ends, they're gone forever.</Text>
 
         <Pressable testID="store-open-armory" onPress={() => router.push("/gear")} style={st.armoryBtn}>
@@ -67,7 +80,7 @@ export default function Store() {
 
         <View style={st.tabRow}>
           <Pressable testID="store-tab-drop" onPress={() => setTab("drop")} style={[st.tab, tab === "drop" && st.tabOn]}><Text style={[st.tabText, tab === "drop" && st.tabTextOn]}>{monthLabel.toUpperCase()} DROP</Text></Pressable>
-          <Pressable testID="store-tab-collection" onPress={() => setTab("collection")} style={[st.tab, tab === "collection" && st.tabOn]}><Text style={[st.tabText, tab === "collection" && st.tabTextOn]}>MY VAULT ({data?.collection?.length ?? 0})</Text></Pressable>
+          <Pressable testID="store-tab-collection" onPress={() => setTab("collection")} style={[st.tab, tab === "collection" && st.tabOn]}><Text style={[st.tabText, tab === "collection" && st.tabTextOn]}>MY ITEMS ({data?.collection?.length ?? 0})</Text></Pressable>
         </View>
 
         {loading ? <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing.xl }} /> : list.length === 0 ? (
@@ -79,7 +92,7 @@ export default function Store() {
               <StoreCosmetic item={item} size={78} />
               <View style={{ flex: 1 }}>
                 <Text style={st.name}>{item.name}</Text>
-                <Text style={st.kind}>{KIND_LABEL[item.kind] || item.kind} · <Text style={{ color: colors.warning }}>{(item.rarity || "").toUpperCase()}</Text></Text>
+                <Text style={st.kind}>{KIND_LABEL[item.kind] || item.kind} · <Text style={{ color: rarityColor(item.rarity) }}>{rarityLabel(item.rarity)}</Text></Text>
                 {!!item.description && <Text style={st.desc} numberOfLines={2}>{item.description}</Text>}
                 {item.owned ? (
                   <Pressable testID={`equip-${item.item_id}`} onPress={() => equip(item, !equipped)} disabled={busy === item.item_id} style={[st.btn, equipped ? st.btnEquipped : st.btnEquip]}>
@@ -94,6 +107,37 @@ export default function Store() {
             </View>
           );
         })}
+
+        {tab === "drop" && gear && (
+          <>
+            <Text style={st.gearHead}>⚔ HERO SKINS · THIS MONTH</Text>
+            {gear.skins.filter((s: any) => s.source === "paid" && s.available && !s.owned).map((s: any) => (
+              <View key={s.id} testID={`store-skin-${s.id}`} style={st.card}>
+                <View style={st.gearThumb}><Image source={skinImage(s.id)} style={{ width: "100%", height: "100%" }} contentFit="cover" /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.name}>{s.name}</Text>
+                  <Text style={st.kind}>SKIN · <Text style={{ color: rarityColor(s.rarity) }}>{rarityLabel(s.rarity)}</Text></Text>
+                  <Pressable testID={`buy-skin-${s.id}`} onPress={() => buyGear(s, "skin")} disabled={busy === s.id} style={[st.btn, st.btnBuy]}>
+                    <Text style={[st.btnText, { color: "#221900" }]}>{busy === s.id ? "…" : `UNLOCK · $${s.price_usd}`}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+            <Text style={st.gearHead}>🗡 WEAPONS</Text>
+            {gear.weapons.filter((w: any) => w.source === "paid" && !w.owned).map((w: any) => (
+              <View key={w.id} testID={`store-weapon-${w.id}`} style={st.card}>
+                <View style={[st.gearThumb, st.gearThumbWeap]}><Image source={weaponImage(w.id)} style={{ width: "100%", height: "100%" }} contentFit="contain" /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.name}>{w.name}</Text>
+                  <Text style={st.kind}>WEAPON · <Text style={{ color: rarityColor(w.rarity) }}>{rarityLabel(w.rarity)}</Text></Text>
+                  <Pressable testID={`buy-weapon-${w.id}`} onPress={() => buyGear(w, "weapon")} disabled={busy === w.id} style={[st.btn, st.btnBuy]}>
+                    <Text style={[st.btnText, { color: "#221900" }]}>{busy === w.id ? "…" : `UNLOCK · $${w.price_usd}`}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </>
+        )}
         {msg && <Text style={st.msg}>{msg}</Text>}
         {Platform.OS !== "web" && <Text style={st.finePrint}>Purchases are one-time and non-refundable. Limited-edition items never return.</Text>}
       </ScrollView>
@@ -126,4 +170,7 @@ const st = StyleSheet.create({
   finePrint: { color: colors.textDim, fontSize: 10, textAlign: "center", marginTop: spacing.lg, lineHeight: 14 },
   armoryBtn: { padding: spacing.md, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.08)", marginBottom: spacing.md },
   armoryText: { color: colors.warning, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  gearHead: { color: colors.text, fontSize: 14, fontWeight: "900", letterSpacing: 1, marginTop: spacing.md, marginBottom: spacing.sm },
+  gearThumb: { width: 66, height: 88, borderRadius: radius.sm, overflow: "hidden", backgroundColor: "#05070C", borderWidth: 1, borderColor: colors.border },
+  gearThumbWeap: { width: 66, height: 66, alignItems: "center", justifyContent: "center" },
 });

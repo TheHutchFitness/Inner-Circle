@@ -18,7 +18,7 @@ async def get_messages(room: str, user=Depends(get_current_user)):
     if sender_ids:
         async for u in db.users.find(
             {"user_id": {"$in": sender_ids}},
-            {"user_id": 1, "founder_backer": 1, "photo_media_id": 1, "use_photo": 1, "loadout": 1, "avatar_id": 1},
+            {"user_id": 1, "founder_backer": 1, "photo_media_id": 1, "use_photo": 1, "loadout": 1, "avatar_id": 1, "equipped_skin": 1, "sex": 1},
         ):
             if u.get("founder_backer"):
                 backers.add(u["user_id"])
@@ -27,6 +27,8 @@ async def get_messages(room: str, user=Depends(get_current_user)):
                 "use_photo": bool(u.get("use_photo")),
                 "loadout": _clean_loadout(u),
                 "avatar_id": u.get("avatar_id"),
+                "equipped_skin": u.get("equipped_skin"),
+                "sex": u.get("sex"),
             }
     for r in rows:
         r["founder_backer"] = r.get("user_id") in backers
@@ -35,6 +37,9 @@ async def get_messages(room: str, user=Depends(get_current_user)):
             r["photo_media_id"] = p["photo_media_id"]
             r["use_photo"] = p["use_photo"]
             r["loadout"] = p["loadout"]
+            r["equipped_skin"] = p.get("equipped_skin")
+            if p.get("sex"):
+                r["sex"] = p["sex"]
             if p.get("avatar_id"):
                 r["avatar_id"] = p["avatar_id"]
         if isinstance(r.get("created_at"), datetime):
@@ -65,7 +70,9 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         "room": room,
         "user_id": user["user_id"],
         "display_name": user.get("display_name", "Athlete"),
-        "avatar_id": user.get("avatar_id", "avatar_ronin"),
+        "avatar_id": user.get("avatar_id", "avatar_white"),
+        "equipped_skin": user.get("equipped_skin"),
+        "sex": user.get("sex", "male"),
         "rank": rank_from_xp(user["xp"]),
         "skool_verified": user.get("skool_verified", False),
         "founder_backer": user.get("founder_backer", False),

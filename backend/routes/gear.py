@@ -3,42 +3,54 @@ from shared import *  # noqa: F401,F403
 
 SKIN_PRICE_USD = 1
 
+
+def _current_month() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def _month_label(m: str) -> str:
+    try:
+        from datetime import datetime as _dt
+        return _dt.strptime(m + "-01", "%Y-%m-%d").strftime("%b %Y")
+    except Exception:
+        return m
+
 # ---- Paid full-body skins (bought in The Vault, $1 each) ----
 PAID_SKINS = [
-    {"id": "skin_dragonknight", "name": "Dragon Knight", "rarity": "mythic"},
-    {"id": "skin_dbz", "name": "Super Saiyan", "rarity": "mythic"},
-    {"id": "skin_mecha", "name": "Mecha Pilot", "rarity": "exalted"},
-    {"id": "skin_cod", "name": "Spec-Ops Operator", "rarity": "legendary"},
-    {"id": "skin_halo", "name": "Space Warrior", "rarity": "exalted"},
-    {"id": "skin_viking", "name": "Viking Berserker", "rarity": "legendary"},
-    {"id": "skin_mercy", "name": "Battle Valkyrie", "rarity": "mythic"},
-    {"id": "skin_wsm", "name": "World's Strongest", "rarity": "legendary"},
-    {"id": "skin_mk", "name": "Kombat Ninja", "rarity": "exalted"},
-    {"id": "skin_aot", "name": "Scout Regiment", "rarity": "mythic"},
+    {"id": "skin_dragonknight", "name": "Dragon Knight", "rarity": "mythic", "drop_month": "2026-08"},
+    {"id": "skin_dbz", "name": "Super Saiyan", "rarity": "mythic", "drop_month": "2026-08"},
+    {"id": "skin_mercy", "name": "Battle Valkyrie", "rarity": "mythic", "drop_month": "2026-08"},
+    {"id": "skin_mecha", "name": "Mecha Pilot", "rarity": "legendary", "drop_month": "2026-09"},
+    {"id": "skin_halo", "name": "Space Warrior", "rarity": "legendary", "drop_month": "2026-09"},
+    {"id": "skin_mk", "name": "Kombat Ninja", "rarity": "legendary", "drop_month": "2026-09"},
+    {"id": "skin_cod", "name": "Spec-Ops Operator", "rarity": "epic", "drop_month": "2026-10"},
+    {"id": "skin_viking", "name": "Viking Berserker", "rarity": "epic", "drop_month": "2026-10"},
+    {"id": "skin_wsm", "name": "World's Strongest", "rarity": "epic", "drop_month": "2026-10"},
+    {"id": "skin_aot", "name": "Scout Regiment", "rarity": "legendary", "drop_month": "2026-11"},
 ]
 
 # ---- Free full-body skins unlocked by level (progression / quests feed XP) ----
 FREE_SKINS = [
-    {"id": "skin_anime", "name": "Anime Hero", "unlock_level": 2},
-    {"id": "skin_knight", "name": "Steel Knight", "unlock_level": 6},
-    {"id": "skin_cyber", "name": "Cyber Runner", "unlock_level": 10},
-    {"id": "skin_space", "name": "Astronaut", "unlock_level": 16},
-    {"id": "skin_ancient", "name": "Gladiator", "unlock_level": 22},
-    {"id": "skin_monk", "name": "Iron Monk", "unlock_level": 30},
-    {"id": "skin_arcade", "name": "Arcade Hero", "unlock_level": 38},
+    {"id": "skin_anime", "name": "Anime Hero", "unlock_level": 2, "rarity": "common"},
+    {"id": "skin_knight", "name": "Steel Knight", "unlock_level": 6, "rarity": "common"},
+    {"id": "skin_cyber", "name": "Cyber Runner", "unlock_level": 10, "rarity": "rare"},
+    {"id": "skin_space", "name": "Astronaut", "unlock_level": 16, "rarity": "rare"},
+    {"id": "skin_ancient", "name": "Gladiator", "unlock_level": 22, "rarity": "epic"},
+    {"id": "skin_monk", "name": "Iron Monk", "unlock_level": 30, "rarity": "epic"},
+    {"id": "skin_arcade", "name": "Arcade Hero", "unlock_level": 38, "rarity": "legendary"},
 ]
 
-# ---- Weapons (side prop). Free unlock by level, or paid in The Vault. ----
+# ---- Weapons (side prop). Free unlock by level, or paid in The Store. ----
 FREE_WEAPONS = [
-    {"id": "w_sword", "name": "Iron Sword", "unlock_level": 4},
-    {"id": "w_bo", "name": "Bo Staff", "unlock_level": 12},
-    {"id": "w_daggers", "name": "Twin Daggers", "unlock_level": 18},
-    {"id": "w_bow", "name": "War Bow", "unlock_level": 26},
+    {"id": "w_sword", "name": "Iron Sword", "unlock_level": 4, "rarity": "common"},
+    {"id": "w_bo", "name": "Bo Staff", "unlock_level": 12, "rarity": "rare"},
+    {"id": "w_daggers", "name": "Twin Daggers", "unlock_level": 18, "rarity": "epic"},
+    {"id": "w_bow", "name": "War Bow", "unlock_level": 26, "rarity": "epic"},
 ]
 PAID_WEAPONS = [
     {"id": "w_katana", "name": "Plasma Katana", "rarity": "mythic"},
-    {"id": "w_plasma", "name": "Plasma Rifle", "rarity": "exalted"},
-    {"id": "w_axe", "name": "Rune War Axe", "rarity": "legendary"},
+    {"id": "w_plasma", "name": "Plasma Rifle", "rarity": "legendary"},
+    {"id": "w_axe", "name": "Rune War Axe", "rarity": "epic"},
     {"id": "w_glaive", "name": "Dragon Glaive", "rarity": "mythic"},
 ]
 
@@ -46,19 +58,19 @@ PAID_WEAPONS = [
 # metric: "boss" = boss quests claimed, "monthly" = monthly quests claimed,
 # "hard" = boss + monthly claimed, "total" = any quest claimed. ----
 QUEST_SKINS = [
-    {"id": "skin_shadow", "name": "Shadow Assassin", "rarity": "mythic", "metric": "hard", "count": 3,
+    {"id": "skin_shadow", "name": "Shadow Assassin", "rarity": "epic", "metric": "hard", "count": 3,
      "quest_label": "Clear 3 Boss or Monthly quests"},
-    {"id": "skin_flame", "name": "Flame Berserker", "rarity": "mythic", "metric": "hard", "count": 6,
+    {"id": "skin_flame", "name": "Flame Berserker", "rarity": "legendary", "metric": "hard", "count": 6,
      "quest_label": "Clear 6 Boss or Monthly quests"},
-    {"id": "skin_frost", "name": "Frost Sovereign", "rarity": "exalted", "metric": "boss", "count": 5,
+    {"id": "skin_frost", "name": "Frost Sovereign", "rarity": "legendary", "metric": "boss", "count": 5,
      "quest_label": "Defeat 5 Bosses"},
-    {"id": "skin_celestial", "name": "Celestial Ascended", "rarity": "eternal", "metric": "hard", "count": 12,
+    {"id": "skin_celestial", "name": "Celestial Ascended", "rarity": "mythic", "metric": "hard", "count": 12,
      "quest_label": "Clear 12 Boss or Monthly quests"},
 ]
 QUEST_WEAPONS = [
-    {"id": "w_shadowblade", "name": "Shadow Blade", "rarity": "mythic", "metric": "total", "count": 15,
+    {"id": "w_shadowblade", "name": "Shadow Blade", "rarity": "epic", "metric": "total", "count": 15,
      "quest_label": "Claim 15 quests"},
-    {"id": "w_soulscythe", "name": "Soul Scythe", "rarity": "exalted", "metric": "boss", "count": 3,
+    {"id": "w_soulscythe", "name": "Soul Scythe", "rarity": "legendary", "metric": "boss", "count": 3,
      "quest_label": "Defeat 3 Bosses"},
     {"id": "w_stormspear", "name": "Storm Spear", "rarity": "mythic", "metric": "monthly", "count": 4,
      "quest_label": "Clear 4 Monthly quests"},
@@ -91,23 +103,30 @@ def _quest_met(item: dict, counts: dict) -> bool:
     return counts.get(item["metric"], 0) >= item["count"]
 
 
-def _skin_row(s: dict, source: str, user: dict, level: int, counts: dict) -> dict:
+def _skin_row(s: dict, source: str, user: dict, level: int, counts: dict, month: str) -> dict:
     owned = s["id"] in (user.get("owned_skins", []) or [])
-    if source == "paid":
-        unlocked = owned
-    elif source == "quest":
-        unlocked = _quest_met(s, counts)
-    else:
-        unlocked = level >= s["unlock_level"]
-    return {
+    row = {
         "id": s["id"], "name": s["name"], "source": source, "paid": source == "paid",
         "rarity": s.get("rarity", "rare"),
         "price_usd": SKIN_PRICE_USD if source == "paid" else 0,
         "unlock_level": s.get("unlock_level", 0),
         "quest_label": s.get("quest_label", ""),
-        "owned": owned, "unlocked": unlocked,
+        "owned": owned,
         "equipped": user.get("equipped_skin") == s["id"],
     }
+    if source == "paid":
+        dm = s.get("drop_month", month)
+        row["drop_month"] = dm
+        row["drop_label"] = _month_label(dm)
+        row["available"] = dm == month          # buyable this month
+        row["upcoming"] = dm > month            # future drop
+        row["vaulted"] = dm < month and not owned  # gone — missed it
+        row["unlocked"] = owned
+    elif source == "quest":
+        row["unlocked"] = _quest_met(s, counts)
+    else:
+        row["unlocked"] = level >= s["unlock_level"]
+    return row
 
 
 def _weap_row(w: dict, source: str, user: dict, level: int, counts: dict) -> dict:
@@ -133,14 +152,16 @@ def _weap_row(w: dict, source: str, user: dict, level: int, counts: dict) -> dic
 async def gear_list(user=Depends(get_current_user)):
     level = level_from_xp(user.get("xp", 0))
     counts = await _quest_counts(user["user_id"])
-    skins = [_skin_row(s, "paid", user, level, counts) for s in PAID_SKINS] + \
-            [_skin_row(s, "level", user, level, counts) for s in FREE_SKINS] + \
-            [_skin_row(s, "quest", user, level, counts) for s in QUEST_SKINS]
+    month = _current_month()
+    skins = [_skin_row(s, "paid", user, level, counts, month) for s in PAID_SKINS] + \
+            [_skin_row(s, "level", user, level, counts, month) for s in FREE_SKINS] + \
+            [_skin_row(s, "quest", user, level, counts, month) for s in QUEST_SKINS]
     weapons = [_weap_row(w, "paid", user, level, counts) for w in PAID_WEAPONS] + \
               [_weap_row(w, "level", user, level, counts) for w in FREE_WEAPONS] + \
               [_weap_row(w, "quest", user, level, counts) for w in QUEST_WEAPONS]
     return {
         "level": level,
+        "month": month,
         "quest_counts": counts,
         "equipped_skin": user.get("equipped_skin"),
         "equipped_weapon": user.get("equipped_weapon"),
@@ -197,6 +218,9 @@ async def gear_purchase(payload: dict, user=Depends(get_current_user)):
     item_id = payload.get("id")
     if kind == "skin" and item_id in _PAID_SKIN_IDS:
         field, coll = "owned_skins", "skin"
+        s = next(x for x in PAID_SKINS if x["id"] == item_id)
+        if s.get("drop_month", _current_month()) != _current_month():
+            raise HTTPException(status_code=410, detail="This skin isn't in this month's drop.")
     elif kind == "weapon" and item_id in _PAID_WEAP_IDS:
         field, coll = "owned_weapons", "weapon"
     else:

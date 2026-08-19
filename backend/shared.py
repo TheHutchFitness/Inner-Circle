@@ -280,7 +280,7 @@ def default_user_doc(email: str, name: str, picture: str = "") -> dict:
         "email": email.lower(),
         "display_name": name,
         "picture": picture,
-        "avatar_id": "avatar_ronin",
+        "avatar_id": "avatar_white",
         "bodyweight_lb": 180,
         "age": 25,
         "sex": "male",
@@ -1646,16 +1646,16 @@ async def seed():
     ]}})
     # Seed 10 permanent "milestone" bot athletes so leaderboards are always populated
     BOTS = [
-        {"name": "Plate Prophet", "xp": 620, "prs": {"bench": 185, "squat": 275, "deadlift": 315, "ohp": 115}, "bw": 175, "avatar": "avatar_ronin", "sprints": {"40yd": 5.3, "100m": 14.1}, "cardio": [("run", 5.2, 1620), ("run", 3.1, 960)]},
-        {"name": "Iron Sentinel", "xp": 1350, "prs": {"bench": 225, "squat": 315, "deadlift": 405, "ohp": 135}, "bw": 190, "avatar": "avatar_titan", "sprints": {"40yd": 5.0, "100m": 13.4}, "cardio": [("bike", 22.0, 3600)]},
-        {"name": "Gravitas", "xp": 2100, "prs": {"bench": 275, "squat": 365, "deadlift": 455, "ohp": 155}, "bw": 205, "avatar": "avatar_kaido", "sprints": {"40yd": 4.9, "100m": 13.0}, "cardio": [("run", 10.0, 2820)]},
-        {"name": "Warhound", "xp": 2800, "prs": {"bench": 315, "squat": 405, "deadlift": 500, "ohp": 175}, "bw": 198, "avatar": "avatar_demon", "sprints": {"40yd": 4.7, "100m": 12.5}, "cardio": [("run", 8.0, 2160), ("bike", 30.0, 4500)]},
-        {"name": "Vanguard", "xp": 3600, "prs": {"bench": 335, "squat": 455, "deadlift": 545, "ohp": 185}, "bw": 210, "avatar": "avatar_saiyan", "sprints": {"40yd": 4.6, "100m": 12.2}, "cardio": [("run", 12.0, 3300)]},
-        {"name": "Colossus", "xp": 4500, "prs": {"bench": 365, "squat": 495, "deadlift": 585, "ohp": 205}, "bw": 235, "avatar": "avatar_titan", "sprints": {"40yd": 4.9, "100m": 13.1}, "cardio": [("bike", 40.0, 5400)]},
-        {"name": "Nightfall", "xp": 5400, "prs": {"bench": 385, "squat": 515, "deadlift": 605, "ohp": 215}, "bw": 215, "avatar": "avatar_reaper", "sprints": {"40yd": 4.5, "100m": 11.9}, "cardio": [("run", 15.0, 3900)]},
-        {"name": "Bastion", "xp": 6600, "prs": {"bench": 405, "squat": 545, "deadlift": 635, "ohp": 225}, "bw": 228, "avatar": "avatar_shinobi", "sprints": {"40yd": 4.6, "100m": 12.0}, "cardio": [("run", 10.0, 2640), ("bike", 35.0, 4800)]},
-        {"name": "Overkill", "xp": 8200, "prs": {"bench": 455, "squat": 585, "deadlift": 675, "ohp": 245}, "bw": 245, "avatar": "avatar_phoenix", "sprints": {"40yd": 4.5, "100m": 11.7}, "cardio": [("run", 6.0, 1560)]},
-        {"name": "Apex Prime", "xp": 11000, "prs": {"bench": 495, "squat": 635, "deadlift": 725, "ohp": 275}, "bw": 250, "avatar": "avatar_saiyan", "sprints": {"40yd": 4.4, "100m": 11.4}, "cardio": [("run", 21.1, 5400), ("bike", 50.0, 6300)]},
+        {"name": "Plate Prophet", "xp": 620, "prs": {"bench": 185, "squat": 275, "deadlift": 315, "ohp": 115}, "bw": 175, "avatar": "avatar_white", "sprints": {"40yd": 5.3, "100m": 14.1}, "cardio": [("run", 5.2, 1620), ("run", 3.1, 960)]},
+        {"name": "Iron Sentinel", "xp": 1350, "prs": {"bench": 225, "squat": 315, "deadlift": 405, "ohp": 135}, "bw": 190, "avatar": "avatar_native", "sprints": {"40yd": 5.0, "100m": 13.4}, "cardio": [("bike", 22.0, 3600)]},
+        {"name": "Gravitas", "xp": 2100, "prs": {"bench": 275, "squat": 365, "deadlift": 455, "ohp": 155}, "bw": 205, "avatar": "avatar_black", "sprints": {"40yd": 4.9, "100m": 13.0}, "cardio": [("run", 10.0, 2820)]},
+        {"name": "Warhound", "xp": 2800, "prs": {"bench": 315, "squat": 405, "deadlift": 500, "ohp": 175}, "bw": 198, "avatar": "avatar_indian", "sprints": {"40yd": 4.7, "100m": 12.5}, "cardio": [("run", 8.0, 2160), ("bike", 30.0, 4500)]},
+        {"name": "Vanguard", "xp": 3600, "prs": {"bench": 335, "squat": 455, "deadlift": 545, "ohp": 185}, "bw": 210, "avatar": "avatar_asian", "sprints": {"40yd": 4.6, "100m": 12.2}, "cardio": [("run", 12.0, 3300)]},
+        {"name": "Colossus", "xp": 4500, "prs": {"bench": 365, "squat": 495, "deadlift": 585, "ohp": 205}, "bw": 235, "avatar": "avatar_native", "sprints": {"40yd": 4.9, "100m": 13.1}, "cardio": [("bike", 40.0, 5400)]},
+        {"name": "Nightfall", "xp": 5400, "prs": {"bench": 385, "squat": 515, "deadlift": 605, "ohp": 215}, "bw": 215, "avatar": "avatar_white", "sprints": {"40yd": 4.5, "100m": 11.9}, "cardio": [("run", 15.0, 3900)]},
+        {"name": "Bastion", "xp": 6600, "prs": {"bench": 405, "squat": 545, "deadlift": 635, "ohp": 225}, "bw": 228, "avatar": "avatar_asian", "sprints": {"40yd": 4.6, "100m": 12.0}, "cardio": [("run", 10.0, 2640), ("bike", 35.0, 4800)]},
+        {"name": "Overkill", "xp": 8200, "prs": {"bench": 455, "squat": 585, "deadlift": 675, "ohp": 245}, "bw": 245, "avatar": "avatar_indian", "sprints": {"40yd": 4.5, "100m": 11.7}, "cardio": [("run", 6.0, 1560)]},
+        {"name": "Apex Prime", "xp": 11000, "prs": {"bench": 495, "squat": 635, "deadlift": 725, "ohp": 275}, "bw": 250, "avatar": "avatar_asian", "sprints": {"40yd": 4.4, "100m": 11.4}, "cardio": [("run", 21.1, 5400), ("bike", 50.0, 6300)]},
     ]
     for i, b in enumerate(BOTS):
         email = f"bot{i+1}@circle.ai"
@@ -1707,8 +1707,8 @@ async def seed():
     existing_msg = await db.chat_messages.count_documents({"room": "main"})
     if existing_msg == 0:
         for msg in [
-            {"text": "Welcome to the Inner Circle. Post your PRs, ask questions, get after it.", "name": "Coach Hutch", "avatar": "avatar_hutch"},
-            {"text": "Just hit 315 bench for the first time. Feeling like a freak.", "name": "Kaido", "avatar": "avatar_kaido"},
+            {"text": "Welcome to the Inner Circle. Post your PRs, ask questions, get after it.", "name": "Coach Hutch", "avatar": "avatar_white"},
+            {"text": "Just hit 315 bench for the first time. Feeling like a freak.", "name": "Kaido", "avatar": "avatar_black"},
         ]:
             await db.chat_messages.insert_one({
                 "message_id": new_id("msg"),
@@ -1721,6 +1721,31 @@ async def seed():
                 "text": msg["text"],
                 "created_at": datetime.now(timezone.utc),
             })
+    # ---- House store cosmetics: paid badges + titles for the current month ----
+    _house_month = datetime.now(timezone.utc).strftime("%Y-%m")
+    HOUSE_STORE = [
+        # badges
+        {"item_id": "st_badge_flame", "kind": "badge", "name": "Inferno Crest", "rarity": "epic", "icon": "🔥", "colors": ["#FF6A00", "#FF0033"], "glow": "#FF6A00", "motion": "flame", "description": "A blazing emblem for those who never cool off."},
+        {"item_id": "st_badge_bolt", "kind": "badge", "name": "Storm Sigil", "rarity": "rare", "icon": "⚡", "colors": ["#00E5FF", "#4C6FFF"], "glow": "#00E5FF", "motion": "pulse", "description": "Crackling with raw power."},
+        {"item_id": "st_badge_skull", "kind": "badge", "name": "Reaper Mark", "rarity": "legendary", "icon": "💀", "colors": ["#B14CFF", "#3A0A5A"], "glow": "#B14CFF", "motion": "shimmer", "description": "Worn by those who bury their limits."},
+        {"item_id": "st_badge_crown", "kind": "badge", "name": "Iron Crown", "rarity": "mythic", "icon": "👑", "colors": ["#FFD24A", "#C9971A"], "glow": "#FFD24A", "motion": "orbit", "description": "Reserved for royalty of the iron."},
+        {"item_id": "st_badge_dragon", "kind": "badge", "name": "Dragon Seal", "rarity": "mythic", "icon": "🐉", "colors": ["#12B886", "#0A5C3E"], "glow": "#12B886", "motion": "shimmer", "description": "Ancient power bound in a crest."},
+        {"item_id": "st_badge_star", "kind": "badge", "name": "Nova Star", "rarity": "epic", "icon": "🌟", "colors": ["#FFE14A", "#FF9A00"], "glow": "#FFE14A", "motion": "pulse", "description": "Shine brighter than the rest."},
+        # titles
+        {"item_id": "st_title_apex", "kind": "title", "name": "APEX PREDATOR", "rarity": "legendary", "icon": "❰❱", "colors": ["#FF3B5C", "#7A0A1A"], "glow": "#FF3B5C", "motion": "pulse", "description": "A title that ends arguments."},
+        {"item_id": "st_title_titan", "kind": "title", "name": "TITAN", "rarity": "epic", "icon": "❰❱", "colors": ["#4C6FFF", "#0A1C6A"], "glow": "#4C6FFF", "motion": "shimmer", "description": "Built different."},
+        {"item_id": "st_title_unbroken", "kind": "title", "name": "UNBROKEN", "rarity": "rare", "icon": "❰❱", "colors": ["#00E5FF", "#0A4C5A"], "glow": "#00E5FF", "motion": "pulse", "description": "Never missed a session."},
+        {"item_id": "st_title_immortal", "kind": "title", "name": "IMMORTAL", "rarity": "mythic", "icon": "❰❱", "colors": ["#B14CFF", "#2A0A4A"], "glow": "#B14CFF", "motion": "orbit", "description": "Legends never die."},
+        {"item_id": "st_title_warlord", "kind": "title", "name": "WARLORD", "rarity": "legendary", "icon": "❰❱", "colors": ["#FF6A00", "#5A2A00"], "glow": "#FF6A00", "motion": "flame", "description": "Command the iron battlefield."},
+        {"item_id": "st_title_ascended", "kind": "title", "name": "ASCENDED", "rarity": "mythic", "icon": "❰❱", "colors": ["#FFD24A", "#B14CFF"], "glow": "#FFD24A", "motion": "shimmer", "description": "Beyond mortal strength."},
+    ]
+    for it in HOUSE_STORE:
+        doc = dict(it, active=True, drop_month=_house_month)
+        await db.store_items.update_one(
+            {"item_id": it["item_id"]},
+            {"$set": doc, "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
+            upsert=True,
+        )
     logger.info("Seeded DB")
 
 

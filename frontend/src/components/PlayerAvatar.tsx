@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { avatarImage, avatarFor, AURA_COLORS, EMBLEM_ICONS, colors, radius } from "@/src/lib/theme";
+import { avatarImage, avatarFor, bodyImage, AURA_COLORS, EMBLEM_ICONS, colors, radius } from "@/src/lib/theme";
 
 type P = {
   person: any;            // object with avatar_id, sex, photo_media_id, use_photo, loadout
@@ -21,7 +21,7 @@ export function PlayerAvatar({ person, token, size = 40, showEmblem = true, squa
   const photoUri = usePhoto
     ? `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${person.photo_media_id}?token=${token}`
     : null;
-  const art = !usePhoto ? avatarImage(person?.avatar_id, person?.sex) : null;
+  const art = !usePhoto ? bodyImage(person) : null;
 
   return (
     <View style={{ width: size, height: size }}>

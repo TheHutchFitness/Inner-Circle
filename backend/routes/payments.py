@@ -293,7 +293,7 @@ async def founders_list(user=Depends(get_current_user)):
             "number": num,
             "user_id": r["user_id"],
             "display_name": r.get("display_name", "Athlete"),
-            "avatar_id": r.get("avatar_id", "avatar_ronin"),
+            "avatar_id": r.get("avatar_id", "avatar_white"),
             "sex": r.get("sex", "male"),
             "rank": rank_from_xp(r.get("xp", 0)),
             "is_backer": bool(r.get("founder_backer")),
@@ -307,7 +307,7 @@ async def founders_list(user=Depends(get_current_user)):
     backers = [{
         "user_id": b.get("user_id"),
         "display_name": b.get("display_name", "Athlete"),
-        "avatar_id": b.get("avatar_id", "avatar_ronin"),
+        "avatar_id": b.get("avatar_id", "avatar_white"),
         "sex": b.get("sex", "male"),
         "rank": rank_from_xp(b.get("xp", 0)),
     } for b in backer_rows]
@@ -324,7 +324,7 @@ async def founders_list(user=Depends(get_current_user)):
     creators = [{
         "user_id": c.get("user_id"),
         "display_name": c.get("display_name", "Athlete"),
-        "avatar_id": c.get("avatar_id", "avatar_ronin"),
+        "avatar_id": c.get("avatar_id", "avatar_white"),
         "sex": c.get("sex", "male"),
         "rank": rank_from_xp(c.get("xp", 0)),
         "social_tiktok": c.get("social_tiktok", "") or "",
@@ -374,7 +374,7 @@ async def referral_info(user=Depends(get_current_user)):
     recruits = [{
         "user_id": r.get("user_id"),
         "display_name": r.get("display_name", "Athlete"),
-        "avatar_id": r.get("avatar_id", "avatar_ronin"),
+        "avatar_id": r.get("avatar_id", "avatar_white"),
         "sex": r.get("sex", "male"),
         "rank": rank_from_xp(r.get("xp", 0)),
     } for r in invited]

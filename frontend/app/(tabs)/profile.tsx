@@ -54,7 +54,7 @@ export default function Profile() {
   const av = avatarFor(user.avatar_id);
   const rank = user.rank || "Beginner";
   const rankColor = RANK_COLORS[rank];
-  const portrait = avatarImage(user.avatar_id, user.sex);
+  const portrait = bodyImage(user);
   const bossFrameUnlocked = (user.extra_unlocks || []).includes("frame_boss");
   const frame = CARD_FRAMES[user.active_frame]
     || ((bossFrameUnlocked && rankIndex(rank) < 5) ? CARD_FRAMES.Boss : frameFor(rank));
@@ -111,9 +111,7 @@ export default function Profile() {
               </View>
 
               <View style={[styles.portraitWrap, user.founder_backer && styles.portraitBacker]}>
-                {user.use_photo && user.photo_media_id ? (
-                  <Image source={{ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${user.photo_media_id}?token=${token}` }} style={styles.portrait} contentFit="cover" />
-                ) : (bodyImage(user)) ? (
+                {(bodyImage(user)) ? (
                   <GearedAvatar person={user} style={styles.portrait} contentFit="cover" />
                 ) : (
                   <View style={styles.portraitFallback}><Text style={styles.portraitEmoji}>{av.emoji}</Text></View>
@@ -262,7 +260,7 @@ export default function Profile() {
       )}
 
       <Pressable testID="open-loadout" onPress={() => router.push("/loadout")} style={styles.linkBtn}>
-        <Text style={styles.linkText}>◆ LOCKER — PHOTO, FRAMES & GEAR</Text>
+        <Text style={styles.linkText}>◆ INVENTORY — GEAR, FRAMES & BACKGROUNDS</Text>
       </Pressable>
       <Pressable testID="open-armory" onPress={() => router.push("/gear")} style={[styles.linkBtn, { borderColor: colors.warning }]}>
         <Text style={[styles.linkText, { color: colors.warning }]}>⚔ THE ARMORY — SKINS & WEAPONS</Text>

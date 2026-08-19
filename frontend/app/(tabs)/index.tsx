@@ -88,9 +88,6 @@ export default function Dashboard() {
         <Pressable testID="open-recap" onPress={() => router.push("/recap")} style={styles.hudBtn}>
           <Text style={styles.hudBtnText}>▤ RECAP</Text>
         </Pressable>
-        <Pressable testID="open-vault" onPress={() => router.push("/vault")} style={styles.hudBtn}>
-          <Text style={styles.hudBtnText}>⬡ INVENTORY</Text>
-        </Pressable>
         <Pressable testID="open-progression" onPress={() => router.push("/progression")} style={styles.hudBtn}>
           <Text style={styles.hudBtnText}>◈ RANKS</Text>
         </Pressable>

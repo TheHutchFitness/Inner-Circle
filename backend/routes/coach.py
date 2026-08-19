@@ -75,7 +75,7 @@ async def coach_buyers(user=Depends(get_current_user)):
         out.append({
             "user_id": vp["user_id"],
             "display_name": (u or {}).get("display_name", "Athlete"),
-            "avatar_id": (u or {}).get("avatar_id", "avatar_ronin"),
+            "avatar_id": (u or {}).get("avatar_id", "avatar_white"),
             "sex": (u or {}).get("sex", "male"),
             "order_number": vp.get("order_number"),
             "purchased_at": (vp["verified_at"].isoformat() if isinstance(vp.get("verified_at"), datetime) else vp.get("verified_at")),

@@ -12,7 +12,7 @@ async def _member_brief(u: dict) -> dict:
     return {
         "user_id": u.get("user_id"),
         "display_name": u.get("display_name", "Athlete"),
-        "avatar_id": u.get("avatar_id", "avatar_ronin"),
+        "avatar_id": u.get("avatar_id", "avatar_white"),
         "sex": u.get("sex", "male"),
         "xp": u.get("xp", 0),
         "rank": rank_from_xp(u.get("xp", 0)),
@@ -210,7 +210,7 @@ async def featured_members(user=Depends(get_current_user)):
         out.append({
             "user_id": u["user_id"],
             "display_name": u.get("display_name", "Athlete"),
-            "avatar_id": u.get("avatar_id", "avatar_ronin"),
+            "avatar_id": u.get("avatar_id", "avatar_white"),
             "sex": u.get("sex", "male"),
             "rank": rank_from_xp(u.get("xp", 0)),
             "level": level_from_xp(u.get("xp", 0)),

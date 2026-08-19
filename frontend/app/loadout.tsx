@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Switch, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
-import { colors, spacing, radius, TITLE_TEXT, RANK_COLORS } from "@/src/lib/theme";
+import { colors, spacing, radius, TITLE_TEXT, RANK_COLORS, bgImage } from "@/src/lib/theme";
 
 const SLOT_LABELS: Record<string, string> = { emblem: "EMBLEM", aura: "AURA", title: "TITLE" };
 
@@ -18,6 +19,7 @@ export default function Loadout() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [unlock, setUnlock] = useState<any>(null);
 
   const load = async () => {
     try {
@@ -25,9 +27,19 @@ export default function Loadout() {
       setData(c);
       setFrames(c.frames || { unlocked: [] });
     } catch {}
+    try { setUnlock(await apiFetch(token, "/api/unlockables")); } catch {}
     setLoading(false);
   };
   useEffect(() => { if (token) load(); /* eslint-disable-next-line */ }, [token]);
+
+  const applyBg = async (bg: any) => {
+    if (!bg.unlocked) { setMsg(`${bg.name} unlocks at Level ${bg.level}`); return; }
+    try {
+      await apiFetch(token, "/api/profile/set-background", { method: "POST", body: JSON.stringify({ background_id: bg.id }) });
+      await Promise.all([load(), refresh()]);
+      setMsg(`${bg.name} equipped.`);
+    } catch (e: any) { setMsg(e?.message || "Locked"); }
+  };
 
   const equip = async (slot: string, id: string) => {
     setMsg(null);
@@ -41,45 +53,9 @@ export default function Loadout() {
     try { await apiFetch(token, "/api/profile/set-frame", { method: "POST", body: JSON.stringify({ frame: f }) }); await Promise.all([load(), refresh()]); } catch (e: any) { setMsg(e?.message || "Locked"); }
   };
 
-  const toggleUsePhoto = async (v: boolean) => {
-    setMsg(null);
-    try { await apiFetch(token, "/api/profile/loadout", { method: "POST", body: JSON.stringify({ use_photo: v }) }); await Promise.all([load(), refresh()]); }
-    catch (e: any) { setMsg(e?.message || "Upload a photo first"); }
-  };
-
-  const uploadPhoto = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Permission needed", "Allow photo access to upload a profile picture.");
-      return;
-    }
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8, allowsEditing: true, aspect: [1, 1] });
-    if (res.canceled || !res.assets?.length) return;
-    const asset = res.assets[0];
-    setBusy(true); setMsg(null);
-    try {
-      const form = new FormData();
-      const name = asset.fileName || "photo.jpg";
-      const type = asset.mimeType || "image/jpeg";
-      if (asset.uri.startsWith("data:")) {
-        const blob = await (await fetch(asset.uri)).blob();
-        form.append("file", blob as any, name);
-      } else {
-        form.append("file", { uri: asset.uri, name, type } as any);
-      }
-      const r = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/profile/photo`, {
-        method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form,
-      });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || "Upload failed");
-      await Promise.all([load(), refresh()]);
-      setMsg("Photo updated ✓");
-    } catch (e: any) { setMsg(e?.message || "Upload failed"); }
-    setBusy(false);
-  };
-
   const me = {
     avatar_id: user?.avatar_id, sex: user?.sex,
-    photo_media_id: data?.photo_media_id, use_photo: data?.use_photo,
+    equipped_skin: user?.equipped_skin,
     loadout: data?.loadout,
   };
 
@@ -87,8 +63,17 @@ export default function Loadout() {
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, padding: spacing.lg, paddingBottom: 60 }}>
         <Pressable onPress={() => router.back()}><Text style={styles.back}>← BACK</Text></Pressable>
-        <Text style={styles.eyebrow}>▚ LOADOUT //</Text>
-        <Text style={styles.h1}>LOCKER</Text>
+        <Text style={styles.eyebrow}>▚ INVENTORY //</Text>
+        <Text style={styles.h1}>INVENTORY</Text>
+
+        <View style={styles.navRow}>
+          <Pressable testID="locker-open-store" onPress={() => router.push("/store")} style={styles.navBtn}>
+            <Text style={styles.navBtnText}>🛒 STORE</Text>
+          </Pressable>
+          <Pressable testID="locker-open-armory" onPress={() => router.push("/gear")} style={styles.navBtn}>
+            <Text style={styles.navBtnText}>⚔ ARMORY</Text>
+          </Pressable>
+        </View>
 
         {loading ? (
           <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing.xl }} />
@@ -101,18 +86,6 @@ export default function Loadout() {
                 <Text style={styles.previewTitle}>{TITLE_TEXT[data.loadout.title]}</Text>
               )}
             </View>
-
-            <View style={styles.photoRow}>
-              <Pressable testID="upload-photo" onPress={uploadPhoto} disabled={busy} style={styles.photoBtn}>
-                {busy ? <ActivityIndicator color="#001122" /> : <Text style={styles.photoBtnText}>{data?.photo_media_id ? "CHANGE PHOTO" : "UPLOAD PHOTO"}</Text>}
-              </Pressable>
-              <View style={styles.toggleRow}>
-                <Text style={styles.toggleLabel}>USE PHOTO</Text>
-                <Switch value={!!data?.use_photo} onValueChange={toggleUsePhoto} disabled={!data?.photo_media_id}
-                  trackColor={{ true: colors.brandPrimary, false: colors.border }} />
-              </View>
-            </View>
-            <Text style={styles.hint}>Off = show your anime avatar. On = show your uploaded photo (everywhere).</Text>
 
             {(["emblem", "aura", "title"] as const).map((slot) => (
               <View key={slot} style={styles.section}>
@@ -154,6 +127,37 @@ export default function Loadout() {
               </View>
             </View>
 
+            {unlock && (
+              <>
+                <Text style={styles.sectionTitle}>APP BACKGROUNDS</Text>
+                <View style={styles.bgGrid}>
+                  {unlock.backgrounds.map((bg: any) => (
+                    <Pressable testID={`bg-${bg.id}`} key={bg.id} onPress={() => applyBg(bg)} style={[styles.bgCard, bg.active && styles.bgActive, !bg.unlocked && styles.bgLocked]}>
+                      <View style={styles.bgPreview}>
+                        <Image source={bgImage(bg.id, user?.sex)} style={StyleSheet.absoluteFill} contentFit="cover" />
+                        <LinearGradient colors={["transparent", "rgba(5,5,8,0.5)"]} style={StyleSheet.absoluteFill} />
+                        {!bg.unlocked && <Text style={styles.bgLock}>🔒</Text>}
+                        {bg.active && <View style={styles.activeTag}><Text style={styles.activeTagText}>ACTIVE</Text></View>}
+                      </View>
+                      <Text style={styles.bgName}>{bg.name}</Text>
+                      <Text style={styles.bgLvl}>{bg.unlocked ? "UNLOCKED" : `LVL ${bg.level}`}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={styles.sectionTitle}>WIDGETS</Text>
+                {unlock.widgets.map((w: any) => (
+                  <View key={w.id} style={[styles.widgetRow, !w.unlocked && { opacity: 0.5 }]}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.widgetName}>{w.name} {w.unlocked ? "" : "🔒"}</Text>
+                      <Text style={styles.widgetDesc}>{w.desc}</Text>
+                    </View>
+                    <Text style={[styles.widgetLvl, w.unlocked && { color: colors.success }]}>{w.unlocked ? "UNLOCKED" : `LVL ${w.level}`}</Text>
+                  </View>
+                ))}
+              </>
+            )}
+
             {!!msg && <Text style={styles.msg}>{msg}</Text>}
           </>
         )}
@@ -166,6 +170,23 @@ const styles = StyleSheet.create({
   back: { color: colors.brandPrimary, letterSpacing: 2, fontWeight: "800", marginBottom: spacing.md },
   eyebrow: { color: colors.brandPrimary, letterSpacing: 4, fontSize: 11, fontWeight: "700" },
   h1: { color: colors.text, fontSize: 24, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: spacing.lg },
+  navRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.lg },
+  navBtn: { flex: 1, paddingVertical: 12, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.08)", minHeight: 44, justifyContent: "center" },
+  navBtnText: { color: colors.warning, fontWeight: "900", letterSpacing: 1, fontSize: 13 },
+  bgGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  bgCard: { width: "47%", borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, overflow: "hidden", backgroundColor: colors.surface2 },
+  bgActive: { borderColor: colors.brandPrimary, borderWidth: 2 },
+  bgLocked: { opacity: 0.6 },
+  bgPreview: { height: 100, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  bgLock: { fontSize: 24 },
+  activeTag: { position: "absolute", top: 6, right: 6, backgroundColor: colors.brandPrimary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: radius.sm },
+  activeTagText: { color: "#001122", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  bgName: { color: colors.text, fontWeight: "800", paddingHorizontal: spacing.sm, paddingTop: spacing.sm, fontSize: 13 },
+  bgLvl: { color: colors.textDim, fontSize: 10, letterSpacing: 2, paddingHorizontal: spacing.sm, paddingBottom: spacing.sm, marginTop: 2 },
+  widgetRow: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
+  widgetName: { color: colors.text, fontWeight: "800", letterSpacing: 1 },
+  widgetDesc: { color: colors.textDim, fontSize: 12, marginTop: 2 },
+  widgetLvl: { color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "800" },
   preview: { alignItems: "center", marginBottom: spacing.lg },
   previewName: { color: colors.text, fontWeight: "900", fontSize: 18, letterSpacing: 1, marginTop: spacing.md },
   previewTitle: { color: colors.warning, fontSize: 11, letterSpacing: 3, fontWeight: "800", marginTop: 4 },

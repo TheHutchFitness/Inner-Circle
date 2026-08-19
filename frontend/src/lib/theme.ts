@@ -50,54 +50,24 @@ export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 };
 export const radius = { sm: 4, md: 8, lg: 12, pill: 999 };
 
 export const AVATARS: { id: string; label: string; emoji: string; url?: string }[] = [
-  { id: "avatar_ronin", label: "Ronin", emoji: "🥷" },
-  { id: "avatar_kaido", label: "Kaido", emoji: "🐉" },
-  { id: "avatar_titan", label: "Titan", emoji: "🗿" },
-  { id: "avatar_saiyan", label: "Saiyan", emoji: "⚡️" },
-  { id: "avatar_demon", label: "Demon", emoji: "👹" },
-  { id: "avatar_wolf", label: "Wolf", emoji: "🐺" },
-  { id: "avatar_ghost", label: "Ghost", emoji: "👻" },
-  { id: "avatar_dragon", label: "Dragon", emoji: "🔥" },
-  { id: "avatar_hutch", label: "Coach", emoji: "👑" },
-  { id: "avatar_shinobi", label: "Shinobi", emoji: "🗡️" },
-  { id: "avatar_berserker", label: "Berserker", emoji: "⚔️" },
-  { id: "avatar_phoenix", label: "Phoenix", emoji: "🦅" },
-  { id: "avatar_oni", label: "Oni", emoji: "😈" },
-  { id: "avatar_samurai", label: "Samurai", emoji: "🎌" },
-  { id: "avatar_mecha", label: "Mecha", emoji: "🤖" },
-  { id: "avatar_reaper", label: "Reaper", emoji: "💀" },
-  { id: "avatar_thunder", label: "Thunder God", emoji: "🌩️" },
-  { id: "avatar_kraken", label: "Kraken", emoji: "🐙" },
-  { id: "avatar_ace", label: "Ace", emoji: "🃏" },
-  { id: "avatar_star", label: "Star Saint", emoji: "🌟" },
+  { id: "avatar_white", label: "White", emoji: "🧑" },
+  { id: "avatar_black", label: "Black", emoji: "🧑🏿" },
+  { id: "avatar_asian", label: "Asian", emoji: "🧑🏻" },
+  { id: "avatar_native", label: "Native", emoji: "🧑🏽" },
+  { id: "avatar_indian", label: "Indian", emoji: "🧑🏾" },
 ];
 
 export function avatarFor(id: string) {
   return AVATARS.find((a) => a.id === id) || AVATARS[0];
 }
 
-// AI-generated full anime-hero portraits (game character-select art)
+// AI-generated full-body stylized video-game base avatars (male)
 export const AVATAR_IMAGES: Record<string, any> = {
-  avatar_ronin: require("@/assets/images/av_ronin.png"),
-  avatar_kaido: require("@/assets/images/av_kaido.png"),
-  avatar_titan: require("@/assets/images/av_titan.png"),
-  avatar_saiyan: require("@/assets/images/av_saiyan.png"),
-  avatar_demon: require("@/assets/images/av_demon.png"),
-  avatar_shinobi: require("@/assets/images/av_shinobi.png"),
-  avatar_phoenix: require("@/assets/images/av_phoenix.png"),
-  avatar_reaper: require("@/assets/images/av_reaper.png"),
-  avatar_wolf: require("@/assets/images/av_wolf.png"),
-  avatar_ghost: require("@/assets/images/av_ghost.png"),
-  avatar_dragon: require("@/assets/images/av_dragon.png"),
-  avatar_hutch: require("@/assets/images/av_hutch.png"),
-  avatar_berserker: require("@/assets/images/av_berserker.png"),
-  avatar_samurai: require("@/assets/images/av_samurai.png"),
-  avatar_mecha: require("@/assets/images/av_mecha.png"),
-  avatar_thunder: require("@/assets/images/av_thunder.png"),
-  avatar_kraken: require("@/assets/images/av_kraken.png"),
-  avatar_ace: require("@/assets/images/av_ace.png"),
-  avatar_star: require("@/assets/images/av_star.png"),
-  avatar_oni: require("@/assets/images/av_oni.png"),
+  avatar_white: require("@/assets/images/av_white.png"),
+  avatar_black: require("@/assets/images/av_black.png"),
+  avatar_asian: require("@/assets/images/av_asian.png"),
+  avatar_native: require("@/assets/images/av_native.png"),
+  avatar_indian: require("@/assets/images/av_indian.png"),
 };
 
 export function avatarImage(id?: string, sex?: string) {
@@ -105,27 +75,13 @@ export function avatarImage(id?: string, sex?: string) {
   return AVATAR_IMAGES[id || ""] || null;
 }
 
-// Female character-select portraits (shown when account sex is female)
+// Female base avatars (shown when account sex is female)
 export const AVATAR_IMAGES_F: Record<string, any> = {
-  avatar_ronin: require("@/assets/images/av_ronin_f.png"),
-  avatar_kaido: require("@/assets/images/av_kaido_f.png"),
-  avatar_titan: require("@/assets/images/av_titan_f.png"),
-  avatar_saiyan: require("@/assets/images/av_saiyan_f.png"),
-  avatar_demon: require("@/assets/images/av_demon_f.png"),
-  avatar_shinobi: require("@/assets/images/av_shinobi_f.png"),
-  avatar_phoenix: require("@/assets/images/av_phoenix_f.png"),
-  avatar_reaper: require("@/assets/images/av_reaper_f.png"),
-  avatar_wolf: require("@/assets/images/av_wolf_f.png"),
-  avatar_ghost: require("@/assets/images/av_ghost_f.png"),
-  avatar_dragon: require("@/assets/images/av_dragon_f.png"),
-  avatar_berserker: require("@/assets/images/av_berserker_f.png"),
-  avatar_samurai: require("@/assets/images/av_samurai_f.png"),
-  avatar_mecha: require("@/assets/images/av_mecha_f.png"),
-  avatar_thunder: require("@/assets/images/av_thunder_f.png"),
-  avatar_kraken: require("@/assets/images/av_kraken_f.png"),
-  avatar_ace: require("@/assets/images/av_ace_f.png"),
-  avatar_star: require("@/assets/images/av_star_f.png"),
-  avatar_oni: require("@/assets/images/av_oni_f.png"),
+  avatar_white: require("@/assets/images/av_white_f.png"),
+  avatar_black: require("@/assets/images/av_black_f.png"),
+  avatar_asian: require("@/assets/images/av_asian_f.png"),
+  avatar_native: require("@/assets/images/av_native_f.png"),
+  avatar_indian: require("@/assets/images/av_indian_f.png"),
 };
 
 export function hasAvatarArt(id?: string) {
@@ -182,6 +138,32 @@ export function weaponImage(id?: string) {
 export function bodyImage(person?: { equipped_skin?: string; avatar_id?: string; sex?: string } | null) {
   if (person?.equipped_skin && SKIN_IMAGES[person.equipped_skin]) return SKIN_IMAGES[person.equipped_skin];
   return avatarImage(person?.avatar_id, person?.sex);
+}
+
+// ---- Unified RARITY tiers (how rare / hard to get) ----
+export const RARITY: Record<string, { label: string; color: string; glow: string; order: number }> = {
+  common:    { label: "COMMON",    color: "#9AA5B1", glow: "#6B7482", order: 0 },
+  rare:      { label: "RARE",      color: "#3B9DFF", glow: "#1E6FD0", order: 1 },
+  epic:      { label: "EPIC",      color: "#C77DFF", glow: "#8B2FE0", order: 2 },
+  legendary: { label: "LEGENDARY", color: "#FFD24A", glow: "#C9971A", order: 3 },
+  mythic:    { label: "??????",    color: "#FF3B5C", glow: "#FF0055", order: 4 },
+};
+// Legacy rarity names mapped onto the 5-tier scale.
+const RARITY_ALIAS: Record<string, string> = { exalted: "epic", eternal: "mythic", rare: "rare" };
+export function rarityKey(r?: string): string {
+  const k = (r || "common").toLowerCase();
+  if (RARITY[k]) return k;
+  return RARITY_ALIAS[k] || "common";
+}
+export function rarityColor(r?: string) { return RARITY[rarityKey(r)].color; }
+export function rarityLabel(r?: string) { return RARITY[rarityKey(r)].label; }
+export function rarityFromLevel(level?: number): string {
+  const l = level || 1;
+  if (l >= 999) return "mythic";
+  if (l >= 18) return "legendary";
+  if (l >= 10) return "epic";
+  if (l >= 4) return "rare";
+  return "common";
 }
 
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Modal, Pressable, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius, avatarFor, avatarImage, RANK_COLORS, loadoutTitle } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, bodyImage, RANK_COLORS, loadoutTitle } from "@/src/lib/theme";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { SocialLinksBar } from "@/src/components/SocialLinks";
 
@@ -23,7 +23,7 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
   }, [visible, userId]);
 
   const rankColor = m ? (RANK_COLORS[m.rank] || colors.brandPrimary) : colors.brandPrimary;
-  const portrait = m ? avatarImage(m.avatar_id, m.sex) : null;
+  const portrait = m ? bodyImage(m) : null;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>

@@ -317,3 +317,25 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - FRONTEND: src/lib/theme.ts SKIN_IMAGES/WEAPON_IMAGES require maps + skinImage/weaponImage/bodyImage helpers (bodyImage = equipped skin overrides base human avatar). src/components/GearedAvatar.tsx stacks body + weapon overlay. Wired into profile card, HOME hero, Journey map hero. New screen app/gear.tsx "THE ARMORY" (SKINS/WEAPONS tabs; EQUIP/✓EQUIPPED, UNLOCK·$1 for paid, 🔒 lock text for level/quest). Entry from Profile (open-armory) + Vault/store (store-open-armory).
 - NOTE: earlier layered per-slot gear approach (assets/images/gear/*) was abandoned per user pivot to full skins; those files are unreferenced/unbundled.
 - Verified: GET /gear (21 skins/11 weapons), purchase+equip skin (Dragon Knight swaps avatar) + weapon (Plasma Katana prop) rendered on profile card via screenshot; lock gating curl (locked free/quest/unowned-paid → 403, unlocked → 200).
+
+## Implemented (2026-06 — Rarity tiers + Gear everywhere + Monthly drops + Store expansion + Customize rename)
+- RARITY (5 tiers): Common/Rare/Epic/Legendary/?????? (mythic secret tier, red). Central: frontend theme.ts RARITY map + rarityColor/rarityLabel/rarityKey/rarityFromLevel (legacy exalted→epic, eternal→mythic). Applied to Armory (skins/weapons rows + legend row) and Store cosmetics (badges/titles/auras/pets rarity label). gear.py skins/weapons rarities remapped to 5-tier.
+- GEAR EVERYWHERE: equipped_skin now overrides base avatar via bodyImage() in PlayerAvatar (leaderboard/chat/loadout previews), MemberSheet, profile card, HOME hero, Journey map. chat.py join + posted msg include equipped_skin + sex; /users/{id}/public + leaderboard already carry it.
+- MONTHLY SKIN DROP: paid skins carry drop_month; /api/gear skin rows add drop_month/drop_label/available/upcoming/vaulted; purchase gated to current-month (410 otherwise). Launch schedule: 2026-08 = dragonknight/dbz/mercy (mythic) live; 09 = mecha/halo/mk; 10 = cod/viking/wsm; 11 = aot. Past months = VAULTED (gone), future = DROPS <month>.
+- ARMORY sections: THE ARMORY splits into ✓ UNLOCKED and 🔒 LOCKED groups per tab, rarity legend, monthly-drop buttons (UNLOCK $1 / 🗓 DROPS Mon / ⛔ VAULTED). Store nav button added (armory-open-store).
+- STORE (renamed from THE VAULT → THE STORE; MY VAULT→MY ITEMS): now also shows current-month paid HERO SKINS + WEAPONS sections for $1 purchase (buy → /api/gear/purchase). Seeded 6 house BADGES + 6 TITLES (+ existing aura/pet) into store_items via seed() (rarity-tiered, code-drawn StoreCosmetic). Armory link at top.
+- PHOTO UPLOAD REMOVED: loadout.tsx photo upload + USE PHOTO toggle removed (ImagePicker/upload code gone). Avatars/skins only. Profile card use_photo branch removed.
+- LOCKER renamed → "CUSTOMIZE PROFILE" (loadout.tsx h1 + profile link). Locker/loadout now has STORE + ARMORY nav buttons.
+- Verified: /api/gear (21 skins/11 weapons, monthly states), store live=14 (6 badge/6 title/aura/pet), lock gating 403, equip skin+weapon renders on card, Armory unlocked/locked + legend + ?????? tier, Store badges/titles + Armory link render (screenshots). tsc clean (only pre-existing revenuecat error).
+
+## Implemented (2026-06 — Store expansion + Inventory merge)
+- STORE now sells paid HERO SKINS (current-month drop) + WEAPONS ($1) plus seeded house BADGES (6) + TITLES (6) — all rarity-tiered. Armory link on Store; Store link on Armory + Inventory.
+- HOME "INVENTORY" HUD button REMOVED (RECAP + RANKS remain). Vault contents (APP BACKGROUNDS + WIDGETS via /api/unlockables) MOVED into the customize-profile screen.
+- customize-profile/loadout screen RENAMED to "INVENTORY" (h1 + eyebrow + profile link "◆ INVENTORY — GEAR, FRAMES & BACKGROUNDS"). It now has STORE + ARMORY nav buttons, EMBLEM/AURA/TITLE/FRAME customization, and APP BACKGROUNDS + WIDGETS. (/app/vault.tsx standalone still exists but is no longer linked from Home.)
+- Verified: testing_agent iteration 20 — 22/22 backend pytest (tests/test_armory_gear_store.py) + full frontend flows PASS (equip skin+weapon swaps avatar + prop; store skins/weapons/badges/titles; inventory backgrounds+widgets; home INVENTORY btn gone; photo upload gone). NOTE: run that suite with `-n0` (xdist parallel causes false-positive races on shared bots).
+
+## Implemented (2026-06 — Base avatars reduced to 5 per gender)
+- Reduced base avatars from 20 to 5 per gender: White, Black, Asian, Native, Indian (IDs avatar_white/black/asian/native/indian). Male art for male users, female for female (avatarImage(id,sex)).
+- Regenerated 10 images (av_<race>.png + _f) via gen_base5.py (same full-body stylized video-game style). theme.ts AVATARS + AVATAR_IMAGES + AVATAR_IMAGES_F trimmed to the 5.
+- Backend: default_user_doc + all "avatar_ronin" fallbacks → "avatar_white"; seed bots + seed chat avatars remapped across the 5. DB migration remapped all existing users + chat_messages off old ids onto the 5.
+- Verified: SELECT CLASS picker shows exactly the 5 (screenshot), tsc clean. Old avatar_* image files remain on disk but are unreferenced/unbundled.
