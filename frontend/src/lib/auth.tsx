@@ -18,6 +18,7 @@ interface AuthCtx {
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
   loginEmail: (email: string, password: string) => Promise<void>;
+  appleSignIn: (payload: { identity_token: string; email?: string | null; name?: string | null }) => Promise<void>;
   registerEmail: (email: string, password: string, name: string, sex?: string, referralCode?: string, gym?: string, inpersonRequest?: boolean) => Promise<void>;
 }
 
@@ -74,6 +75,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const appleSignIn = useCallback(async (payload: { identity_token: string; email?: string | null; name?: string | null }) => {
+    const r = await fetch(`${API}/api/auth/apple`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || "Apple sign-in failed");
+    }
+    const data = await r.json();
+    await setSession(data.session_token, data.user);
+    setIntro({ mode: "login" });
+  }, [setSession]);
+
   const loginEmail = useCallback(async (email: string, password: string) => {
     const r = await fetch(`${API}/api/auth/login`, {
       method: "POST",
@@ -117,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   return (
-    <Ctx.Provider value={{ user, token, loading, intro, showIntro, clearIntro, setSession, refresh, signOut, loginEmail, registerEmail }}>
+    <Ctx.Provider value={{ user, token, loading, intro, showIntro, clearIntro, setSession, refresh, signOut, loginEmail, appleSignIn, registerEmail }}>
       {children}
     </Ctx.Provider>
   );

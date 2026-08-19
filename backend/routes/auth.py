@@ -98,6 +98,66 @@ async def google_session(inp: SessionInput):
     return {"session_token": session_token, "user": user}
 
 
+APPLE_ISSUER = "https://appleid.apple.com"
+APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
+_apple_jwk_client = None
+
+
+def _apple_audiences() -> list:
+    return [a.strip() for a in os.environ.get("APPLE_AUDIENCES", "").split(",") if a.strip()]
+
+
+@api_router.post("/auth/apple")
+async def apple_session(inp: dict = Body(...)):
+    """Sign in with Apple (iOS). Verifies the identity token against Apple's public
+    keys, then finds/creates a user keyed on the Apple `sub` and issues a session."""
+    import jwt as _jwt
+    from jwt import PyJWKClient
+
+    token = (inp or {}).get("identity_token") or (inp or {}).get("identityToken")
+    if not token:
+        raise HTTPException(status_code=400, detail="identity_token required")
+    global _apple_jwk_client
+    try:
+        if _apple_jwk_client is None:
+            _apple_jwk_client = PyJWKClient(APPLE_JWKS_URL)
+        signing_key = _apple_jwk_client.get_signing_key_from_jwt(token)
+        claims = _jwt.decode(
+            token, signing_key.key, algorithms=["RS256"],
+            audience=_apple_audiences(), issuer=APPLE_ISSUER,
+        )
+    except Exception as e:
+        logger.warning(f"apple token verify failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid Apple token")
+
+    apple_sub = claims.get("sub")
+    if not apple_sub:
+        raise HTTPException(status_code=401, detail="Invalid Apple token")
+    token_email = (claims.get("email") or "").lower()
+    first_email = ((inp or {}).get("email") or token_email or "").lower()
+    first_name = (inp or {}).get("name") or (first_email.split("@")[0] if first_email else "Athlete")
+
+    user = await db.users.find_one({"apple_sub": apple_sub})
+    if not user and first_email:
+        user = await db.users.find_one({"email": first_email})
+    if not user:
+        email = first_email or f"apple_{apple_sub[:16]}@appleid.local"
+        user = default_user_doc(email, first_name)
+        user["apple_sub"] = apple_sub
+        await db.users.insert_one(user)
+    elif not user.get("apple_sub"):
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"apple_sub": apple_sub}})
+
+    session_token = await create_session(user["user_id"])
+    user = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    user = await ensure_owner_admin(user)
+    user["rank"] = rank_from_xp(user["xp"])
+    user.update(await founder_status(user))
+    user["season_champ_titles"] = await season_titles_for(user["user_id"])
+    return {"session_token": session_token, "user": user}
+
+
+
 @api_router.get("/auth/me")
 async def me(user=Depends(get_current_user)):
     user = await ensure_owner_admin(user)

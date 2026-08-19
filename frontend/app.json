@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.poweruparena.p5ck2j",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Track your run and bike routes live",
         "NSHealthShareUsageDescription": "Read steps and heart rate for your stats",

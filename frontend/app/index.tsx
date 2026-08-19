@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { GlitchImage } from "@/src/components/GlitchImage";
@@ -12,7 +13,26 @@ WebBrowser.maybeCompleteAuthSession();
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function Index() {
-  const { user, loading, loginEmail, registerEmail, setSession, showIntro } = useAuth();
+  const { user, loading, loginEmail, registerEmail, appleSignIn, setSession, showIntro } = useAuth();
+  const [appleAvailable, setAppleAvailable] = useState(false);
+  useEffect(() => {
+    if (Platform.OS === "ios") AppleAuthentication.isAvailableAsync().then(setAppleAvailable).catch(() => {});
+  }, []);
+  const apple = useCallback(async () => {
+    try {
+      const cred = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!cred.identityToken) { setErr("Apple sign-in failed"); return; }
+      const name = cred.fullName?.givenName ? `${cred.fullName.givenName}${cred.fullName.familyName ? " " + cred.fullName.familyName : ""}` : null;
+      await appleSignIn({ identity_token: cred.identityToken, email: cred.email, name });
+    } catch (e: any) {
+      if (e?.code !== "ERR_REQUEST_CANCELED") setErr("Apple sign-in failed");
+    }
+  }, [appleSignIn]);
   const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [sex, setSex] = useState<"male" | "female" | "other">("male");
@@ -264,6 +284,16 @@ export default function Index() {
           <Pressable testID="btn-google" onPress={google} style={styles.googleBtn}>
             <Text style={styles.googleText}>CONTINUE WITH GOOGLE</Text>
           </Pressable>
+          {appleAvailable && (
+            <AppleAuthentication.AppleAuthenticationButton
+              testID="btn-apple"
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+              cornerRadius={radius.md}
+              style={styles.appleBtn}
+              onPress={apple}
+            />
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -307,6 +337,7 @@ const styles = StyleSheet.create({
   dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
   dividerText: { color: colors.textDim, marginHorizontal: spacing.md, letterSpacing: 2, fontSize: 12 },
   googleBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingVertical: 14, alignItems: "center", borderRadius: radius.sm },
+  appleBtn: { height: 48, marginTop: spacing.sm },
   googleText: { color: colors.brandPrimary, fontWeight: "800", letterSpacing: 2 },
   gymChips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: -4, marginBottom: spacing.md },
   gymChip: { paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
