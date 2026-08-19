@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -66,13 +67,26 @@ export default function Dashboard() {
   const [spotId, setSpotId] = useState<string | null>(null);
   const [champion, setChampion] = useState<any>(null);
   const [ipUnread, setIpUnread] = useState(0);
+  const [digest, setDigest] = useState<any>(null);
   useEffect(() => {
     (async () => {
       try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
       try { const h = await apiFetch(token, "/api/leaderboard/season/history"); setChampion((h || [])[0] || null); } catch {}
       try { const ipu = await apiFetch(token, "/api/inperson/unread"); setIpUnread((ipu.unread || 0) + (ipu.pending_requests || 0)); } catch {}
+      try {
+        const d = await apiFetch(token, "/api/profile/gym-digest");
+        if (d?.delta !== null && d?.delta !== undefined && d?.week) {
+          const dismissed = await AsyncStorage.getItem("gymDigestDismissed");
+          if (dismissed !== d.week) setDigest(d);
+        }
+      } catch {}
     })();
   }, [token]);
+
+  const dismissDigest = async () => {
+    if (digest?.week) await AsyncStorage.setItem("gymDigestDismissed", digest.week);
+    setDigest(null);
+  };
 
   if (!user) return null;
   const avatar = avatarFor(user.avatar_id);
@@ -111,6 +125,22 @@ export default function Dashboard() {
         <Text style={styles.eyebrow}>▚ MISSION BRIEFING //</Text>
         <Text style={styles.title}>WELCOME, {user.display_name?.toUpperCase()}</Text>
       </View>
+
+      {digest && (
+        <Pressable testID="gym-digest" onPress={() => router.push("/(tabs)/leaderboard")} style={[styles.digestCard, digest.delta > 0 && styles.digestUp, digest.delta < 0 && styles.digestDown]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.digestLabel}>📊 WEEKLY GYM DIGEST</Text>
+            <Text style={styles.digestText}>
+              {digest.delta > 0
+                ? `You climbed ${digest.delta} spot${digest.delta === 1 ? "" : "s"} at ${digest.gym} — now #${digest.rank}! 🔥`
+                : digest.delta < 0
+                ? `You slipped ${Math.abs(digest.delta)} spot${Math.abs(digest.delta) === 1 ? "" : "s"} at ${digest.gym} — now #${digest.rank}. Time to grind.`
+                : `You held #${digest.rank} at ${digest.gym} this week. Keep pushing.`}
+            </Text>
+          </View>
+          <Pressable testID="gym-digest-dismiss" onPress={dismissDigest} hitSlop={10} style={styles.digestX}><Text style={styles.digestXText}>✕</Text></Pressable>
+        </Pressable>
+      )}
 
       <LinearGradient colors={[colors.brandTertiary, colors.surface2]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.heroCard}>
         <View style={styles.heroRow}>
@@ -343,6 +373,13 @@ const styles = StyleSheet.create({
   hudBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, backgroundColor: "rgba(0,42,85,0.5)" },
   hudBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 11 },
   header: { paddingHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md },
+  digestCard: { flexDirection: "row", alignItems: "center", marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
+  digestUp: { borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.06)" },
+  digestDown: { borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.06)" },
+  digestLabel: { color: colors.textDim, fontSize: 9, fontWeight: "900", letterSpacing: 2 },
+  digestText: { color: colors.text, fontSize: 13, fontWeight: "700", marginTop: 3, lineHeight: 18 },
+  digestX: { paddingHorizontal: 6, paddingVertical: 2 },
+  digestXText: { color: colors.textDim, fontWeight: "900", fontSize: 14 },
   vaultBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.sm },
   vaultBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
   adaptiveCard: { marginHorizontal: spacing.lg, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong },

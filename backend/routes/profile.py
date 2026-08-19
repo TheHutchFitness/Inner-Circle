@@ -15,10 +15,9 @@ async def profile_attributes(user=Depends(get_current_user)):
     return await _compute_attributes(user)
 
 
-@api_router.get("/profile/gym-rank")
-async def gym_rank(user=Depends(get_current_user)):
-    """The caller's rank (by Big-4 total) among athletes at their own gym."""
-    gym = (user.get("inperson_gym", "") or "").strip()
+async def _compute_gym_rank(target: dict) -> dict:
+    """Rank a member (by Big-4 total) among the athletes at their own gym."""
+    gym = (target.get("inperson_gym", "") or "").strip()
     if not gym:
         return {"gym": "", "rank": 0, "members": 0, "big4": 0}
     gl = gym.lower()
@@ -31,8 +30,44 @@ async def gym_rank(user=Depends(get_current_user)):
         return sum((m.get("prs", {}) or {}).values())
 
     members.sort(key=tot, reverse=True)
-    rank = next((i + 1 for i, m in enumerate(members) if m["user_id"] == user["user_id"]), 0)
-    return {"gym": gym, "rank": rank, "members": len(members), "big4": tot(user)}
+    rank = next((i + 1 for i, m in enumerate(members) if m["user_id"] == target["user_id"]), 0)
+    return {"gym": gym, "rank": rank, "members": len(members), "big4": tot(target)}
+
+
+@api_router.get("/profile/gym-rank")
+async def gym_rank(user=Depends(get_current_user)):
+    """The caller's rank (by Big-4 total) among athletes at their own gym."""
+    return await _compute_gym_rank(user)
+
+
+@api_router.get("/profile/gym-digest")
+async def gym_digest(user=Depends(get_current_user)):
+    """Weekly note on how the member's gym rank moved since last week.
+    Rolls a per-ISO-week snapshot forward and reports the delta once per new week."""
+    cur = await _compute_gym_rank(user)
+    if not cur["gym"] or cur["rank"] == 0:
+        return {**cur, "delta": None, "week": None}
+    now = datetime.now(timezone.utc)
+    cur_week = f"{now.isocalendar().year}-W{now.isocalendar().week:02d}"
+    snap = user.get("gym_rank_snap") or {}
+    delta = None
+    if snap.get("week") and snap["week"] != cur_week and snap.get("rank"):
+        delta = int(snap["rank"]) - int(cur["rank"])  # +ve = moved up
+    if snap.get("week") != cur_week:
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {"$set": {"gym_rank_snap": {"week": cur_week, "rank": cur["rank"]}}},
+        )
+        if delta is not None:
+            try:
+                arrow = "climbed" if delta > 0 else ("dropped" if delta < 0 else "held")
+                msg = (f"You {arrow} {abs(delta)} spot{'s' if abs(delta) != 1 else ''} at {cur['gym']} — now #{cur['rank']}."
+                       if delta != 0 else f"You held #{cur['rank']} at {cur['gym']} this week.")
+                await send_push([user["user_id"]], {"title": "Your weekly gym rank", "message": msg, "action_url": "/(tabs)/leaderboard"},
+                                idempotency_key=f"gymdigest:{user['user_id']}:{cur_week}")
+            except Exception:
+                pass
+    return {**cur, "delta": delta, "week": cur_week}
 
 
 @api_router.get("/profile/prs")
@@ -206,6 +241,7 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
     fs = await founder_status(u)
     tt = u.get("social_tiktok", "") or ""
     ig = u.get("social_instagram", "") or ""
+    gr = await _compute_gym_rank(u)
     return {
         "user_id": u["user_id"],
         "display_name": u.get("display_name", "Athlete"),
@@ -220,6 +256,9 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
         "founder_number": fs["founder_number"],
         "prs": prs,
         "total_lift": sum(prs.values()),
+        "gym": gr["gym"],
+        "gym_rank": gr["rank"],
+        "gym_members": gr["members"],
         "workouts_logged": u.get("workouts_logged", 0),
         "badges_count": len(u.get("badges", []) or []),
         "loadout": _clean_loadout(u),

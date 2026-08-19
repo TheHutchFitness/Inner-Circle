@@ -54,6 +54,11 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
               <Text style={[styles.name, m.founder_backer && { color: colors.warning }]}>{m.display_name}</Text>
               <Text style={[styles.rank, { color: rankColor }]}>{m.rank?.toUpperCase()} · LV {m.level}</Text>
               {!!loadoutTitle(m.loadout) && <Text style={styles.mtitle}>❰ {loadoutTitle(m.loadout)} ❱</Text>}
+              {!!m.gym && m.gym_rank > 0 && (
+                <View style={[styles.gymRibbon, m.gym_rank === 1 && styles.gymRibbonTop]}>
+                  <Text style={[styles.gymRibbonText, m.gym_rank === 1 && { color: colors.warning }]}>{m.gym_rank === 1 ? "🏆 " : ""}#{m.gym_rank} @ {m.gym}</Text>
+                </View>
+              )}
               {(m.equipped_skin || m.equipped_weapon || user?.equipped_skin || user?.equipped_weapon) && !isMe && (
                 <View style={styles.cmp}>
                   <Text style={styles.cmpHead}>LOADOUT COMPARE</Text>
@@ -165,6 +170,9 @@ const styles = StyleSheet.create({
   bSkoolText: { color: "#002200", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   prGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.lg, width: "100%" },
   big4Band: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginTop: spacing.lg, paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  gymRibbon: { marginTop: 6, paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface3 },
+  gymRibbonTop: { borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.1)" },
+  gymRibbonText: { color: colors.textMid, fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
   big4Label: { color: colors.text, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   big4Value: { color: colors.brandPrimary, fontWeight: "900", fontSize: 20, fontVariant: ["tabular-nums"] },
   big4Unit: { color: colors.textDim, fontSize: 11, fontWeight: "800" },
