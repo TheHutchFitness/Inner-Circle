@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from "react-native-reanimated";
@@ -80,7 +80,17 @@ export default function Leaderboards() {
   const [memberId, setMemberId] = useState<string | null>(null);
   const [popFilter, setPopFilter] = useState<"all" | "enhanced" | "natural">("all");
   const [gymScope, setGymScope] = useState(false);
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const [roster, setRoster] = useState<any[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
   const myGym = (user?.inperson_gym || "").trim();
+
+  const openRoster = async () => {
+    setRosterOpen(true); setRosterLoading(true);
+    try { setRoster(await apiFetch(token, `/api/leaderboard/strength?gym=${encodeURIComponent(myGym)}`)); }
+    catch { setRoster([]); }
+    setRosterLoading(false);
+  };
   const [seasonView, setSeasonView] = useState<"live" | "history">("live");
   const [champs, setChamps] = useState<any[]>([]);
   const [champsLoading, setChampsLoading] = useState(false);
@@ -178,6 +188,11 @@ export default function Leaderboards() {
               <Text style={[styles.scopeText, gymScope && styles.scopeTextActive]} numberOfLines={1}>🏋 {myGym.toUpperCase()}</Text>
             </Pressable>
           </View>
+        )}
+        {!!myGym && gymScope && (
+          <Pressable testID="open-roster" onPress={openRoster} style={styles.rosterBtn}>
+            <Text style={styles.rosterBtnText}>👥 VIEW FULL {myGym.toUpperCase()} ROSTER</Text>
+          </Pressable>
         )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {BOARDS.map((b) => (
@@ -277,6 +292,7 @@ export default function Leaderboards() {
                   </View>
                   <Text style={styles.podiumMetric}>{p.metric}</Text>
                   <Text style={styles.podiumMetricLabel}>{p.metric_label}</Text>
+                  {mode === "strength" && board !== "strength" && !!p.total_lift && <Text style={styles.podiumTotal}>Σ {p.total_lift} lb</Text>}
                 </Pressable>
               );
             })}
@@ -309,6 +325,35 @@ export default function Leaderboards() {
       )}
     </ScrollView>
     <MemberSheet userId={memberId} visible={!!memberId} onClose={() => setMemberId(null)} />
+    <Modal visible={rosterOpen} transparent animationType="slide" onRequestClose={() => setRosterOpen(false)}>
+      <View style={styles.rosterOverlay}>
+        <View style={styles.rosterSheet}>
+          <View style={styles.rosterHead}>
+            <Text style={styles.rosterTitle}>🏋 {myGym.toUpperCase()} ROSTER</Text>
+            <Pressable testID="roster-close" onPress={() => setRosterOpen(false)}><Text style={styles.rosterClose}>✕</Text></Pressable>
+          </View>
+          {rosterLoading ? (
+            <ActivityIndicator color={colors.brandPrimary} style={{ marginVertical: 30 }} />
+          ) : roster.length === 0 ? (
+            <Text style={styles.emptyBoard}>No athletes at this gym yet.</Text>
+          ) : (
+            <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }}>
+              {roster.map((r, i) => (
+                <Pressable key={r.user_id} testID={`roster-${i}`} onPress={() => { setRosterOpen(false); setMemberId(r.user_id); }} style={styles.row}>
+                  <Text style={styles.rowRank}>#{i + 1}</Text>
+                  <View style={{ marginRight: 4 }}><PlayerAvatar person={r} token={token} size={34} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.rowName, r.founder_backer && { color: colors.warning }]} numberOfLines={1}>{r.display_name}</Text>
+                    <Text style={[styles.rowSub, { color: RANK_COLORS[r.rank] }]}>{r.rank}</Text>
+                  </View>
+                  <Text style={styles.rowMetric}>{r.total_lift} lb</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
     </View>
     </SwipeTabs>
   );
@@ -373,6 +418,14 @@ const styles = StyleSheet.create({
   backerPillText: { color: colors.warning, fontSize: 7, fontWeight: "900", letterSpacing: 1 },
   podiumMetric: { color: colors.text, fontWeight: "900", fontSize: 18, marginTop: 4 },
   podiumMetricLabel: { color: colors.textDim, fontSize: 9, letterSpacing: 1 },
+  podiumTotal: { color: colors.brandPrimary, fontSize: 9, fontWeight: "800", marginTop: 2, fontVariant: ["tabular-nums"] },
+  rosterBtn: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, paddingVertical: 10, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
+  rosterBtnText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
+  rosterOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
+  rosterSheet: { maxHeight: "82%", backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, borderTopWidth: 1, borderColor: colors.borderStrong },
+  rosterHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
+  rosterTitle: { color: colors.brandPrimary, fontWeight: "900", fontSize: 15, letterSpacing: 1 },
+  rosterClose: { color: colors.textDim, fontSize: 20, fontWeight: "900", paddingHorizontal: 8 },
   listWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   rowMe: { backgroundColor: colors.brandTertiary, paddingHorizontal: spacing.md, borderRadius: radius.sm, marginVertical: 2, borderBottomWidth: 0 },
