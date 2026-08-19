@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from "react-native";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
@@ -13,6 +13,8 @@ export default function Community() {
   const { user } = useAuth();
   const { isSubscribed } = useSubscription();
   const router = useRouter();
+  const [room, setRoom] = useState<"main" | "gym">("main");
+  const gym = (user?.inperson_gym || "").trim();
 
   // Lite mode has no chatrooms — bounce back home if somehow reached.
   useEffect(() => {
@@ -20,7 +22,7 @@ export default function Community() {
   }, [user?.lite_mode]);
   if (user?.lite_mode) return null;
 
-  const canChat = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
+  const canChat = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder || user?.inperson_client;
 
   if (!canChat) {
     return (
@@ -44,12 +46,23 @@ export default function Community() {
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.lg }}>
         <Text style={styles.eyebrow}>▚ THE CIRCLE //</Text>
         <Text style={styles.h1}>SOCIAL HUB</Text>
+        {!!gym && (
+          <View style={styles.roomTabs}>
+            <Pressable testID="chat-room-main" onPress={() => setRoom("main")} style={[styles.roomTab, room === "main" && styles.roomTabOn]}>
+              <Text style={[styles.roomTabText, room === "main" && styles.roomTabTextOn]}>◍ THE CIRCLE</Text>
+            </Pressable>
+            <Pressable testID="chat-room-gym" onPress={() => setRoom("gym")} style={[styles.roomTab, room === "gym" && styles.roomTabOn]}>
+              <Text style={[styles.roomTabText, room === "gym" && styles.roomTabTextOn]} numberOfLines={1}>🏋 {gym.toUpperCase()}</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
       <ChatRoom
-        room="main"
-        accent={colors.brandPrimary}
-        sendTextColor="#001122"
-        placeholder="Drop a PR, ask a question..."
+        key={room}
+        room={room}
+        accent={room === "gym" ? colors.success : colors.brandPrimary}
+        sendTextColor={room === "gym" ? "#001a10" : "#001122"}
+        placeholder={room === "gym" ? `Talk with your ${gym} crew...` : "Drop a PR, ask a question..."}
         highlightMine
       />
     </KeyboardAvoidingView>
@@ -62,6 +75,11 @@ const styles = StyleSheet.create({
   enhancedBtn: { marginTop: spacing.sm, marginBottom: spacing.sm, borderWidth: 1, borderColor: "#FF2A3C", borderRadius: radius.sm, paddingVertical: 8, alignItems: "center", backgroundColor: "rgba(255,42,60,0.08)" },
   enhancedBtnText: { color: "#FF2A3C", fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: spacing.md },
+  roomTabs: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  roomTab: { flex: 1, paddingVertical: 9, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  roomTabOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  roomTabText: { color: colors.textDim, fontWeight: "900", letterSpacing: 1, fontSize: 11 },
+  roomTabTextOn: { color: colors.brandPrimary },
   gate: { flex: 1, backgroundColor: colors.surface, padding: spacing.xl, alignItems: "center", justifyContent: "flex-start" },
   gateTitle: { color: colors.error, fontSize: 28, fontWeight: "900", letterSpacing: 3, marginTop: spacing.sm },
   gateSub: { color: colors.textDim, textAlign: "center", marginTop: spacing.md, lineHeight: 20 },

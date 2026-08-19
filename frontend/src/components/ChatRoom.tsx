@@ -17,7 +17,7 @@ function ChatVideo({ uri }: { uri: string }) {
 }
 
 export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, highlightMine, bottomInset = 0 }: {
-  room: "main" | "the_room";
+  room: "main" | "the_room" | "gym";
   accent: string;
   sendTextColor: string;
   placeholder: string;

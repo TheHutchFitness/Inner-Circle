@@ -107,10 +107,12 @@ async def inperson_clients(user=Depends(get_current_user)):
         brief["checkin_due"] = await _checkin_due(cid)
         brief["checkin_streak"] = await _checkin_streak(cid)
         brief["sessions_this_month"] = await _sessions_this_month(cid)
+        brief["pending_requests"] = await db.inperson_bookings.count_documents({"client_id": cid, "status": "pending"})
         out.append(brief)
     # Most recent activity first, then float overdue check-ins to the very top
     out.sort(key=lambda x: (x["last_message"]["created_at"] if x["last_message"] else ""), reverse=True)
     out.sort(key=lambda x: 0 if x["checkin_due"] else 1)
+    out.sort(key=lambda x: 0 if x.get("pending_requests") else 1)
     return out
 
 
@@ -569,12 +571,13 @@ async def inperson_unread(user=Depends(get_current_user)):
     if _is_admin(user):
         n = await db.inperson_messages.count_documents(
             {"sender_role": "client", "read_by_admin": {"$ne": True}})
-        return {"unread": n, "role": "admin"}
+        reqs = await db.inperson_bookings.count_documents({"status": "pending"})
+        return {"unread": n, "pending_requests": reqs, "role": "admin"}
     if user.get("inperson_client"):
         n = await db.inperson_messages.count_documents(
             {"client_id": user["user_id"], "sender_role": "admin", "read_by_client": {"$ne": True}})
-        return {"unread": n, "role": "client"}
-    return {"unread": 0, "role": "none"}
+        return {"unread": n, "pending_requests": 0, "role": "client"}
+    return {"unread": 0, "pending_requests": 0, "role": "none"}
 
 
 # ---------- Session bookings (client requests a date/time, coach approves) ----------
@@ -692,4 +695,37 @@ async def inperson_booking_cancel(booking_id: str, user=Depends(get_current_user
         raise HTTPException(status_code=403, detail="Not allowed")
     who = "Coach" if _is_admin(user) else "Client"
     return await _set_booking_status(booking_id, "cancelled", user, f"🚫 Session cancelled by {who} · {b['date']} at {b['time']}")
+
+
+@api_router.post("/inperson/booking/{booking_id}/reschedule")
+async def inperson_booking_reschedule(booking_id: str, inp: SessionRequestIn, user=Depends(get_current_user)):
+    """Client (or admin) proposes a new date/time — resets the booking to pending."""
+    b = await db.inperson_bookings.find_one({"id": booking_id})
+    if not b:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if not (_is_admin(user) or b["client_id"] == user["user_id"]):
+        raise HTTPException(status_code=403, detail="Not allowed")
+    date = (inp.date or "").strip()[:10]
+    time = (inp.time or "").strip()[:5]
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        raise HTTPException(status_code=400, detail="Pick a valid date")
+    if not re.match(r"^\d{2}:\d{2}$", time):
+        raise HTTPException(status_code=400, detail="Pick a time slot")
+    try:
+        appt_at = _compute_appt_at(date, time, inp.tz_offset_minutes)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date or time")
+    await db.inperson_bookings.update_one({"id": booking_id}, {"$set": {
+        "date": date, "time": time, "appt_at": appt_at, "status": "pending",
+        "reminder_24_sent": False, "reminder_1_sent": False,
+    }})
+    who = "Coach" if _is_admin(user) else "Client"
+    role = "admin" if _is_admin(user) else "client"
+    await db.inperson_messages.insert_one({
+        "id": new_id("ipm"), "client_id": b["client_id"], "sender_id": user["user_id"], "sender_role": role,
+        "kind": "booking", "text": f"🔄 {who} proposed a new time · {date} at {time}", "booking_id": booking_id,
+        "created_at": datetime.now(timezone.utc), "read_by_admin": role == "admin", "read_by_client": role == "client",
+    })
+    fresh = await db.inperson_bookings.find_one({"id": booking_id}, {"_id": 0})
+    return _booking_public(fresh)
 

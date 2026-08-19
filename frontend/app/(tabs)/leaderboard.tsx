@@ -34,6 +34,9 @@ function HeroSweep() {
 const BOARDS = [
   { key: "xp", label: "LEVEL", desc: "Overall Level" },
   { key: "strength", label: "STRENGTH", desc: "Absolute Big 4" },
+  { key: "squat", label: "🏋 SQUAT", desc: "Squat PR" },
+  { key: "bench", label: "🏋 BENCH", desc: "Bench PR" },
+  { key: "deadlift", label: "🏋 DEADLIFT", desc: "Deadlift PR" },
   { key: "ratio", label: "BW RATIO", desc: "Total / Bodyweight" },
   { key: "season", label: "🔥 SEASON", desc: "Bosses beaten this season · vaults soon" },
 ];

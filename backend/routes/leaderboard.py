@@ -27,6 +27,13 @@ async def leaderboard(board_type: str, filter: str = "all", user=Depends(get_cur
     elif board_type == "ratio":
         users.sort(key=lambda x: x["ratio"], reverse=True)
         for u in users: u["metric"] = u["ratio"]; u["metric_label"] = "BW Ratio"
+    elif board_type in ("squat", "bench", "deadlift", "ohp"):
+        # Individual compound-lift boards (by PR)
+        for u in users:
+            u["metric"] = u.get("prs", {}).get(board_type, 0) or 0
+            u["metric_label"] = f"{board_type.upper()} (lb)"
+        users = [u for u in users if u["metric"] > 0]
+        users.sort(key=lambda x: x["metric"], reverse=True)
     elif board_type == "season":
         # Bosses defeated during the current season (calendar quarter)
         now = datetime.now(timezone.utc)

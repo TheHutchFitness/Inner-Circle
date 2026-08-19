@@ -44,6 +44,7 @@ export default function Profile() {
   const [gyms, setGyms] = useState<string[]>([]);
   const [gymEditing, setGymEditing] = useState(false);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [bookings, setBookings] = useState<any[]>([]);
   const cardRef = useRef<View>(null);
 
@@ -393,18 +394,27 @@ export default function Profile() {
 
         {user.inperson_client && (
           <>
-            <Pressable testID="profile-request-session" onPress={() => setBookingOpen(true)} style={styles.sessionBtn}>
+            <Pressable testID="profile-request-session" onPress={() => { setRescheduleId(null); setBookingOpen(true); }} style={styles.sessionBtn}>
               <Text style={styles.sessionBtnText}>📅 REQUEST A TRAINING SESSION</Text>
             </Pressable>
             {bookings.filter((b) => b.status === "approved" || b.status === "pending").length > 0 && (
               <View style={styles.bookingList}>
                 {bookings.filter((b) => b.status === "approved" || b.status === "pending").slice(0, 5).map((b) => (
-                  <View key={b.id} style={styles.bookingRow}>
-                    <Text style={styles.bookingDate}>{b.date} · {b.time}</Text>
+                  <Pressable
+                    key={b.id}
+                    testID={`profile-booking-${b.id}`}
+                    disabled={b.status !== "approved"}
+                    onPress={() => { setRescheduleId(b.id); setBookingOpen(true); }}
+                    style={styles.bookingRow}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.bookingDate}>{b.date} · {b.time}</Text>
+                      {b.status === "approved" && <Text style={styles.bookingHint}>tap to reschedule</Text>}
+                    </View>
                     <View style={[styles.bookingPill, b.status === "approved" ? styles.bookingApproved : styles.bookingPending]}>
                       <Text style={[styles.bookingPillText, { color: b.status === "approved" ? colors.success : colors.warning }]}>{b.status === "approved" ? "✓ CONFIRMED" : "PENDING"}</Text>
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             )}
@@ -510,7 +520,7 @@ export default function Profile() {
         </View>
       </Modal>
     </ScrollView>
-    <BookingModal visible={bookingOpen} onClose={() => setBookingOpen(false)} onBooked={loadBookings} />
+    <BookingModal visible={bookingOpen} onClose={() => setBookingOpen(false)} onBooked={loadBookings} rescheduleId={rescheduleId} />
     </View>
     </SwipeTabs>
   );
@@ -665,6 +675,7 @@ const styles = StyleSheet.create({
   bookingList: { marginTop: spacing.md, gap: spacing.sm },
   bookingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
   bookingDate: { color: colors.text, fontWeight: "800", fontSize: 13 },
+  bookingHint: { color: colors.textDim, fontSize: 10, marginTop: 2 },
   bookingPill: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1 },
   bookingApproved: { borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.08)" },
   bookingPending: { borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.08)" },

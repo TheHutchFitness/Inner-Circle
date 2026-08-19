@@ -5,11 +5,17 @@ from shared import *  # noqa: F401,F403
 # ---------- Chat ----------
 @api_router.get("/chat/{room}/messages")
 async def get_messages(room: str, user=Depends(get_current_user)):
-    if room not in ("main", "the_room"):
+    if room not in ("main", "the_room", "gym"):
         raise HTTPException(status_code=400, detail="Invalid room")
     if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak") and not user.get("all_rooms_access"):
         raise HTTPException(status_code=403, detail="The Room requires Elite rank")
-    rows = await db.chat_messages.find({"room": room}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
+    store_room = room
+    if room == "gym":
+        gym = (user.get("inperson_gym") or "").strip()
+        if not gym:
+            raise HTTPException(status_code=403, detail="Set your gym in Profile to join its chat")
+        store_room = f"gym:{gym.lower()}"
+    rows = await db.chat_messages.find({"room": store_room}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
     rows.reverse()
     # Backer status can change after a message is posted — reflect current status on read
     sender_ids = list({r.get("user_id") for r in rows if r.get("user_id")})
@@ -55,7 +61,7 @@ async def get_messages(room: str, user=Depends(get_current_user)):
 
 @api_router.post("/chat/{room}/messages")
 async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_user)):
-    if room not in ("main", "the_room"):
+    if room not in ("main", "the_room", "gym"):
         raise HTTPException(status_code=400, detail="Invalid room")
     b = ban_state(user)
     if b and b["scope"] in ("chat", "all"):
@@ -63,6 +69,12 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         raise HTTPException(status_code=403, detail=f"You're muted in chat until {until}." + (f" Reason: {b['reason']}" if b['reason'] else ""))
     if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak") and not user.get("all_rooms_access"):
         raise HTTPException(status_code=403, detail="The Room requires Elite rank")
+    store_room = room
+    if room == "gym":
+        gym = (user.get("inperson_gym") or "").strip()
+        if not gym:
+            raise HTTPException(status_code=403, detail="Set your gym in Profile to join its chat")
+        store_room = f"gym:{gym.lower()}"
     text = (inp.text or "").strip()
     media = None
     if inp.media_id:
@@ -73,7 +85,7 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         raise HTTPException(status_code=400, detail="Message is empty")
     msg = {
         "message_id": new_id("msg"),
-        "room": room,
+        "room": store_room,
         "user_id": user["user_id"],
         "display_name": user.get("display_name", "Athlete"),
         "avatar_id": user.get("avatar_id", "avatar_white"),

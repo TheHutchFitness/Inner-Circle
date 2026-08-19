@@ -129,6 +129,7 @@ export default function InPersonRoom() {
   const [notesSaved, setNotesSaved] = useState(false);
   const [bookings, setBookings] = useState<any[]>([]);
   const [bookingOpen, setBookingOpen] = useState(false);
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
@@ -375,6 +376,7 @@ export default function InPersonRoom() {
                     <Text style={styles.monthChip}>📅 {c.sessions_this_month || 0} this month</Text>
                     {(c.checkin_streak || 0) > 0 && <Text style={styles.streakMini}>🔥 {c.checkin_streak}w</Text>}
                     {c.checkin_due && <Text style={styles.dueChip}>⚠ CHECK-IN DUE</Text>}
+                    {(c.pending_requests || 0) > 0 && <Text style={styles.reqChip}>📅 {c.pending_requests} REQUEST{c.pending_requests === 1 ? "" : "S"}</Text>}
                   </View>
                 </View>
                 {c.unread > 0 && <View style={styles.badge}><Text style={styles.badgeText}>{c.unread}</Text></View>}
@@ -433,7 +435,7 @@ export default function InPersonRoom() {
               style={styles.sessionsCal}
             />
             {!isAdmin && (
-              <Pressable testID="ip-request-session" onPress={() => setBookingOpen(true)} style={styles.sessionReqBtn}>
+              <Pressable testID="ip-request-session" onPress={() => { setRescheduleId(null); setBookingOpen(true); }} style={styles.sessionReqBtn}>
                 <Text style={styles.sessionReqText}>📅 REQUEST A SESSION</Text>
               </Pressable>
             )}
@@ -455,9 +457,15 @@ export default function InPersonRoom() {
             {bookings.filter((b) => b.status === "approved").length > 0 && (
               <View style={{ marginTop: spacing.sm }}>
                 {bookings.filter((b) => b.status === "approved").map((b) => (
-                  <View key={b.id} style={styles.apprvRow}>
-                    <Text style={styles.apprvText}>✓ CONFIRMED · {b.date} at {b.time}</Text>
-                  </View>
+                  <Pressable
+                    key={b.id}
+                    testID={`ip-booking-${b.id}`}
+                    disabled={isAdmin}
+                    onPress={() => { setRescheduleId(b.id); setBookingOpen(true); }}
+                    style={styles.apprvRow}
+                  >
+                    <Text style={styles.apprvText}>✓ CONFIRMED · {b.date} at {b.time}{!isAdmin ? "  ·  tap to reschedule" : ""}</Text>
+                  </Pressable>
                 ))}
               </View>
             )}
@@ -725,7 +733,7 @@ export default function InPersonRoom() {
         />
       )}
       {!isAdmin && (
-        <BookingModal visible={bookingOpen} onClose={() => setBookingOpen(false)} onBooked={() => selected && loadThread(selected)} />
+        <BookingModal visible={bookingOpen} onClose={() => setBookingOpen(false)} onBooked={() => selected && loadThread(selected)} rescheduleId={rescheduleId} />
       )}
     </KeyboardAvoidingView>
   );
@@ -867,6 +875,7 @@ const styles = StyleSheet.create({
   clientMetaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
   monthChip: { color: colors.textMid, fontSize: 10, fontWeight: "800" },
   dueChip: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 0.5, borderWidth: 1, borderColor: colors.warning, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: "rgba(255,214,0,0.08)" },
+  reqChip: { color: colors.error, fontSize: 10, fontWeight: "900", letterSpacing: 0.5, borderWidth: 1, borderColor: colors.error, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 2, backgroundColor: "rgba(255,60,80,0.1)" },
   badge: { minWidth: 22, height: 22, borderRadius: 11, backgroundColor: colors.error, alignItems: "center", justifyContent: "center", paddingHorizontal: 6, marginRight: 6 },
   badgeText: { color: "#fff", fontWeight: "900", fontSize: 11 },
   chevron: { color: colors.textDim, fontSize: 22 },

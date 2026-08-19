@@ -22,7 +22,7 @@ function todayStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function BookingModal({ visible, onClose, onBooked }: { visible: boolean; onClose: () => void; onBooked?: () => void }) {
+export function BookingModal({ visible, onClose, onBooked, rescheduleId }: { visible: boolean; onClose: () => void; onBooked?: () => void; rescheduleId?: string | null }) {
   const { token } = useAuth();
   const slots = useMemo(buildSlots, []);
   const [date, setDate] = useState<string>("");
@@ -39,7 +39,10 @@ export function BookingModal({ visible, onClose, onBooked }: { visible: boolean;
     if (!time) { setErr("Pick a time slot"); return; }
     setBusy(true); setErr(null);
     try {
-      await apiFetch(token, "/api/inperson/booking/request", {
+      const path = rescheduleId
+        ? `/api/inperson/booking/${rescheduleId}/reschedule`
+        : "/api/inperson/booking/request";
+      await apiFetch(token, path, {
         method: "POST",
         body: JSON.stringify({ date, time, note: note.trim(), tz_offset_minutes: new Date().getTimezoneOffset() }),
       });
@@ -60,7 +63,7 @@ export function BookingModal({ visible, onClose, onBooked }: { visible: boolean;
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.headRow}>
-            <Text style={styles.title}>REQUEST A SESSION</Text>
+            <Text style={styles.title}>{rescheduleId ? "RESCHEDULE SESSION" : "REQUEST A SESSION"}</Text>
             <Pressable testID="booking-close" onPress={close}><Text style={styles.close}>✕</Text></Pressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.lg }}>
@@ -106,7 +109,7 @@ export function BookingModal({ visible, onClose, onBooked }: { visible: boolean;
             {err && <Text style={styles.err}>{err}</Text>}
 
             <Pressable testID="booking-submit" onPress={submit} disabled={busy} style={styles.submitBtn}>
-              {busy ? <ActivityIndicator color="#001122" /> : <Text style={styles.submitText}>SEND REQUEST TO COACH</Text>}
+              {busy ? <ActivityIndicator color="#001122" /> : <Text style={styles.submitText}>{rescheduleId ? "PROPOSE NEW TIME" : "SEND REQUEST TO COACH"}</Text>}
             </Pressable>
           </ScrollView>
         </View>

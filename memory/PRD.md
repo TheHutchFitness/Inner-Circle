@@ -434,3 +434,24 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
   - RankUpCelebration.tsx: wrapped the rank-ascension card in a capture ref; added a "📢 SHARE TO STORY" button (rank-colored) above CONTINUE. Card already shows the new rank + unlocked background + HUTCHS INNER CIRCLE brand.
   - journey.tsx Reward modal: boss victories now titled "☠ BOSS DEFEATED ☠"; wrapped the reward/loot card (with a HUTCHS INNER CIRCLE brand line) in a capture ref + a "📢 SHARE TO STORY" button (shown for boss + loot drops), alongside EQUIP NOW / CONTINUE.
 - tsc clean; app loads without crash. Share sheet works on real device / Expo Go (not web preview).
+
+## 2026-06 Session — Gym, Lite/Full mode, Booking, Chat & Leaderboards (fork)
+### Gym Association (frontend on existing backend)
+- Signup gym typeahead (input-gym + chips) + "I train in-person & want coaching" checkbox (needs gym).
+- Profile MY GYM: edit gym; request in-person coaching (needs gym). Admin approves via /admin (reqBanner) + /api/admin/inperson.
+- GymWatermark component (faint bg text + header badge) on home/profile/quests/leaderboard. GET /api/gyms is public.
+### Lite / Full app mode
+- First-login AppModeIntro (pick-lite/pick-full); lite_mode+mode_selected on user; PATCH /api/profile/update {lite_mode}.
+- Lite hides: SOCIAL tab, STORE, THE JUDGE, THE ROOM, THE ENHANCED, Armory, Inventory, cosmetics, paywall, THE JOURNEY (quests). Switchable anytime in Profile → APP MODE. src/lib/mode.ts helper. ModeGate in _layout.
+### In-Person Session Booking
+- Approved clients only: "Request a Session" in Profile + In-Person Room. BookingModal = react-native-calendars + half-hourly slots.
+- Backend inperson.py: POST /booking/request, GET /bookings, POST /booking/{id}/approve|decline|cancel|reschedule. appt_at UTC via tz_offset.
+- Reschedule: client/admin tap CONFIRMED session -> pending with new date/time (rescheduleId on BookingModal).
+- Coach badge: /inperson/unread pending_requests (admin); /inperson/clients pending_requests per client (reqChip); home CTA badge sums it.
+- Reminders: shared.py _booking_reminder_loop sends push 24h/1h before appt to client+coach via Emergent push (send_push). routes/push.py /register-push. src/lib/push.tsx (PushManager + handlers). app.json: expo-notifications plugin + android.googleServicesFile. EMERGENT_PUSH_KEY=placeholder (deploy-time). USER MUST add google-services.json before Android build; push only works after deploy+build.
+### Gym Group Chat
+- /api/chat/gym/messages resolves room "gym:<gym.lower()>" from user's inperson_gym (403 if none). community.tsx room toggle (chat-room-main/chat-room-gym). in-person clients bypass the chat paywall.
+### Compound Lift Leaderboards
+- /api/leaderboard/{squat|bench|deadlift|ohp} by PR. leaderboard.tsx BOARDS adds SQUAT/BENCH/DEADLIFT chips.
+### Tests
+- Backend pytest: iter23 (lite/gym 14/14), iter24 (booking 16/16), iter25 (chat/boards/reschedule 17/17) — all pass.

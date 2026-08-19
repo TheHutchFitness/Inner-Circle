@@ -70,7 +70,7 @@ export default function Dashboard() {
     (async () => {
       try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
       try { const h = await apiFetch(token, "/api/leaderboard/season/history"); setChampion((h || [])[0] || null); } catch {}
-      try { setIpUnread((await apiFetch(token, "/api/inperson/unread")).unread || 0); } catch {}
+      try { const ipu = await apiFetch(token, "/api/inperson/unread"); setIpUnread((ipu.unread || 0) + (ipu.pending_requests || 0)); } catch {}
     })();
   }, [token]);
 
