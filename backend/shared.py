@@ -1602,15 +1602,20 @@ ADMIN_BADGE_OPTIONS = [
 
 async def seed():
     # Ensure the creator/admin account exists with full access (persists across restarts).
-    # It signs in via Google (no password); this guarantees it's present + admin even
-    # before first login, and is excluded from founder counts + leaderboards.
+    # It can sign in with Google OR email/password; a default password is seeded only when
+    # missing (so a changed password is never clobbered). Excluded from founder counts + boards.
+    OWNER_DEFAULT_PASSWORD = os.environ.get("OWNER_DEFAULT_PASSWORD", "HutchAdmin2026!")
     for oemail in OWNER_EMAILS:
         existing = await db.users.find_one({"email": oemail})
         if existing:
-            await db.users.update_one({"email": oemail}, {"$set": OWNER_ADMIN_SET})
+            upd = dict(OWNER_ADMIN_SET)
+            if not existing.get("password_hash"):
+                upd["password_hash"] = hash_password(OWNER_DEFAULT_PASSWORD)
+            await db.users.update_one({"email": oemail}, {"$set": upd})
         else:
             doc = default_user_doc(oemail, "The Hutch")
             doc.update(OWNER_ADMIN_SET)
+            doc["password_hash"] = hash_password(OWNER_DEFAULT_PASSWORD)
             await db.users.insert_one(doc)
     # Indexes
     await db.users.create_index("email", unique=True)
