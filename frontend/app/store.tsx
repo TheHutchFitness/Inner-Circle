@@ -61,6 +61,10 @@ export default function Store() {
         <Text style={st.h1}>THE VAULT</Text>
         <Text style={st.sub}>Exclusive cosmetics — ${1} each. This month only. When {monthLabel} ends, they're gone forever.</Text>
 
+        <Pressable testID="store-open-armory" onPress={() => router.push("/gear")} style={st.armoryBtn}>
+          <Text style={st.armoryText}>⚔ THE ARMORY — HERO SKINS & WEAPONS →</Text>
+        </Pressable>
+
         <View style={st.tabRow}>
           <Pressable testID="store-tab-drop" onPress={() => setTab("drop")} style={[st.tab, tab === "drop" && st.tabOn]}><Text style={[st.tabText, tab === "drop" && st.tabTextOn]}>{monthLabel.toUpperCase()} DROP</Text></Pressable>
           <Pressable testID="store-tab-collection" onPress={() => setTab("collection")} style={[st.tab, tab === "collection" && st.tabOn]}><Text style={[st.tabText, tab === "collection" && st.tabTextOn]}>MY VAULT ({data?.collection?.length ?? 0})</Text></Pressable>
@@ -120,4 +124,6 @@ const st = StyleSheet.create({
   btnText: { fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   msg: { color: colors.success, textAlign: "center", marginTop: spacing.md, fontWeight: "700" },
   finePrint: { color: colors.textDim, fontSize: 10, textAlign: "center", marginTop: spacing.lg, lineHeight: 14 },
+  armoryBtn: { padding: spacing.md, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.08)", marginBottom: spacing.md },
+  armoryText: { color: colors.warning, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
 });

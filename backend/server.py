@@ -12,6 +12,7 @@ from routes import (  # noqa: F401
     coach,
     enhanced,
     exercises,
+    gear,
     judge,
     leaderboard,
     misc,

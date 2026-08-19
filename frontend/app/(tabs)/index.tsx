@@ -6,10 +6,11 @@ import { useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage, avatarImage, rankIndex } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage, avatarImage, rankIndex, bodyImage } from "@/src/lib/theme";
 import { HudSectionHeader, HudFrame } from "@/src/components/Hud";
 import { MemberSheet } from "@/src/components/MemberSheet";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
+import { GearedAvatar } from "@/src/components/GearedAvatar";
 
 function nextRankInfo(xp: number) {
   const thresholds = [
@@ -102,8 +103,8 @@ export default function Dashboard() {
       <LinearGradient colors={[colors.brandTertiary, colors.surface2]} start={{x:0,y:0}} end={{x:1,y:1}} style={styles.heroCard}>
         <View style={styles.heroRow}>
           <View style={[styles.avatarBox, { borderColor: rankColor }]}>
-            {avatarImage(user.avatar_id, user.sex) ? (
-              <Image source={avatarImage(user.avatar_id, user.sex)} style={styles.avatarImg} contentFit="cover" />
+            {bodyImage(user) ? (
+              <GearedAvatar person={user} style={styles.avatarImg} contentFit="cover" />
             ) : (
               <Text style={styles.avatarEmoji}>{avatar.emoji}</Text>
             )}

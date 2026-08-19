@@ -7,9 +7,10 @@ import Svg, { Polyline, Circle } from "react-native-svg";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay, withRepeat, Easing, runOnJS } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius } from "@/src/lib/theme";
+import { colors, spacing, radius, bodyImage } from "@/src/lib/theme";
 import { HeroSprite } from "@/src/components/HeroSprite";
 import { PetCompanion } from "@/src/components/PetCompanion";
+import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { initSfx, playSfx, isSfxEnabled, setSfxEnabled, startZoneMusic, stopMusic } from "@/src/lib/sfx";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -486,7 +487,11 @@ export default function Journey() {
           {/* hero */}
           <View style={[styles.hero, { left: nodeX(heroIndex) - 24, top: nodeY(heroIndex) - 78 }]}>
             <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
-              <HeroSprite size={52} color={accent} facing={1} />
+              {bodyImage(user) ? (
+                <GearedAvatar person={user} style={{ width: 54, height: 78 }} contentFit="contain" />
+              ) : (
+                <HeroSprite size={52} color={accent} facing={1} />
+              )}
               {user?.equipped_pet && <PetCompanion pet={user.equipped_pet} size={26} />}
             </View>
             <View style={[styles.heroTag, { borderColor: accent }]}><Text style={styles.heroTagText}>YOU · Lv{data?.me?.level}</Text></View>

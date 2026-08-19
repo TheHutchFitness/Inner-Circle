@@ -132,6 +132,59 @@ export function hasAvatarArt(id?: string) {
   return !!AVATAR_IMAGES[id || ""];
 }
 
+// ---- Full-body equippable SKINS (swap the whole avatar) ----
+export const SKIN_IMAGES: Record<string, any> = {
+  skin_dragonknight: require("@/assets/images/skins/skin_dragonknight.png"),
+  skin_dbz: require("@/assets/images/skins/skin_dbz.png"),
+  skin_mecha: require("@/assets/images/skins/skin_mecha.png"),
+  skin_cod: require("@/assets/images/skins/skin_cod.png"),
+  skin_halo: require("@/assets/images/skins/skin_halo.png"),
+  skin_viking: require("@/assets/images/skins/skin_viking.png"),
+  skin_mercy: require("@/assets/images/skins/skin_mercy.png"),
+  skin_wsm: require("@/assets/images/skins/skin_wsm.png"),
+  skin_mk: require("@/assets/images/skins/skin_mk.png"),
+  skin_aot: require("@/assets/images/skins/skin_aot.png"),
+  skin_anime: require("@/assets/images/skins/skin_anime.png"),
+  skin_knight: require("@/assets/images/skins/skin_knight.png"),
+  skin_cyber: require("@/assets/images/skins/skin_cyber.png"),
+  skin_space: require("@/assets/images/skins/skin_space.png"),
+  skin_ancient: require("@/assets/images/skins/skin_ancient.png"),
+  skin_monk: require("@/assets/images/skins/skin_monk.png"),
+  skin_arcade: require("@/assets/images/skins/skin_arcade.png"),
+  skin_shadow: require("@/assets/images/skins/skin_shadow.png"),
+  skin_flame: require("@/assets/images/skins/skin_flame.png"),
+  skin_frost: require("@/assets/images/skins/skin_frost.png"),
+  skin_celestial: require("@/assets/images/skins/skin_celestial.png"),
+};
+
+// ---- Equippable WEAPONS (rendered as a prop beside the avatar) ----
+export const WEAPON_IMAGES: Record<string, any> = {
+  w_sword: require("@/assets/images/weapons/w_sword.png"),
+  w_bo: require("@/assets/images/weapons/w_bo.png"),
+  w_daggers: require("@/assets/images/weapons/w_daggers.png"),
+  w_bow: require("@/assets/images/weapons/w_bow.png"),
+  w_katana: require("@/assets/images/weapons/w_katana.png"),
+  w_plasma: require("@/assets/images/weapons/w_plasma.png"),
+  w_axe: require("@/assets/images/weapons/w_axe.png"),
+  w_glaive: require("@/assets/images/weapons/w_glaive.png"),
+  w_shadowblade: require("@/assets/images/weapons/w_shadowblade.png"),
+  w_soulscythe: require("@/assets/images/weapons/w_soulscythe.png"),
+  w_stormspear: require("@/assets/images/weapons/w_stormspear.png"),
+};
+
+export function skinImage(id?: string) {
+  return SKIN_IMAGES[id || ""] || null;
+}
+export function weaponImage(id?: string) {
+  return WEAPON_IMAGES[id || ""] || null;
+}
+// Resolve the body image for a person: equipped full-body skin overrides the base avatar.
+export function bodyImage(person?: { equipped_skin?: string; avatar_id?: string; sex?: string } | null) {
+  if (person?.equipped_skin && SKIN_IMAGES[person.equipped_skin]) return SKIN_IMAGES[person.equipped_skin];
+  return avatarImage(person?.avatar_id, person?.sex);
+}
+
+
 // Holographic card frames unlocked by rank (higher rank = fancier frame)
 export const CARD_FRAMES: Record<string, { name: string; colors: [string, string, string]; border: string; glow: string }> = {
   Beginner:     { name: "STEEL FRAME",     colors: ["#2A2F3A", "#0A0C12", "#050508"], border: "#3A4152", glow: "#4A5568" },

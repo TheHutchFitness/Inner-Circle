@@ -9,7 +9,7 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle, bodyImage } from "@/src/lib/theme";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { StrengthChart } from "@/src/components/StrengthChart";
 import { RadarChart } from "@/src/components/RadarChart";
@@ -19,6 +19,7 @@ import { NutritionCard } from "@/src/components/NutritionCard";
 import { SocialLinksEditor } from "@/src/components/SocialLinks";
 import { FoundingRibbon, CreatorBadge } from "@/src/components/Badges";
 import { PetCompanion } from "@/src/components/PetCompanion";
+import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"], ["OHP", "ohp"]];
@@ -112,8 +113,8 @@ export default function Profile() {
               <View style={[styles.portraitWrap, user.founder_backer && styles.portraitBacker]}>
                 {user.use_photo && user.photo_media_id ? (
                   <Image source={{ uri: `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${user.photo_media_id}?token=${token}` }} style={styles.portrait} contentFit="cover" />
-                ) : portrait ? (
-                  <Image source={portrait} style={styles.portrait} contentFit="cover" />
+                ) : (bodyImage(user)) ? (
+                  <GearedAvatar person={user} style={styles.portrait} contentFit="cover" />
                 ) : (
                   <View style={styles.portraitFallback}><Text style={styles.portraitEmoji}>{av.emoji}</Text></View>
                 )}
@@ -262,6 +263,9 @@ export default function Profile() {
 
       <Pressable testID="open-loadout" onPress={() => router.push("/loadout")} style={styles.linkBtn}>
         <Text style={styles.linkText}>◆ LOCKER — PHOTO, FRAMES & GEAR</Text>
+      </Pressable>
+      <Pressable testID="open-armory" onPress={() => router.push("/gear")} style={[styles.linkBtn, { borderColor: colors.warning }]}>
+        <Text style={[styles.linkText, { color: colors.warning }]}>⚔ THE ARMORY — SKINS & WEAPONS</Text>
       </Pressable>
       <Pressable testID="open-paywall-profile" onPress={() => router.push("/paywall")} style={styles.linkBtn}>
         <Text style={styles.linkText}>MANAGE PREMIUM</Text>
