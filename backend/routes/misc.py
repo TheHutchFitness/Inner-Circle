@@ -20,3 +20,17 @@ async def get_cosmetics(user=Depends(get_current_user)):
 @api_router.get("/")
 async def root():
     return {"ok": True, "app": "Hutch's Inner Circle"}
+
+
+
+@api_router.get("/legal/privacy")
+async def privacy_policy():
+    """Public privacy policy PDF (App Store / Play submission requirement)."""
+    path = f"{STORAGE_APP_NAME}/legal/privacy-policy.pdf"
+    try:
+        content = await storage_get(path)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Privacy policy not available")
+    return Response(content=content, media_type="application/pdf",
+                    headers={"Content-Disposition": "inline; filename=\"Hutchs-Inner-Circle-Privacy-Policy.pdf\"",
+                             "Cache-Control": "public, max-age=86400"})

@@ -27,6 +27,11 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.poweruparena.p5ck2j",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCalV45HxYHnH491C62HBPXF8Ey1AanxWs"
+        }
+      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",

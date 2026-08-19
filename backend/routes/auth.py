@@ -114,3 +114,36 @@ async def logout(authorization: Optional[str] = Header(None)):
         token = authorization.split(" ", 1)[1]
         await db.user_sessions.delete_one({"session_token": token})
     return {"ok": True}
+
+
+
+# Collections that store per-user data keyed by "user_id" — wiped on account deletion.
+_USER_DATA_COLLECTIONS = [
+    "workouts", "cardio", "sprints", "steps", "heart_rate", "nutrition_logs",
+    "monthly_programs", "ai_programs", "set_presets", "personal_quests", "quest_claims",
+    "ped_regimens", "custom_program_requests", "rival_challenges", "coach_messages",
+    "coach_plans", "coach_tts", "store_purchases", "verified_purchases",
+    "inperson_messages", "inperson_bookings", "inperson_attendance", "inperson_programs",
+    "judge_submissions", "judge_comments", "chat_messages", "featured_members",
+]
+
+
+@api_router.post("/auth/delete-account")
+async def delete_account(user=Depends(get_current_user)):
+    """Permanently delete the signed-in member's account and all associated data.
+    Required for App Store compliance. The owner account cannot be self-deleted."""
+    uid = user["user_id"]
+    if user.get("email", "").lower() in [e.lower() for e in OWNER_EMAILS]:
+        raise HTTPException(status_code=403, detail="The owner account cannot be deleted from the app.")
+    # Remove the user from any clans/groups they belong to.
+    await db.groups.update_many({}, {"$pull": {"members": uid, "pending": uid}})
+    # Wipe all per-user data across collections.
+    for coll in _USER_DATA_COLLECTIONS:
+        try:
+            await db[coll].delete_many({"user_id": uid})
+        except Exception as e:
+            logger.warning(f"delete-account: {coll} wipe failed for {uid}: {e}")
+    # Invalidate sessions and finally remove the user document.
+    await db.user_sessions.delete_many({"user_id": uid})
+    await db.users.delete_one({"user_id": uid})
+    return {"ok": True, "deleted": True}

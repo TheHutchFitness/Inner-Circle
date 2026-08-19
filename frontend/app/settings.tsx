@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
@@ -9,7 +9,7 @@ import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
 
 export default function Settings() {
   const insets = useSafeAreaInsets();
-  const { user, token, refresh } = useAuth();
+  const { user, token, refresh, signOut } = useAuth();
   const router = useRouter();
   const [name, setName] = useState(user?.display_name || "");
   const [bw, setBw] = useState(String(user?.bodyweight_lb || ""));
@@ -17,6 +17,18 @@ export default function Settings() {
   const [sex, setSex] = useState(user?.sex || "male");
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const deleteAccount = async () => {
+    if (confirmDelete.trim().toUpperCase() !== "DELETE" || deleting) return;
+    setDeleting(true);
+    try {
+      await apiFetch(token, "/api/auth/delete-account", { method: "POST" });
+      await signOut();
+      router.replace("/");
+    } catch (e: any) { setMsg(e.message || "Could not delete account"); setDeleting(false); }
+  };
 
   const save = async () => {
     try {
@@ -103,6 +115,45 @@ export default function Settings() {
           </>
         )}
 
+        <Text style={[styles.h1, { marginTop: spacing.xl }]}>LEGAL</Text>
+        <Pressable
+          testID="privacy-policy"
+          onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/legal/privacy`).catch(() => {})}
+          style={styles.linkBtn}
+        >
+          <Text style={styles.linkText}>📄  PRIVACY POLICY</Text>
+        </Pressable>
+
+        {!user?.is_admin && (
+          <>
+            <Text style={[styles.h1, { marginTop: spacing.xl }]}>DELETE ACCOUNT</Text>
+            <Text style={styles.helper}>
+              Permanently delete your account and all of your data (workouts, PRs, chats, coaching, purchases).
+              This cannot be undone. Type DELETE below to confirm.
+            </Text>
+            <TextInput
+              testID="delete-confirm-input"
+              value={confirmDelete}
+              onChangeText={setConfirmDelete}
+              placeholder="Type DELETE to confirm"
+              placeholderTextColor={colors.textDim}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={styles.input}
+            />
+            <Pressable
+              testID="delete-account"
+              onPress={deleteAccount}
+              disabled={confirmDelete.trim().toUpperCase() !== "DELETE" || deleting}
+              style={[styles.dangerBtn, (confirmDelete.trim().toUpperCase() !== "DELETE" || deleting) && styles.dangerBtnDisabled]}
+            >
+              <Text style={[styles.dangerText, (confirmDelete.trim().toUpperCase() !== "DELETE" || deleting) && styles.dangerTextDisabled]}>
+                {deleting ? "DELETING..." : "DELETE MY ACCOUNT"}
+              </Text>
+            </Pressable>
+          </>
+        )}
+
         {msg && <Text testID="settings-msg" style={styles.msg}>{msg}</Text>}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -128,4 +179,6 @@ const styles = StyleSheet.create({
   dangerBtnDisabled: { borderColor: colors.border, backgroundColor: colors.surface2 },
   dangerText: { color: colors.error, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
   dangerTextDisabled: { color: colors.textDim },
+  linkBtn: { paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  linkText: { color: colors.brandPrimary, fontWeight: "800", letterSpacing: 1, fontSize: 13 },
 });
