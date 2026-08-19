@@ -155,6 +155,12 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
     att_rows = await db.inperson_attendance.find({"client_id": cid}, {"_id": 0}).sort("date", -1).limit(30).to_list(30)
     attendance = [{"date": a["date"].isoformat() if hasattr(a.get("date"), "isoformat") else a.get("date"), "note": a.get("note", "")} for a in att_rows]
     checkin_due = await _checkin_due(cid)
+    # Progress-photo timeline (chronological) from check-in messages with an image
+    checkin_photos = [
+        {"media_id": m["media_id"], "date": m["created_at"].isoformat() if hasattr(m.get("created_at"), "isoformat") else m.get("created_at")}
+        for m in msgs if m.get("kind") == "checkin" and m.get("media_id") and m.get("media_type") == "image"
+    ]
+    cdoc = await db.users.find_one({"user_id": cid}, {"_id": 0, "inperson_notes": 1})
     return {
         "client": await _person_brief(cid),
         "messages": [_msg_public(m) for m in msgs],
@@ -165,7 +171,19 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         "attendance_count": len(attendance),
         "sessions_this_month": await _sessions_this_month(cid),
         "checkin_due": checkin_due,
+        "checkin_photos": checkin_photos,
+        "coach_notes": ((cdoc or {}).get("inperson_notes", "") or "") if _is_admin(user) else None,
     }
+
+
+@api_router.post("/inperson/thread/{client_id}/notes")
+async def inperson_notes(client_id: str, payload: dict, user=Depends(get_current_user)):
+    """Private coach-only notes per client (injuries, goals). Admin only."""
+    _require_admin_ip(user)
+    cid = await _resolve_thread(client_id, user)
+    notes = (payload.get("notes") or "").strip()[:2000]
+    await db.users.update_one({"user_id": cid}, {"$set": {"inperson_notes": notes}})
+    return {"ok": True, "coach_notes": notes}
 
 
 @api_router.post("/inperson/thread/{client_id}/checkin")

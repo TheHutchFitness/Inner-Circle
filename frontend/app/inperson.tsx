@@ -34,6 +34,10 @@ export default function InPersonRoom() {
   const [showStats, setShowStats] = useState(false);
   const [checkinOpen, setCheckinOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [notesInput, setNotesInput] = useState("");
+  const [attOpen, setAttOpen] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+  const [notesSaved, setNotesSaved] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
@@ -158,6 +162,7 @@ export default function InPersonRoom() {
   };
 
   useEffect(() => { setSchedInput(nextSession); }, [nextSession, selected]);
+  useEffect(() => { setNotesInput(thread?.coach_notes || ""); }, [thread?.coach_notes, selected]);
 
   const saveSchedule = async () => {
     if (!selected) return;
@@ -169,11 +174,21 @@ export default function InPersonRoom() {
     } catch (e: any) { setErr(e.message); }
   };
 
-  const markAttendance = async () => {
+  const markAttendance = async (note: string) => {
+    if (!selected) return;
+    setAttOpen(false);
+    try {
+      await apiFetch(token, `/api/inperson/thread/${selected}/attendance`, { method: "POST", body: JSON.stringify({ note }) });
+      await loadThread(selected);
+    } catch (e: any) { setErr(e.message); }
+  };
+
+  const saveNotes = async () => {
     if (!selected) return;
     try {
-      await apiFetch(token, `/api/inperson/thread/${selected}/attendance`, { method: "POST", body: JSON.stringify({}) });
-      await loadThread(selected);
+      await apiFetch(token, `/api/inperson/thread/${selected}/notes`, { method: "POST", body: JSON.stringify({ notes: notesInput }) });
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 1800);
     } catch (e: any) { setErr(e.message); }
   };
 
@@ -253,7 +268,7 @@ export default function InPersonRoom() {
       ) : (
         <>
           {/* Next session + coaching context */}
-          {(!!nextSession || isAdmin || (stats && (stats.recent?.length || 0) > 0)) && (
+          {(!!nextSession || isAdmin || (thread.checkin_photos?.length || 0) > 0) && (
             <View style={styles.topPanel}>
               {isAdmin ? (
                 <View style={styles.schedRow}>
@@ -270,9 +285,37 @@ export default function InPersonRoom() {
               )}
 
               {isAdmin && (
+                <View style={styles.notesCard}>
+                  <Text style={styles.notesLabel}>🔒 COACH NOTES · private (injuries, goals){notesSaved ? "  · saved ✓" : ""}</Text>
+                  <TextInput
+                    testID="ip-notes-input" value={notesInput} onChangeText={setNotesInput}
+                    placeholder="e.g. Right shoulder impingement — avoid overhead. Goal: 315 bench by Q3."
+                    placeholderTextColor={colors.textDim} multiline
+                    style={styles.notesInput}
+                  />
+                  <Pressable testID="ip-notes-save" onPress={saveNotes} style={styles.notesBtn}><Text style={styles.notesBtnText}>SAVE NOTES</Text></Pressable>
+                </View>
+              )}
+
+              {/* Progress photos timeline (both roles) */}
+              {(thread.checkin_photos?.length || 0) > 0 && (
+                <View style={styles.photoStrip}>
+                  <Text style={styles.photoLabel}>📸 PROGRESS PHOTOS · before → now</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {thread.checkin_photos.map((p: any, i: number) => (
+                      <Pressable key={p.media_id} testID={`ip-photo-${i}`} onPress={() => Linking.openURL(mediaUrl(p.media_id))} style={styles.photoItem}>
+                        <Image source={{ uri: mediaUrl(p.media_id) }} style={styles.photoThumb} contentFit="cover" />
+                        <Text style={styles.photoDate}>{new Date(p.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {isAdmin && (
                 <View style={styles.attRow}>
                   <Text style={styles.attCount}>✅ {thread.attendance_count || 0} total · 📅 {thread.sessions_this_month || 0} this month</Text>
-                  <Pressable testID="ip-mark-attendance" onPress={markAttendance} style={styles.attBtn}><Text style={styles.attBtnText}>MARK SESSION DONE</Text></Pressable>
+                  <Pressable testID="ip-mark-attendance" onPress={() => setAttOpen(true)} style={styles.attBtn}><Text style={styles.attBtnText}>MARK SESSION DONE</Text></Pressable>
                 </View>
               )}
 
@@ -281,6 +324,24 @@ export default function InPersonRoom() {
                   <Text style={styles.checkinPromptText}>📝 LOG THIS WEEK'S CHECK-IN</Text>
                   <Text style={styles.checkinPromptSub}>How's training going? Add a note or progress photo →</Text>
                 </Pressable>
+              )}
+
+              {isAdmin && (thread.attendance?.length || 0) > 0 && (
+                <>
+                  <Pressable testID="ip-log-toggle" onPress={() => setShowLog((s) => !s)} style={styles.statsToggle}>
+                    <Text style={styles.statsToggleText}>📋 SESSION LOG ({thread.attendance.length}) {showLog ? "▲" : "▼"}</Text>
+                  </Pressable>
+                  {showLog && (
+                    <View style={styles.statsBox}>
+                      {thread.attendance.map((a: any, i: number) => (
+                        <View key={i} style={styles.recentRow}>
+                          <Text style={styles.recentName}>{new Date(a.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</Text>
+                          <Text style={styles.recentMeta}>{a.note || "Session completed"}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
               )}
 
               {isAdmin && stats && (
@@ -400,6 +461,10 @@ export default function InPersonRoom() {
       )}
 
       {isAdmin && (
+        <AttendanceModal visible={attOpen} onClose={() => setAttOpen(false)} onSubmit={markAttendance} />
+      )}
+
+      {isAdmin && (
         <AssignModal
           visible={assignOpen}
           onClose={() => setAssignOpen(false)}
@@ -422,6 +487,26 @@ function Header({ title, subtitle, onBack }: { title: string; subtitle?: string;
         {!!subtitle && <Text style={styles.hSub} numberOfLines={1}>{subtitle}</Text>}
       </View>
     </View>
+  );
+}
+
+function AttendanceModal({ visible, onClose, onSubmit }: { visible: boolean; onClose: () => void; onSubmit: (note: string) => void }) {
+  const [note, setNote] = useState("");
+  useEffect(() => { if (visible) setNote(""); }, [visible]);
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalBg}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>MARK SESSION COMPLETE</Text>
+          <Text style={styles.modalHint}>Add a focus/goal for this session to build the training log.</Text>
+          <TextInput testID="ip-att-note" value={note} onChangeText={setNote} placeholder="e.g. Heavy squats — felt strong, add 5lb next week" placeholderTextColor={colors.textDim} style={[styles.mInput, { height: 90, textAlignVertical: "top" }]} multiline />
+          <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
+            <Pressable onPress={onClose} style={[styles.mBtn, styles.mCancel]}><Text style={styles.mCancelText}>CANCEL</Text></Pressable>
+            <Pressable testID="ip-att-submit" onPress={() => onSubmit(note.trim())} style={[styles.mBtn, styles.mAssign]}><Text style={styles.mAssignText}>LOG SESSION</Text></Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -547,6 +632,16 @@ const styles = StyleSheet.create({
   recentMeta: { color: colors.textDim, fontSize: 10, marginTop: 1 },
   systemMsg: { color: colors.textDim, fontSize: 11, fontWeight: "700", textAlign: "center", marginVertical: spacing.sm },
   attRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.sm },
+  notesCard: { marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,214,0,0.05)" },
+  notesLabel: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  notesInput: { color: colors.text, backgroundColor: colors.surface, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingTop: 8, paddingBottom: 8, minHeight: 60, marginTop: 6, fontSize: 13, textAlignVertical: "top" },
+  notesBtn: { alignSelf: "flex-end", marginTop: 6, paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning },
+  notesBtnText: { color: colors.warning, fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
+  photoStrip: { marginTop: spacing.sm },
+  photoLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginBottom: 6 },
+  photoItem: { marginRight: 8, alignItems: "center" },
+  photoThumb: { width: 88, height: 110, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  photoDate: { color: colors.textDim, fontSize: 9, marginTop: 3, fontWeight: "700" },
   attCount: { color: colors.success, fontWeight: "800", fontSize: 12 },
   attBtn: { paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.1)" },
   attBtnText: { color: colors.success, fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
