@@ -15,6 +15,31 @@ async def profile_attributes(user=Depends(get_current_user)):
     return await _compute_attributes(user)
 
 
+@api_router.get("/profile/prs")
+async def profile_prs(user_id: Optional[str] = None, user=Depends(get_current_user)):
+    """Current lift bests + a recent PR feed (from logged workouts). Own by default."""
+    uid = user_id or user["user_id"]
+    udoc = await db.users.find_one({"user_id": uid}, {"_id": 0, "prs": 1}) if user_id else user
+    prs = (udoc or {}).get("prs", {}) or {}
+    bests = {k: int(prs.get(k, 0) or 0) for k in ("squat", "bench", "deadlift", "ohp")}
+    bests["total"] = sum(bests.values())
+    # Recent PR events from workout logs (each pr_details entry is one new PR)
+    rows = await db.workouts.find(
+        {"user_id": uid, "pr_details": {"$exists": True, "$ne": []}}, {"_id": 0, "pr_details": 1, "logged_at": 1}
+    ).sort("logged_at", -1).limit(20).to_list(20)
+    recent = []
+    for r in rows:
+        when = r.get("logged_at")
+        when = when.isoformat() if hasattr(when, "isoformat") else when
+        for d in (r.get("pr_details") or []):
+            recent.append({
+                "lift": d.get("lift"), "name": d.get("name"),
+                "weight": int(d.get("weight", 0) or 0), "previous": int(d.get("previous", 0) or 0),
+                "date": when,
+            })
+    return {"bests": bests, "recent": recent[:12]}
+
+
 @api_router.patch("/profile/update")
 async def update_profile(inp: ProfileUpdate, user=Depends(get_current_user)):
     update = {k: v for k, v in inp.dict().items() if v is not None}

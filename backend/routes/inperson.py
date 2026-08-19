@@ -232,6 +232,7 @@ async def inperson_thread(client_id: str, user=Depends(get_current_user)):
         "client_stats": (await _client_stats(cid)) if _is_admin(user) else None,
         "attendance": attendance,
         "attendance_count": len(attendance),
+        "attendance_total": await db.inperson_attendance.count_documents({"client_id": cid}),
         "sessions_this_month": await _sessions_this_month(cid),
         "checkin_due": checkin_due,
         "checkin_streak": streak_val,
@@ -591,6 +592,7 @@ def _booking_public(b: dict) -> dict:
         "time": b.get("time"),
         "note": b.get("note", ""),
         "status": b.get("status", "pending"),
+        "proposed_by": b.get("proposed_by", "client"),
         "created_at": b["created_at"].isoformat() if hasattr(b.get("created_at"), "isoformat") else b.get("created_at"),
     }
 
@@ -717,6 +719,7 @@ async def inperson_booking_reschedule(booking_id: str, inp: SessionRequestIn, us
         raise HTTPException(status_code=400, detail="Invalid date or time")
     await db.inperson_bookings.update_one({"id": booking_id}, {"$set": {
         "date": date, "time": time, "appt_at": appt_at, "status": "pending",
+        "proposed_by": "coach" if _is_admin(user) else "client",
         "reminder_24_sent": False, "reminder_1_sent": False,
     }})
     who = "Coach" if _is_admin(user) else "Client"
@@ -725,6 +728,25 @@ async def inperson_booking_reschedule(booking_id: str, inp: SessionRequestIn, us
         "id": new_id("ipm"), "client_id": b["client_id"], "sender_id": user["user_id"], "sender_role": role,
         "kind": "booking", "text": f"🔄 {who} proposed a new time · {date} at {time}", "booking_id": booking_id,
         "created_at": datetime.now(timezone.utc), "read_by_admin": role == "admin", "read_by_client": role == "client",
+    })
+    fresh = await db.inperson_bookings.find_one({"id": booking_id}, {"_id": 0})
+    return _booking_public(fresh)
+
+
+@api_router.post("/inperson/booking/{booking_id}/accept")
+async def inperson_booking_accept(booking_id: str, user=Depends(get_current_user)):
+    """Client accepts a time the coach proposed — confirms the session."""
+    b = await db.inperson_bookings.find_one({"id": booking_id})
+    if not b:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if b["client_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    await db.users.update_one({"user_id": b["client_id"]}, {"$set": {"inperson_next_session": f"{b['date']} at {b['time']}"}})
+    await db.inperson_bookings.update_one({"id": booking_id}, {"$set": {"status": "approved", "approved_at": datetime.now(timezone.utc)}})
+    await db.inperson_messages.insert_one({
+        "id": new_id("ipm"), "client_id": b["client_id"], "sender_id": user["user_id"], "sender_role": "client",
+        "kind": "system", "text": f"✅ Client accepted the new time · {b['date']} at {b['time']}", "booking_id": booking_id,
+        "created_at": datetime.now(timezone.utc), "read_by_admin": False, "read_by_client": True,
     })
     fresh = await db.inperson_bookings.find_one({"id": booking_id}, {"_id": 0})
     return _booking_public(fresh)

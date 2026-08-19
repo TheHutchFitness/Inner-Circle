@@ -46,6 +46,7 @@ export default function Profile() {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [bookings, setBookings] = useState<any[]>([]);
+  const [prs, setPrs] = useState<any>(null);
   const cardRef = useRef<View>(null);
 
   const shimmer = useSharedValue(0);
@@ -56,12 +57,17 @@ export default function Profile() {
     (async () => {
       try { setChart(await apiFetch(token, "/api/progress/chart")); } catch {}
       try { setAttrs(await apiFetch(token, "/api/profile/attributes")); } catch {}
+      try { setPrs(await apiFetch(token, "/api/profile/prs")); } catch {}
       try { setGyms((await apiFetch(token, "/api/gyms")).gyms || []); } catch {}
     })();
   }, [token, user?.xp]);
 
   const loadBookings = async () => {
     try { setBookings((await apiFetch(token, "/api/inperson/bookings")).bookings || []); } catch {}
+  };
+  const acceptSession = async (id: string) => {
+    try { await apiFetch(token, `/api/inperson/booking/${id}/accept`, { method: "POST" }); await loadBookings(); await refresh(); }
+    catch (e: any) { setMsg(e?.message || "Could not accept"); }
   };
   useEffect(() => { if (user?.inperson_client) loadBookings(); }, [token, user?.inperson_client]);
 
@@ -317,6 +323,40 @@ export default function Profile() {
         </>
       )}
 
+      {/* PERSONAL RECORDS — big lift bests + recent PR feed */}
+      {prs && (
+        <>
+          <HudSectionHeader label="PERSONAL RECORDS" />
+          <View style={styles.prTiles}>
+            {([["squat", "SQUAT"], ["bench", "BENCH"], ["deadlift", "DEADLIFT"], ["ohp", "OHP"]] as const).map(([k, lbl]) => (
+              <View key={k} style={styles.prTile}>
+                <Text style={styles.prValue}>{prs.bests?.[k] || 0}</Text>
+                <Text style={styles.prUnit}>lb</Text>
+                <Text style={styles.prLabel}>{lbl}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.prTotalRow}>
+            <Text style={styles.prTotalLabel}>BIG 4 TOTAL</Text>
+            <Text style={styles.prTotalValue}>{prs.bests?.total || 0} lb</Text>
+          </View>
+          {(prs.recent?.length || 0) > 0 && (
+            <View style={styles.prFeed}>
+              <Text style={styles.prFeedLabel}>RECENT PRs</Text>
+              {prs.recent.map((r: any, i: number) => (
+                <View key={i} style={styles.prFeedRow}>
+                  <Text style={styles.prFeedIcon}>🏆</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.prFeedName}>{r.name} · {r.weight} lb</Text>
+                    <Text style={styles.prFeedMeta}>+{Math.max(0, r.weight - r.previous)} lb over previous · {new Date(r.date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </>
+      )}
+
       {/* APP MODE — switch between Lite (utility) and Full (game) */}
       <HudSectionHeader label="APP MODE" />
       <View style={styles.modeRow}>
@@ -410,10 +450,17 @@ export default function Profile() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.bookingDate}>{b.date} · {b.time}</Text>
                       {b.status === "approved" && <Text style={styles.bookingHint}>tap to reschedule</Text>}
+                      {b.status === "pending" && b.proposed_by === "coach" && <Text style={styles.bookingHint}>coach proposed a new time</Text>}
                     </View>
-                    <View style={[styles.bookingPill, b.status === "approved" ? styles.bookingApproved : styles.bookingPending]}>
-                      <Text style={[styles.bookingPillText, { color: b.status === "approved" ? colors.success : colors.warning }]}>{b.status === "approved" ? "✓ CONFIRMED" : "PENDING"}</Text>
-                    </View>
+                    {b.status === "pending" && b.proposed_by === "coach" ? (
+                      <Pressable testID={`profile-accept-${b.id}`} onPress={() => acceptSession(b.id)} style={styles.acceptBtn}>
+                        <Text style={styles.acceptText}>ACCEPT</Text>
+                      </Pressable>
+                    ) : (
+                      <View style={[styles.bookingPill, b.status === "approved" ? styles.bookingApproved : styles.bookingPending]}>
+                        <Text style={[styles.bookingPillText, { color: b.status === "approved" ? colors.success : colors.warning }]}>{b.status === "approved" ? "✓ CONFIRMED" : "PENDING"}</Text>
+                      </View>
+                    )}
                   </Pressable>
                 ))}
               </View>
@@ -680,4 +727,20 @@ const styles = StyleSheet.create({
   bookingApproved: { borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.08)" },
   bookingPending: { borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.08)" },
   bookingPillText: { fontWeight: "900", fontSize: 9, letterSpacing: 1 },
+  acceptBtn: { backgroundColor: colors.success, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6 },
+  acceptText: { color: "#001a10", fontWeight: "900", fontSize: 10, letterSpacing: 1 },
+  prTiles: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg },
+  prTile: { flex: 1, alignItems: "center", paddingVertical: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
+  prValue: { color: colors.brandPrimary, fontSize: 20, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  prUnit: { color: colors.textDim, fontSize: 9, marginTop: -2 },
+  prLabel: { color: colors.textMid, fontSize: 9, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
+  prTotalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  prTotalLabel: { color: colors.text, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  prTotalValue: { color: colors.brandPrimary, fontWeight: "900", fontSize: 16, fontVariant: ["tabular-nums"] },
+  prFeed: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
+  prFeedLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginBottom: 6 },
+  prFeedRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: colors.border },
+  prFeedIcon: { fontSize: 16 },
+  prFeedName: { color: colors.text, fontWeight: "800", fontSize: 13 },
+  prFeedMeta: { color: colors.textDim, fontSize: 10, marginTop: 1 },
 });

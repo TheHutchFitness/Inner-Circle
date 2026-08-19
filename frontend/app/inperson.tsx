@@ -159,7 +159,7 @@ export default function InPersonRoom() {
     } catch (e: any) { setErr(e.message); }
   }, [token, isAdmin]);
 
-  const decideBooking = async (id: string, action: "approve" | "decline") => {
+  const decideBooking = async (id: string, action: "approve" | "decline" | "accept") => {
     try {
       await apiFetch(token, `/api/inperson/booking/${id}/${action}`, { method: "POST" });
       if (selected) await loadThread(selected);
@@ -167,13 +167,19 @@ export default function InPersonRoom() {
   };
 
   useEffect(() => {
+    if (!token) return;
     (async () => {
       setLoading(true);
       if (isAdmin) await loadClients();
       if (selected) await loadThread(selected);
       setLoading(false);
     })();
-  }, [isAdmin]);
+  }, [isAdmin, token, selected]);
+
+  // For a client, lock onto their own thread once auth has hydrated.
+  useEffect(() => {
+    if (!isAdmin && user?.user_id && !selected) setSelected(user.user_id);
+  }, [isAdmin, user?.user_id]);
 
   // Light polling while a thread is open
   useFocusEffect(useCallback(() => {
@@ -182,12 +188,9 @@ export default function InPersonRoom() {
     return () => clearInterval(iv);
   }, [selected, loadThread]));
 
-  const openClient = async (cid: string) => {
+  const openClient = (cid: string) => {
     setSelected(cid);
     setThread(null);
-    setLoading(true);
-    await loadThread(cid);
-    setLoading(false);
   };
 
   const pickImage = async () => {
@@ -454,17 +457,32 @@ export default function InPersonRoom() {
                 ))}
               </View>
             )}
+            {/* Client's own pending requests / coach proposals */}
+            {!isAdmin && bookings.filter((b) => b.status === "pending").length > 0 && (
+              <View style={{ marginTop: spacing.sm }}>
+                {bookings.filter((b) => b.status === "pending").map((b) => (
+                  <View key={b.id} style={styles.pendingRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pendingDate}>{b.date} · {b.time}</Text>
+                      <Text style={styles.pendingNote}>{b.proposed_by === "coach" ? "Coach proposed a new time" : "Awaiting coach approval"}</Text>
+                    </View>
+                    {b.proposed_by === "coach" && (
+                      <Pressable testID={`ip-accept-${b.id}`} onPress={() => decideBooking(b.id, "accept")} style={styles.apprBtn}><Text style={styles.apprText}>ACCEPT</Text></Pressable>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
             {bookings.filter((b) => b.status === "approved").length > 0 && (
               <View style={{ marginTop: spacing.sm }}>
                 {bookings.filter((b) => b.status === "approved").map((b) => (
                   <Pressable
                     key={b.id}
                     testID={`ip-booking-${b.id}`}
-                    disabled={isAdmin}
                     onPress={() => { setRescheduleId(b.id); setBookingOpen(true); }}
                     style={styles.apprvRow}
                   >
-                    <Text style={styles.apprvText}>✓ CONFIRMED · {b.date} at {b.time}{!isAdmin ? "  ·  tap to reschedule" : ""}</Text>
+                    <Text style={styles.apprvText}>✓ CONFIRMED · {b.date} at {b.time}  ·  {isAdmin ? "tap to propose new time" : "tap to reschedule"}</Text>
                   </Pressable>
                 ))}
               </View>
@@ -598,14 +616,17 @@ export default function InPersonRoom() {
               {!isAdmin && (thread.attendance?.length || 0) > 0 && (
                 <>
                   <Pressable testID="ip-history-toggle" onPress={() => setShowLog((s) => !s)} style={styles.statsToggle}>
-                    <Text style={styles.statsToggleText}>📋 SESSION HISTORY ({thread.attendance.length}) {showLog ? "▲" : "▼"}</Text>
+                    <Text style={styles.statsToggleText}>📋 SESSION HISTORY · {thread.attendance_total || thread.attendance.length} TOTAL {showLog ? "▲" : "▼"}</Text>
                   </Pressable>
                   {showLog && (
                     <View style={styles.statsBox}>
                       {thread.attendance.map((a: any, i: number) => (
-                        <View key={i} style={styles.recentRow}>
-                          <Text style={styles.recentName}>{new Date(a.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</Text>
-                          <Text style={styles.recentMeta}>{a.note || "Session completed ✓"}</Text>
+                        <View key={i} style={styles.histRow}>
+                          <View style={styles.histNumWrap}><Text style={styles.histNum}>#{(thread.attendance_total || thread.attendance.length) - i}</Text></View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.recentName}>{new Date(a.date).toLocaleDateString(undefined, { weekday: "short", month: "long", day: "numeric", year: "numeric" })}</Text>
+                            <Text style={styles.recentMeta}>{a.note || "Session completed ✓"}</Text>
+                          </View>
                         </View>
                       ))}
                     </View>
@@ -750,9 +771,7 @@ export default function InPersonRoom() {
           onAssign={(name, planText, note, saveTpl) => assignPayload({ name, plan_text: planText, note, save_as_template: saveTpl })}
         />
       )}
-      {!isAdmin && (
-        <BookingModal visible={bookingOpen} onClose={() => setBookingOpen(false)} onBooked={() => selected && loadThread(selected)} rescheduleId={rescheduleId} />
-      )}
+      <BookingModal visible={bookingOpen} onClose={() => setBookingOpen(false)} onBooked={() => selected && loadThread(selected)} rescheduleId={rescheduleId} />
     </KeyboardAvoidingView>
   );
 }
@@ -951,6 +970,9 @@ const styles = StyleSheet.create({
   statsMeta: { color: colors.textMid, fontSize: 11, marginTop: 6, marginBottom: 2, fontWeight: "700" },
   statsEmpty: { color: colors.textDim, fontSize: 12, marginTop: 4 },
   recentRow: { paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: colors.border },
+  histRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.border },
+  histNumWrap: { minWidth: 34, height: 26, paddingHorizontal: 6, borderRadius: radius.sm, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  histNum: { color: colors.brandPrimary, fontWeight: "900", fontSize: 11 },
   recentName: { color: colors.text, fontWeight: "700", fontSize: 13 },
   recentMeta: { color: colors.textDim, fontSize: 10, marginTop: 1 },
   systemMsg: { color: colors.textDim, fontSize: 11, fontWeight: "700", textAlign: "center", marginVertical: spacing.sm },
