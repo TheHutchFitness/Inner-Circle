@@ -424,3 +424,7 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Implemented (2026-06 — In-Person: Milestone Confetti)
 - MILESTONE CONFETTI: thread returns milestone_celebrate (client-only) = streak when streak%4==0 AND greater than user.inperson_milestone_seen. POST /inperson/milestone-seen marks it acknowledged (dedupe). inperson.tsx: on opening the room with a fresh milestone, a reanimated Confetti overlay (70 colored pieces falling ~3.4s) plays once, then POSTs milestone-seen so it never replays. Admin never sees it. Verified (celebrate=4 first open → 0 after seen; confetti rendered).
 - Test data cleaned (launch DB clean).
+
+## Implemented (2026-06 — Milestone Share + Test Client account)
+- MILESTONE SHARE: client room shows a branded share card (HUTCH'S INNER CIRCLE + 🔥N + tier + gym + Coached by @the9hutch) with a "📢 SHARE TO STORY" button when streak>0. Captures the card via react-native-view-shot captureRef → expo-sharing shareAsync (native share sheet / story). Web falls back gracefully. Verified rendering.
+- TEST CLIENT ACCOUNT: created persistent real account testclient@hutch.com / TestClient123! (Test Client), enrolled as in-person client at gym "Hutch Performance Lab" so the owner can trial the whole in-person flow (assign programs, check-ins, etc.) before real users. Documented in test_credentials.md. NOT auto-seeded (survives restarts as a real signup).

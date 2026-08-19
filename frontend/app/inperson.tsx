@@ -6,6 +6,8 @@ import {
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing } from "react-native-reanimated";
 import { Image } from "expo-image";
 import Svg, { Polyline, Circle, Line as SvgLine } from "react-native-svg";
+import { captureRef } from "react-native-view-shot";
+import * as Sharing from "expo-sharing";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useFocusEffect } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
@@ -108,6 +110,18 @@ export default function InPersonRoom() {
   const [nudgeMsg, setNudgeMsg] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const celebratedRef = useRef(0);
+  const shareCardRef = useRef(null);
+
+  const shareStreak = async () => {
+    try {
+      const uri = await captureRef(shareCardRef, { format: "png", quality: 0.95 });
+      const ok = await Sharing.isAvailableAsync().catch(() => false);
+      if (ok) await Sharing.shareAsync(uri, { dialogTitle: "Share your streak" });
+      else setErr("Sharing isn't available here — try on your phone.");
+    } catch {
+      setErr("Couldn't create the share image.");
+    }
+  };
   const [attOpen, setAttOpen] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [notesSaved, setNotesSaved] = useState(false);
@@ -395,6 +409,20 @@ export default function InPersonRoom() {
               {(thread.checkin_streak || 0) > 0 && (
                 <View style={[styles.streakChip, streakTier(thread.checkin_streak).style]}>
                   <Text style={[styles.streakText, streakTier(thread.checkin_streak).textStyle]}>{streakTier(thread.checkin_streak).label(thread.checkin_streak)}</Text>
+                </View>
+              )}
+
+              {!isAdmin && (thread.checkin_streak || 0) > 0 && (
+                <View style={styles.shareWrap}>
+                  <View ref={shareCardRef} collapsable={false} style={styles.shareCard}>
+                    <Text style={styles.shareBrand}>HUTCH'S INNER CIRCLE</Text>
+                    <Text style={styles.shareStreakBig}>🔥 {thread.checkin_streak}</Text>
+                    <Text style={styles.shareWeek}>WEEK CHECK-IN STREAK</Text>
+                    <Text style={styles.shareTierLine}>{streakTier(thread.checkin_streak).label(thread.checkin_streak)}</Text>
+                    {!!gym && <Text style={styles.shareGymLine}>📍 {gym}</Text>}
+                    <Text style={styles.shareFooter}>Coached by @the9hutch</Text>
+                  </View>
+                  <Pressable testID="ip-share-streak" onPress={shareStreak} style={styles.shareBtn}><Text style={styles.shareBtnText}>📢 SHARE TO STORY</Text></Pressable>
                 </View>
               )}
               {isAdmin ? (
@@ -794,6 +822,16 @@ const styles = StyleSheet.create({
   streakChip: { alignSelf: "flex-start", flexDirection: "row", paddingVertical: 5, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: "#FF7A1A", backgroundColor: "rgba(255,122,26,0.10)", marginBottom: spacing.sm },
   streakText: { color: "#FF9A4A", fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
   streakMini: { color: "#FF9A4A", fontSize: 10, fontWeight: "900" },
+  shareWrap: { marginBottom: spacing.sm, alignItems: "center" },
+  shareCard: { width: "100%", borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.brandPrimary, backgroundColor: "#0A0E14", paddingVertical: spacing.lg, alignItems: "center", overflow: "hidden" },
+  shareBrand: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
+  shareStreakBig: { color: "#FF9A4A", fontWeight: "900", fontSize: 52, marginTop: 4 },
+  shareWeek: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 13, marginTop: -4 },
+  shareTierLine: { color: "#FFD700", fontWeight: "900", fontSize: 12, marginTop: 8, letterSpacing: 0.5 },
+  shareGymLine: { color: colors.textMid, fontSize: 12, marginTop: 4, fontWeight: "700" },
+  shareFooter: { color: colors.textDim, fontSize: 10, marginTop: 8, letterSpacing: 1 },
+  shareBtn: { marginTop: spacing.sm, alignSelf: "stretch", paddingVertical: 11, borderRadius: radius.sm, backgroundColor: colors.brandPrimary, alignItems: "center" },
+  shareBtnText: { color: "#04121a", fontWeight: "900", letterSpacing: 1 },
   milestoneCard: { alignSelf: "center", marginVertical: spacing.sm, paddingVertical: 10, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1.5, borderColor: "#FFD700", backgroundColor: "rgba(255,215,0,0.12)" },
   milestoneText: { color: "#FFD700", fontWeight: "900", fontSize: 12, letterSpacing: 0.3, textAlign: "center" },
   chartAxis: { color: colors.textDim, fontSize: 9, fontWeight: "700" },
