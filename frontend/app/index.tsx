@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, Platform, ScrollView, KeyboardAvoidingView, ActivityIndicator } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -23,6 +23,35 @@ export default function Index() {
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [spots, setSpots] = useState<{ remaining: number; limit: number } | null>(null);
+  const processedSessions = useRef<Set<string>>(new Set());
+
+  // Exchange a Google callback URL's session_id for our own session_token.
+  // Guarded so the same session_id is never sent twice (mobile fires 2-3 sources).
+  const exchangeSession = useCallback(async (url: string | null | undefined) => {
+    if (!url) return;
+    const m = url.match(/[?#&]session_id=([^&#]+)/);
+    if (!m) return;
+    const session_id = m[1];
+    if (processedSessions.current.has(session_id)) return;
+    processedSessions.current.add(session_id);
+    try {
+      const r = await fetch(`${API}/api/auth/session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id }),
+      });
+      if (!r.ok) throw new Error("Auth failed");
+      const data = await r.json();
+      await setSession(data.session_token, data.user);
+      showIntro("login");
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.history.replaceState(window.history.state, "", window.location.pathname);
+      }
+    } catch (e) {
+      processedSessions.current.delete(session_id); // allow a retry on transient failure
+      setErr("Google login failed");
+    }
+  }, [setSession, showIntro]);
 
   useEffect(() => {
     (async () => {
@@ -39,36 +68,14 @@ export default function Index() {
 
   // Handle Google Auth callback (mobile + web)
   useEffect(() => {
-    const exchange = async (url: string | null) => {
-      if (!url) return;
-      const m = url.match(/[?#&]session_id=([^&#]+)/);
-      if (!m) return;
-      const session_id = m[1];
-      try {
-        const r = await fetch(`${API}/api/auth/session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ session_id }),
-        });
-        if (!r.ok) throw new Error("Auth failed");
-        const data = await r.json();
-        await setSession(data.session_token, data.user);
-        showIntro("login");
-        if (Platform.OS === "web" && typeof window !== "undefined") {
-          window.history.replaceState(window.history.state, "", window.location.pathname);
-        }
-      } catch (e) {
-        setErr("Google login failed");
-      }
-    };
     if (Platform.OS === "web") {
-      if (typeof window !== "undefined") exchange(window.location.href);
+      if (typeof window !== "undefined") exchangeSession(window.location.href);
     } else {
-      Linking.getInitialURL().then(exchange);
-      const sub = Linking.addEventListener("url", ({ url }) => exchange(url));
+      Linking.getInitialURL().then(exchangeSession);
+      const sub = Linking.addEventListener("url", ({ url }) => exchangeSession(url));
       return () => sub.remove();
     }
-  }, []);
+  }, [exchangeSession]);
 
   const submit = async () => {
     setErr(null);
@@ -92,24 +99,11 @@ export default function Index() {
     if (Platform.OS === "web") {
       if (typeof window !== "undefined") window.location.href = authUrl;
     } else {
+      // openAuthSessionAsync may return the URL directly, or 'dismiss' with no URL
+      // (common on Android) — in which case the url listener / getInitialURL in the
+      // effect above catch it. Both routes funnel through the guarded exchangeSession.
       const result: any = await WebBrowser.openAuthSessionAsync(authUrl, redirect);
-      if (result?.url) {
-        const m = result.url.match(/[?#&]session_id=([^&#]+)/);
-        if (m) {
-          try {
-            const r = await fetch(`${API}/api/auth/session`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ session_id: m[1] }),
-            });
-            if (r.ok) {
-              const data = await r.json();
-              await setSession(data.session_token, data.user);
-              showIntro("login");
-            }
-          } catch {}
-        }
-      }
+      await exchangeSession(result?.url);
     }
   };
 

@@ -79,6 +79,12 @@ async def google_session(inp: SessionInput):
     user.pop("password_hash", None)
     user.pop("_id", None)
     user = await ensure_owner_admin(user)
+    if not user.get("is_admin"):
+        b = ban_state(user)
+        if b and b["scope"] in ("login", "all"):
+            await db.user_sessions.delete_one({"session_token": session_token})
+            until = b["until"].strftime("%b %d, %H:%M UTC")
+            raise HTTPException(status_code=403, detail=f"Your access is suspended until {until}." + (f" Reason: {b['reason']}" if b['reason'] else ""))
     user["rank"] = rank_from_xp(user["xp"])
     user.update(await founder_status(user))
     return {"session_token": session_token, "user": user}
