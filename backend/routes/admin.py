@@ -268,3 +268,55 @@ async def admin_remove_featured(user_id: str, user=Depends(get_current_user)):
     _require_admin(user)
     await db.featured_members.delete_one({"user_id": user_id})
     return {"ok": True}
+
+
+# ---------- Gym directory management (moderation) ----------
+@api_router.get("/admin/gyms")
+async def admin_list_gyms(user=Depends(get_current_user)):
+    _require_admin(user)
+    rows = await db.gyms.find({}, {"_id": 0}).sort("name", 1).to_list(1000)
+    for r in rows:
+        r["members"] = await db.users.count_documents(
+            {"inperson_gym": {"$regex": f"^{re.escape(r['name'])}$", "$options": "i"}})
+    return {"gyms": rows}
+
+
+@api_router.post("/admin/gyms")
+async def admin_add_gym(payload: dict = Body(default={}), user=Depends(get_current_user)):
+    _require_admin(user)
+    name = (str((payload or {}).get("name", "")) or "").strip()[:60]
+    if not name:
+        raise HTTPException(status_code=400, detail="Gym name required")
+    await ensure_gym(name)
+    return {"ok": True}
+
+
+@api_router.patch("/admin/gyms/{gym_id}")
+async def admin_rename_gym(gym_id: str, payload: dict = Body(default={}), user=Depends(get_current_user)):
+    _require_admin(user)
+    g = await db.gyms.find_one({"id": gym_id})
+    if not g:
+        raise HTTPException(status_code=404, detail="Gym not found")
+    new_name = (str((payload or {}).get("name", "")) or "").strip()[:60]
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Gym name required")
+    await db.gyms.update_one({"id": gym_id}, {"$set": {"name": new_name, "name_lower": new_name.lower()}})
+    # Re-point every member on the old name to the corrected name
+    await db.users.update_many(
+        {"inperson_gym": {"$regex": f"^{re.escape(g['name'])}$", "$options": "i"}},
+        {"$set": {"inperson_gym": new_name}})
+    return {"ok": True}
+
+
+@api_router.delete("/admin/gyms/{gym_id}")
+async def admin_delete_gym(gym_id: str, user=Depends(get_current_user)):
+    _require_admin(user)
+    g = await db.gyms.find_one({"id": gym_id})
+    if not g:
+        raise HTTPException(status_code=404, detail="Gym not found")
+    await db.gyms.delete_one({"id": gym_id})
+    # Clear the (fake) gym from any members who selected it
+    await db.users.update_many(
+        {"inperson_gym": {"$regex": f"^{re.escape(g['name'])}$", "$options": "i"}},
+        {"$set": {"inperson_gym": "", "inperson_request": False}})
+    return {"ok": True}

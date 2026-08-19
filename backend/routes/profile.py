@@ -100,6 +100,7 @@ async def update_profile(inp: ProfileUpdate, user=Depends(get_current_user)):
     update = {k: v for k, v in inp.dict().items() if v is not None}
     if "gym" in update:
         update["inperson_gym"] = (update.pop("gym") or "").strip()[:60]
+        await ensure_gym(update["inperson_gym"])
     if "social_tiktok" in update:
         update["social_tiktok"] = social_handle(update["social_tiktok"])
     if "social_instagram" in update:
@@ -152,10 +153,8 @@ async def set_background(inp: BackgroundSet, user=Depends(get_current_user)):
 
 @api_router.get("/gyms")
 async def list_gyms():
-    """Distinct gym names members have entered, for the signup/profile dropdown.
-    Public (no auth) so the signup screen can populate it before login."""
-    names = await db.users.distinct("inperson_gym")
-    return {"gyms": sorted([n for n in names if n and n.strip()])}
+    """Curated gym directory for the signup/profile dropdown. Public (no auth)."""
+    return {"gyms": await list_gym_names()}
 
 
 @api_router.get("/profile/frames")

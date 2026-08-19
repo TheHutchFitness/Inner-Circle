@@ -32,7 +32,7 @@ export default function Admin() {
   const loadFeatured = async () => {
     try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
   };
-  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); } /* eslint-disable-line */ }, [token]);
+  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); } /* eslint-disable-line */ }, [token]);
 
   const loadStore = async () => {
     try { setStoreItems((await apiFetch(token, "/api/admin/store")).items || []); } catch {}
@@ -49,6 +49,25 @@ export default function Admin() {
   };
   const deleteDrop = async (id: string) => {
     try { await apiFetch(token, `/api/admin/store/${id}`, { method: "DELETE" }); await loadStore(); } catch {}
+  };
+
+  const [gymDir, setGymDir] = useState<any[]>([]);
+  const [newGym, setNewGym] = useState("");
+  const [editGym, setEditGym] = useState<Record<string, string>>({});
+  const loadGymDir = async () => {
+    try { setGymDir((await apiFetch(token, "/api/admin/gyms")).gyms || []); } catch {}
+  };
+  const addGymDir = async () => {
+    if (!newGym.trim()) { flash("Gym name required"); return; }
+    try { await apiFetch(token, "/api/admin/gyms", { method: "POST", body: JSON.stringify({ name: newGym.trim() }) }); setNewGym(""); await loadGymDir(); flash("Gym added ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const renameGymDir = async (g: any) => {
+    const name = (editGym[g.id] ?? g.name).trim();
+    if (!name) { flash("Name required"); return; }
+    try { await apiFetch(token, `/api/admin/gyms/${g.id}`, { method: "PATCH", body: JSON.stringify({ name }) }); await loadGymDir(); flash("Renamed ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const deleteGymDir = async (g: any) => {
+    try { await apiFetch(token, `/api/admin/gyms/${g.id}`, { method: "DELETE" }); await loadGymDir(); flash("Gym removed ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
   };
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 2000); };
@@ -161,6 +180,28 @@ export default function Admin() {
               <Text style={st.reason}>{it.rarity} · {it.motion}</Text>
             </View>
             <Pressable testID={`del-drop-${it.item_id}`} onPress={() => deleteDrop(it.item_id)} style={st.removeBtn}><Text style={st.removeText}>REMOVE</Text></Pressable>
+          </View>
+        ))}
+
+        {/* Gym directory moderation */}
+        <Text style={st.section}>🏋 GYM DIRECTORY ({gymDir.length})</Text>
+        <Text style={st.dim}>Edit or remove fake gyms. Removing one clears it from all members who picked it.</Text>
+        <View style={st.searchRow}>
+          <TextInput testID="new-gym-input" value={newGym} onChangeText={setNewGym} placeholder="Add a gym name…" placeholderTextColor={colors.textDim} style={st.searchInput} autoCapitalize="words" />
+          <Pressable testID="add-gym" onPress={addGymDir} style={st.featBtn}><Text style={st.featBtnText}>ADD</Text></Pressable>
+        </View>
+        {gymDir.map((g) => (
+          <View key={g.id} style={st.featRow}>
+            <TextInput
+              testID={`gym-name-${g.id}`}
+              value={editGym[g.id] ?? g.name}
+              onChangeText={(t) => setEditGym((s) => ({ ...s, [g.id]: t }))}
+              style={[st.searchInput, { flex: 1 }]}
+              autoCapitalize="words"
+            />
+            <Text style={st.gymMembers}>{g.members}👤</Text>
+            <Pressable testID={`gym-save-${g.id}`} onPress={() => renameGymDir(g)} style={st.featBtn}><Text style={st.featBtnText}>SAVE</Text></Pressable>
+            <Pressable testID={`gym-del-${g.id}`} onPress={() => deleteGymDir(g)} style={st.removeBtn}><Text style={st.removeText}>✕</Text></Pressable>
           </View>
         ))}
 
@@ -317,5 +358,6 @@ const st = StyleSheet.create({
   reasonInput: { flex: 1, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, fontSize: 13 },
   featBtn: { paddingHorizontal: 14, justifyContent: "center", borderRadius: radius.sm, backgroundColor: colors.warning },
   featBtnText: { color: "#221900", fontWeight: "900", fontSize: 11, letterSpacing: 1 },
+  gymMembers: { color: colors.textDim, fontSize: 11, fontWeight: "800", alignSelf: "center", minWidth: 34, textAlign: "center" },
   msg: { color: colors.success, textAlign: "center", marginTop: spacing.md, fontWeight: "700" },
 });

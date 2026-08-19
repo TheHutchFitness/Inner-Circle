@@ -49,7 +49,7 @@ export default function Community() {
         {!!gym && (
           <View style={styles.roomTabs}>
             <Pressable testID="chat-room-main" onPress={() => setRoom("main")} style={[styles.roomTab, room === "main" && styles.roomTabOn]}>
-              <Text style={[styles.roomTabText, room === "main" && styles.roomTabTextOn]}>◍ THE CIRCLE</Text>
+              <Text style={[styles.roomTabText, room === "main" && styles.roomTabTextOn]}>◍ ALL</Text>
             </Pressable>
             <Pressable testID="chat-room-gym" onPress={() => setRoom("gym")} style={[styles.roomTab, room === "gym" && styles.roomTabOn]}>
               <Text style={[styles.roomTabText, room === "gym" && styles.roomTabTextOn]} numberOfLines={1}>🏋 {gym.toUpperCase()}</Text>

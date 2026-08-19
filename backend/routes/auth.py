@@ -14,6 +14,7 @@ async def register(inp: RegisterInput):
         doc["sex"] = inp.sex
     if inp.gym:
         doc["inperson_gym"] = inp.gym.strip()[:60]
+        await ensure_gym(doc["inperson_gym"])
     if inp.inperson_request:
         doc["inperson_request"] = True
     await db.users.insert_one(doc)

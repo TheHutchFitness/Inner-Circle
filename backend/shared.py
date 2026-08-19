@@ -1814,6 +1814,30 @@ async def seed():
     logger.info("Seeded DB")
 
 
+# ---------- Curated gym directory ----------
+async def ensure_gym(name: str):
+    """Persist a gym name to the shared directory (case-insensitive dedupe)."""
+    name = (name or "").strip()[:60]
+    if not name:
+        return
+    await db.gyms.update_one(
+        {"name_lower": name.lower()},
+        {"$setOnInsert": {"id": new_id("gym"), "name": name, "name_lower": name.lower(),
+                          "created_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+
+
+async def list_gym_names() -> list:
+    """Curated gym list; backfills once from existing members' gyms."""
+    rows = await db.gyms.find({}, {"_id": 0, "name": 1}).sort("name", 1).to_list(1000)
+    if not rows:
+        for n in await db.users.distinct("inperson_gym"):
+            await ensure_gym(n)
+        rows = await db.gyms.find({}, {"_id": 0, "name": 1}).sort("name", 1).to_list(1000)
+    return [r["name"] for r in rows]
+
+
 # ---------- Emergent Managed Push Notifications ----------
 PUSH_BASE_URL = "https://integrations.emergentagent.com"  # constant, never from env
 PUSH_KEY = os.environ.get("EMERGENT_PUSH_KEY", "placeholder")
