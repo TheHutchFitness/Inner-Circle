@@ -164,4 +164,5 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
         "equipped_pet": u.get("equipped_pet"),
         "equipped_skin": u.get("equipped_skin"),
         "equipped_weapon": u.get("equipped_weapon"),
+        "equipped_hair": u.get("equipped_hair"),
     }

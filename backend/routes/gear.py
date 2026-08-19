@@ -234,3 +234,25 @@ async def gear_purchase(payload: dict, user=Depends(get_current_user)):
         "created_at": datetime.now(timezone.utc),
     })
     return {"ok": True, "id": item_id}
+
+
+async def quest_loot_for_claim(user_id: str, scope: str) -> list:
+    """After a quest claim was recorded, return any quest-exclusive skins/weapons
+    that JUST became unlocked by this claim (for the Boss victory loot reveal)."""
+    after = await _quest_counts(user_id)
+    prev = dict(after)
+    prev["total"] = max(0, prev["total"] - 1)
+    if scope == "boss":
+        prev["boss"] = max(0, prev["boss"] - 1)
+        prev["hard"] = max(0, prev["hard"] - 1)
+    elif scope == "monthly":
+        prev["monthly"] = max(0, prev["monthly"] - 1)
+        prev["hard"] = max(0, prev["hard"] - 1)
+    loot = []
+    for it in QUEST_SKINS:
+        if _quest_met(it, after) and not _quest_met(it, prev):
+            loot.append({"kind": "skin", "id": it["id"], "name": it["name"], "rarity": it["rarity"]})
+    for it in QUEST_WEAPONS:
+        if _quest_met(it, after) and not _quest_met(it, prev):
+            loot.append({"kind": "weapon", "id": it["id"], "name": it["name"], "rarity": it["rarity"]})
+    return loot

@@ -9,7 +9,7 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle, bodyImage } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, HAIR_COLORS, defaultHair, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle, bodyImage } from "@/src/lib/theme";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { StrengthChart } from "@/src/components/StrengthChart";
 import { RadarChart } from "@/src/components/RadarChart";
@@ -75,7 +75,13 @@ export default function Profile() {
       await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ avatar_id }) });
       await refresh();
     } catch {}
-    setAvatarOpen(false);
+  };
+
+  const pickHair = async (equipped_hair: string) => {
+    try {
+      await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ equipped_hair }) });
+      await refresh();
+    } catch {}
   };
 
   const shareCard = async () => {
@@ -278,19 +284,30 @@ export default function Profile() {
       <Modal visible={avatarOpen} transparent animationType="fade" onRequestClose={() => setAvatarOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>SELECT CLASS</Text>
-            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={styles.avatarGrid}>
+            <Text style={styles.modalTitle}>SELECT AVATAR</Text>
+            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={styles.avatarGrid}>
               {AVATARS.map((a) => {
-                const img = avatarImage(a.id, user.sex);
+                const img = avatarImage(a.id, user.sex, user.equipped_hair);
                 return (
                   <Pressable testID={`avatar-${a.id}`} key={a.id} onPress={() => pickAvatar(a.id)} style={[styles.avOpt, user.avatar_id === a.id && styles.avOptSel]}>
                     {img ? <Image source={img} style={styles.avImg} contentFit="cover" /> : <View style={styles.avEmojiWrap}><Text style={{ fontSize: 30 }}>{a.emoji}</Text></View>}
                     <Text style={styles.avOptLabel} numberOfLines={1}>{a.label}</Text>
-                    {hasAvatarArt(a.id) && <View style={styles.artTag}><Text style={styles.artTagText}>ART</Text></View>}
                   </Pressable>
                 );
               })}
             </ScrollView>
+            <Text style={styles.hairTitle}>HAIR COLOUR</Text>
+            <View style={styles.hairRow}>
+              {HAIR_COLORS.map((h) => {
+                const on = (user.equipped_hair || defaultHair(user.avatar_id)) === h.id;
+                return (
+                  <Pressable testID={`hair-${h.id}`} key={h.id} onPress={() => pickHair(h.id)} style={styles.hairOpt}>
+                    <View style={[styles.hairSwatch, { backgroundColor: h.swatch }, on && styles.hairSwatchOn]} />
+                    <Text style={[styles.hairLabel, on && { color: colors.brandPrimary }]}>{h.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
             <Pressable onPress={() => setAvatarOpen(false)} style={styles.modalClose}><Text style={{ color: colors.textDim, letterSpacing: 2 }}>CLOSE</Text></Pressable>
           </View>
         </View>
@@ -428,6 +445,12 @@ const styles = StyleSheet.create({
   artTag: { position: "absolute", top: 8, right: 8, backgroundColor: colors.brandPrimary, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 },
   artTagText: { color: "#001122", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   modalClose: { alignItems: "center", marginTop: spacing.lg },
+  hairTitle: { color: colors.textMid, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginTop: spacing.md, marginBottom: spacing.sm },
+  hairRow: { flexDirection: "row", justifyContent: "space-between" },
+  hairOpt: { alignItems: "center", minWidth: 44 },
+  hairSwatch: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: "transparent" },
+  hairSwatchOn: { borderColor: colors.brandPrimary },
+  hairLabel: { color: colors.textDim, fontSize: 9, marginTop: 4, fontWeight: "700", letterSpacing: 0.5 },
   frameOpt: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1.5, borderColor: colors.border, marginBottom: spacing.sm, backgroundColor: colors.surface2 },
   frameSwatch: { width: 42, height: 56, borderRadius: radius.sm, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   frameOptName: { color: colors.text, fontWeight: "900", letterSpacing: 1 },

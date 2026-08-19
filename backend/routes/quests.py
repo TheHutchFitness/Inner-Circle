@@ -247,9 +247,17 @@ async def claim_quest(payload: dict, user=Depends(get_current_user)):
         parts_msg.append(tmpl.get("reward_label", "New frame"))
     reward_msg = " · ".join(parts_msg) if parts_msg else tmpl.get("reward_label", "Reward claimed")
 
+    # Boss loot: quest-exclusive skins/weapons that just unlocked from this claim
+    loot = []
+    try:
+        from gear import quest_loot_for_claim
+        loot = await quest_loot_for_claim(user["user_id"], scope)
+    except Exception:
+        loot = []
+
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     fresh["rank"] = rank_from_xp(fresh["xp"])
-    return {"ok": True, "reward": reward_msg, "user": fresh}
+    return {"ok": True, "reward": reward_msg, "loot": loot, "user": fresh}
 
 
 @api_router.get("/unlockables")

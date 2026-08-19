@@ -6,11 +6,11 @@ import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, w
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius, bgImage } from "@/src/lib/theme";
+import { colors, spacing, radius, bgImage, skinImage, weaponImage, rarityColor, rarityLabel } from "@/src/lib/theme";
 import { HudSectionHeader } from "@/src/components/Hud";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
-function BossReveal({ data, onClose }: { data: { label: string; title: string }; onClose: () => void }) {
+function BossReveal({ data, onClose }: { data: { label: string; title: string; loot?: any[] }; onClose: () => void }) {
   const scale = useSharedValue(0.4);
   const glow = useSharedValue(0.4);
   useEffect(() => {
@@ -19,6 +19,7 @@ function BossReveal({ data, onClose }: { data: { label: string; title: string };
   }, []);
   const cardSt = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   const glowSt = useAnimatedStyle(() => ({ opacity: glow.value }));
+  const loot = data.loot || [];
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
       <Pressable onPress={onClose} style={rv.wrap}>
@@ -28,7 +29,17 @@ function BossReveal({ data, onClose }: { data: { label: string; title: string };
           <Text style={rv.tag}>BOSS DEFEATED</Text>
           <Text style={rv.title}>{data.title}</Text>
           <View style={rv.rewardBox}><Text style={rv.reward}>◈ {data.label}</Text></View>
-          <Text style={rv.hint}>UNLOCKED · tap to continue</Text>
+          {loot.map((it) => (
+            <View key={it.id} style={[rv.lootBox, { borderColor: rarityColor(it.rarity) }]}>
+              <Text style={rv.lootBanner}>★ LEGENDARY DROP ★</Text>
+              <View style={[rv.lootThumb, it.kind === "weapon" && rv.lootThumbWeap, { borderColor: rarityColor(it.rarity) }]}>
+                <Image source={it.kind === "skin" ? skinImage(it.id) : weaponImage(it.id)} style={{ width: "100%", height: "100%" }} contentFit={it.kind === "skin" ? "cover" : "contain"} />
+              </View>
+              <Text style={rv.lootName}>{it.name}</Text>
+              <Text style={[rv.lootRarity, { color: rarityColor(it.rarity) }]}>{rarityLabel(it.rarity)} {it.kind === "skin" ? "SKIN" : "WEAPON"} · UNLOCKED</Text>
+            </View>
+          ))}
+          <Text style={rv.hint}>{loot.length ? "Equip it in The Armory · tap to continue" : "UNLOCKED · tap to continue"}</Text>
         </Animated.View>
       </Pressable>
     </Modal>
@@ -43,6 +54,12 @@ const rv = StyleSheet.create({
   title: { color: colors.text, fontSize: 20, fontWeight: "900", letterSpacing: 1, marginTop: spacing.sm, textAlign: "center" },
   rewardBox: { marginTop: spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: "#12B886", backgroundColor: "rgba(18,184,134,0.12)" },
   reward: { color: "#5CF0B4", fontWeight: "900", letterSpacing: 1, fontSize: 15, textAlign: "center" },
+  lootBox: { marginTop: spacing.lg, alignItems: "center", padding: spacing.md, borderRadius: radius.md, borderWidth: 2, backgroundColor: "rgba(0,0,0,0.35)", width: "100%" },
+  lootBanner: { color: "#FFD24A", fontWeight: "900", letterSpacing: 2, fontSize: 11, marginBottom: spacing.sm },
+  lootThumb: { width: 96, height: 128, borderRadius: radius.sm, overflow: "hidden", borderWidth: 2, backgroundColor: "#05070C" },
+  lootThumbWeap: { width: 96, height: 96, alignItems: "center", justifyContent: "center" },
+  lootName: { color: colors.text, fontWeight: "900", fontSize: 17, marginTop: spacing.sm },
+  lootRarity: { fontWeight: "900", letterSpacing: 1, fontSize: 11, marginTop: 2 },
   hint: { color: colors.textDim, letterSpacing: 2, fontSize: 11, marginTop: spacing.lg },
 });
 
@@ -70,7 +87,7 @@ export default function Quests() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any>(null);
   const [claiming, setClaiming] = useState(false);
-  const [bossReveal, setBossReveal] = useState<{ label: string; title: string } | null>(null);
+  const [bossReveal, setBossReveal] = useState<{ label: string; title: string; loot?: any[] } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [personal, setPersonal] = useState<any>(null);
   const [goalText, setGoalText] = useState("");
@@ -121,8 +138,9 @@ export default function Quests() {
       await refresh();
       await load();
       setSelected(null);
-      if (String(q.id).startsWith("boss")) {
-        setBossReveal({ label: res.reward || q.reward_label, title: q.title });
+      const loot = res.loot || [];
+      if (String(q.id).startsWith("boss") || loot.length) {
+        setBossReveal({ label: res.reward || q.reward_label, title: q.title, loot });
       } else {
         setToast(`REWARD CLAIMED · ${res.reward}`);
         setTimeout(() => setToast(null), 2600);

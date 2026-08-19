@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 21: Verified HAIR COLOUR + BOSS LOOT DROPS + GEAR-IN-FEED (backend + frontend, mobile 390x844). Backend pytest 10/10 passed sequentially (test_gear_hair_lootdrop.py -n0). Confirmed: (1) PATCH /api/profile/update {equipped_hair} accepts all 5 colours (black/brown/blonde/red/white), persists to user, and equipped_hair is returned by both /api/auth/me and /api/users/{id}/public. Also confirmed the PATCH filter `if v is not None` makes {equipped_hair: null} a NO-OP (hair cannot be cleared via null PATCH — see minor issue below). (2) The gear.quest_loot_for_claim helper correctly returns Shadow Assassin (skin_shadow) + Soul Scythe (w_soulscythe) when boss count crosses 3, Frost Sovereign (skin_frost) at boss=5, Storm Spear (w_stormspear) at monthly=4, and an EMPTY list for non-crossing daily claims. Each loot item has kind/id/name/rarity. (3) POST /api/quests/claim always returns a `loot` key in its response envelope (verified via response shape — the empty-loot claim path). (4) GET /api/chat/main/messages enrichment now includes equipped_skin + equipped_weapon + equipped_hair pulled from the sender's user record (verified: bot10 posts a message with skin_arcade + w_bow + blonde hair, GET returns all three fields on that message). (5) GET /api/leaderboard/xp rows carry equipped_skin/equipped_weapon/equipped_hair for geared bots (via full-user projection). Frontend Playwright (mobile 390x844) as bot10@circle.ai: SELECT AVATAR modal renders EXACTLY 5 race avatars (White/Black/Asian/Native/Indian) + a 'HAIR COLOUR' swatch row with all 5 colours (Black/Brown/Blonde/Red/White) each with correct swatch and testID hair-{color}. Tapping a hair colour recolours ALL 5 avatar thumbnails in-modal AND swaps the main player card image (verified src changed: av_black_red.png -> av_black_blonde.png -> av_black_black.png; player card of Asian LV45 shown with matching hair). Cleanup: both bots reset (equipped_hair/equipped_skin/equipped_weapon $unset, owned_skins/owned_weapons cleared, all synthetic quest_claims deleted). The Boss victory modal + PlayerAvatar gold-ring + weapon-badge code paths were code-reviewed as sound (BossReveal component shows LEGENDARY DROP banner + skin/weapon thumb + rarity, PlayerAvatar sets ringColor=#FFD24A when equipped_skin present and renders a ⚔️ weaponBadge when equipped_weapon present) — end-to-end triggering of a Boss quest via UI was skipped per the review request note (backend loot API path fully exercised).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/profile/update", "issue": "Sending {equipped_hair: null} is silently ignored because the handler filters out None values (routes/profile.py:20 `if v is not None`). There is no way to CLEAR hair back to the default via the API — user must PATCH with a specific hair id. Same applies to avatar_id, display_name, etc. Not blocking (frontend never sends null hair), but worth flagging as an API inconsistency."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_gear_hair_lootdrop.py",
+    "/app/test_reports/pytest/iter21_gear_feed.xml"
+  ],
+  "action_items": [
+    "None blocking. Feature bundle (hair colour + boss loot drops + gear-in-feed enrichment) is green.",
+    "OPTIONAL: allow PATCH /api/profile/update {equipped_hair: null} to actually clear the field (currently a no-op due to the None filter). Same applies to other optional str fields — consider using an explicit sentinel or accepting empty strings to clear."
+  ],
+  "critical_code_review_comments": [
+    "gear.quest_loot_for_claim() computes `prev` by subtracting 1 from the scope-relevant counter AFTER the claim is already inserted. This is correct for a single-claim delta but is NOT idempotent — if a client retries POST /api/quests/claim after a transient error and the SECOND write happens to persist, the second call would still see prev>=threshold and return empty loot (which is fine), but if BOTH writes persist the claim count is off by one. Consider a unique index on quest_claims(user_id, quest_key) — currently there's no de-dup constraint visible.",
+    "routes/quests.py:253 does `from gear import quest_loot_for_claim` (bare module name). This only works because uvicorn's working directory places /app/backend/routes on sys.path implicitly. A more explicit `from routes.gear import ...` would be more robust for pytest / alternate launchers. My tests worked around this by inserting /app/backend/routes into sys.path.",
+    "shared.py is still 1775 lines (pre-existing, flagged in prior iterations). Splitting is still open.",
+    "leaderboard.py projects the full user document (only _id + password_hash excluded), which is how equipped_skin/weapon/hair propagate 'for free' but also leaks email/is_bot/created_at etc. Pre-existing behaviour; recommend a public-safe projection in a follow-up.",
+    "PlayerAvatar gold ring uses shadowColor/shadowOpacity/shadowRadius (RN shadow-* props). The console emitted a warning that 'shadow*' style props are deprecated — use 'boxShadow'. Cosmetic only, but should be tracked."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_gear_hair_lootdrop.py (new — 10 tests for iter21 features)"
+  ],
+  "success_rate": {"backend": "100% (10/10 passed sequentially)", "frontend": "100% (SELECT AVATAR modal renders 5 races + 5 hair swatches; hair colour swap recolours all thumbnails + player card image; verified for bot10 across black/blonde/red)"},
+  "seed_data_creation": "Synthetic user_ids (__testuser_iter21_*) were used for quest_claims loot tests so no real bot's quest history was touched. Bots bot1@circle.ai + bot10@circle.ai had equipped_hair/skin/weapon and owned_skins/owned_weapons set during tests and were fully reset in teardown ($unset + [] on all four fields). All synthetic quest_claims removed. Post-test DB verified clean.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Regression file: /app/backend/tests/test_gear_hair_lootdrop.py. IMPORTANT — run with `-n0` (pytest.ini's default `-n 2 --dist loadscope` is fine per-class, but the loot tests share a Mongo helper import so sequential is safest). Frontend testIDs verified: change-avatar, avatar-avatar_{white|black|asian|native|indian} (5), hair-{black|brown|blonde|red|white} (5), tab-profile. The BossReveal loot modal in /app/frontend/app/(tabs)/quests.tsx uses `if (String(q.id).startsWith('boss') || loot.length)` to gate the modal — so ANY claim (daily/weekly/monthly/boss) that returns a non-empty loot will trigger the reveal, not just boss quests. If E1 wants strictly boss quests to trigger without a loot payload, that check is fine; today's loot payload is the source of truth. Backend has NO unique index on quest_claims(user_id, quest_key) — a client double-click could double-count. Not exploited by current UI (claim button is disabled after claim) but worth adding.",
+  "rca_of_issue": "N/A — no bugs found. One backend loot test initially failed because (a) the test tried to import `gear` from a bare module (sys.path issue — fixed by adding /app/backend/routes to sys.path) and (b) DB_NAME wasn't loaded from backend/.env so the helper connected to the wrong Mongo DB and saw zero claims (fixed by load_dotenv('/app/backend/.env') at test module top). Both fixes are in the test file; no product code changes."
+}

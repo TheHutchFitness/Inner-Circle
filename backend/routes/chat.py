@@ -18,7 +18,7 @@ async def get_messages(room: str, user=Depends(get_current_user)):
     if sender_ids:
         async for u in db.users.find(
             {"user_id": {"$in": sender_ids}},
-            {"user_id": 1, "founder_backer": 1, "photo_media_id": 1, "use_photo": 1, "loadout": 1, "avatar_id": 1, "equipped_skin": 1, "sex": 1},
+            {"user_id": 1, "founder_backer": 1, "photo_media_id": 1, "use_photo": 1, "loadout": 1, "avatar_id": 1, "equipped_skin": 1, "equipped_weapon": 1, "equipped_hair": 1, "sex": 1},
         ):
             if u.get("founder_backer"):
                 backers.add(u["user_id"])
@@ -28,6 +28,8 @@ async def get_messages(room: str, user=Depends(get_current_user)):
                 "loadout": _clean_loadout(u),
                 "avatar_id": u.get("avatar_id"),
                 "equipped_skin": u.get("equipped_skin"),
+                "equipped_weapon": u.get("equipped_weapon"),
+                "equipped_hair": u.get("equipped_hair"),
                 "sex": u.get("sex"),
             }
     for r in rows:
@@ -38,6 +40,8 @@ async def get_messages(room: str, user=Depends(get_current_user)):
             r["use_photo"] = p["use_photo"]
             r["loadout"] = p["loadout"]
             r["equipped_skin"] = p.get("equipped_skin")
+            r["equipped_weapon"] = p.get("equipped_weapon")
+            r["equipped_hair"] = p.get("equipped_hair")
             if p.get("sex"):
                 r["sex"] = p["sex"]
             if p.get("avatar_id"):
@@ -72,6 +76,8 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         "display_name": user.get("display_name", "Athlete"),
         "avatar_id": user.get("avatar_id", "avatar_white"),
         "equipped_skin": user.get("equipped_skin"),
+        "equipped_weapon": user.get("equipped_weapon"),
+        "equipped_hair": user.get("equipped_hair"),
         "sex": user.get("sex", "male"),
         "rank": rank_from_xp(user["xp"]),
         "skool_verified": user.get("skool_verified", False),

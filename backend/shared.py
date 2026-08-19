@@ -89,6 +89,7 @@ class ProfileUpdate(BaseModel):
     age: Optional[int] = None
     sex: Optional[Literal["male", "female", "other"]] = None
     avatar_id: Optional[str] = None
+    equipped_hair: Optional[str] = None
     social_tiktok: Optional[str] = None
     social_instagram: Optional[str] = None
 

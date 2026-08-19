@@ -61,31 +61,91 @@ export function avatarFor(id: string) {
   return AVATARS.find((a) => a.id === id) || AVATARS[0];
 }
 
-// AI-generated full-body stylized video-game base avatars (male)
-export const AVATAR_IMAGES: Record<string, any> = {
-  avatar_white: require("@/assets/images/av_white.png"),
-  avatar_black: require("@/assets/images/av_black.png"),
-  avatar_asian: require("@/assets/images/av_asian.png"),
-  avatar_native: require("@/assets/images/av_native.png"),
-  avatar_indian: require("@/assets/images/av_indian.png"),
+// ---- Hair colour options (applied to the base avatar) ----
+export const HAIR_COLORS: { id: string; label: string; swatch: string }[] = [
+  { id: "black", label: "Black", swatch: "#1A1A1E" },
+  { id: "brown", label: "Brown", swatch: "#6B4226" },
+  { id: "blonde", label: "Blonde", swatch: "#E6C56A" },
+  { id: "red", label: "Red", swatch: "#B5432A" },
+  { id: "white", label: "White", swatch: "#E8E8EC" },
+];
+const DEFAULT_HAIR: Record<string, string> = {
+  avatar_white: "brown", avatar_black: "black", avatar_asian: "black",
+  avatar_native: "black", avatar_indian: "black",
 };
 
-export function avatarImage(id?: string, sex?: string) {
-  if (sex === "female") return AVATAR_IMAGES_F[id || ""] || AVATAR_IMAGES[id || ""] || null;
-  return AVATAR_IMAGES[id || ""] || null;
+// AI-generated full-body stylized base avatars, keyed by `${race}_${hair}` (male)
+export const AVATAR_IMAGES: Record<string, any> = {
+  white_black: require("@/assets/images/av_white_black.png"),
+  white_brown: require("@/assets/images/av_white_brown.png"),
+  white_blonde: require("@/assets/images/av_white_blonde.png"),
+  white_red: require("@/assets/images/av_white_red.png"),
+  white_white: require("@/assets/images/av_white_white.png"),
+  black_black: require("@/assets/images/av_black_black.png"),
+  black_brown: require("@/assets/images/av_black_brown.png"),
+  black_blonde: require("@/assets/images/av_black_blonde.png"),
+  black_red: require("@/assets/images/av_black_red.png"),
+  black_white: require("@/assets/images/av_black_white.png"),
+  asian_black: require("@/assets/images/av_asian_black.png"),
+  asian_brown: require("@/assets/images/av_asian_brown.png"),
+  asian_blonde: require("@/assets/images/av_asian_blonde.png"),
+  asian_red: require("@/assets/images/av_asian_red.png"),
+  asian_white: require("@/assets/images/av_asian_white.png"),
+  native_black: require("@/assets/images/av_native_black.png"),
+  native_brown: require("@/assets/images/av_native_brown.png"),
+  native_blonde: require("@/assets/images/av_native_blonde.png"),
+  native_red: require("@/assets/images/av_native_red.png"),
+  native_white: require("@/assets/images/av_native_white.png"),
+  indian_black: require("@/assets/images/av_indian_black.png"),
+  indian_brown: require("@/assets/images/av_indian_brown.png"),
+  indian_blonde: require("@/assets/images/av_indian_blonde.png"),
+  indian_red: require("@/assets/images/av_indian_red.png"),
+  indian_white: require("@/assets/images/av_indian_white.png"),
+};
+
+// Female base avatars, keyed by `${race}_${hair}`
+export const AVATAR_IMAGES_F: Record<string, any> = {
+  white_black: require("@/assets/images/av_white_black_f.png"),
+  white_brown: require("@/assets/images/av_white_brown_f.png"),
+  white_blonde: require("@/assets/images/av_white_blonde_f.png"),
+  white_red: require("@/assets/images/av_white_red_f.png"),
+  white_white: require("@/assets/images/av_white_white_f.png"),
+  black_black: require("@/assets/images/av_black_black_f.png"),
+  black_brown: require("@/assets/images/av_black_brown_f.png"),
+  black_blonde: require("@/assets/images/av_black_blonde_f.png"),
+  black_red: require("@/assets/images/av_black_red_f.png"),
+  black_white: require("@/assets/images/av_black_white_f.png"),
+  asian_black: require("@/assets/images/av_asian_black_f.png"),
+  asian_brown: require("@/assets/images/av_asian_brown_f.png"),
+  asian_blonde: require("@/assets/images/av_asian_blonde_f.png"),
+  asian_red: require("@/assets/images/av_asian_red_f.png"),
+  asian_white: require("@/assets/images/av_asian_white_f.png"),
+  native_black: require("@/assets/images/av_native_black_f.png"),
+  native_brown: require("@/assets/images/av_native_brown_f.png"),
+  native_blonde: require("@/assets/images/av_native_blonde_f.png"),
+  native_red: require("@/assets/images/av_native_red_f.png"),
+  native_white: require("@/assets/images/av_native_white_f.png"),
+  indian_black: require("@/assets/images/av_indian_black_f.png"),
+  indian_brown: require("@/assets/images/av_indian_brown_f.png"),
+  indian_blonde: require("@/assets/images/av_indian_blonde_f.png"),
+  indian_red: require("@/assets/images/av_indian_red_f.png"),
+  indian_white: require("@/assets/images/av_indian_white_f.png"),
+};
+
+export function defaultHair(id?: string) {
+  return DEFAULT_HAIR[id || ""] || "black";
 }
 
-// Female base avatars (shown when account sex is female)
-export const AVATAR_IMAGES_F: Record<string, any> = {
-  avatar_white: require("@/assets/images/av_white_f.png"),
-  avatar_black: require("@/assets/images/av_black_f.png"),
-  avatar_asian: require("@/assets/images/av_asian_f.png"),
-  avatar_native: require("@/assets/images/av_native_f.png"),
-  avatar_indian: require("@/assets/images/av_indian_f.png"),
-};
+export function avatarImage(id?: string, sex?: string, hair?: string) {
+  const race = (id || "avatar_white").replace("avatar_", "");
+  const h = hair || defaultHair(id);
+  const key = `${race}_${h}`;
+  const map = sex === "female" ? AVATAR_IMAGES_F : AVATAR_IMAGES;
+  return map[key] || map[`${race}_${defaultHair(id)}`] || AVATAR_IMAGES[key] || null;
+}
 
 export function hasAvatarArt(id?: string) {
-  return !!AVATAR_IMAGES[id || ""];
+  return avatarImage(id) != null;
 }
 
 // ---- Full-body equippable SKINS (swap the whole avatar) ----
@@ -135,9 +195,9 @@ export function weaponImage(id?: string) {
   return WEAPON_IMAGES[id || ""] || null;
 }
 // Resolve the body image for a person: equipped full-body skin overrides the base avatar.
-export function bodyImage(person?: { equipped_skin?: string; avatar_id?: string; sex?: string } | null) {
+export function bodyImage(person?: { equipped_skin?: string; avatar_id?: string; sex?: string; equipped_hair?: string } | null) {
   if (person?.equipped_skin && SKIN_IMAGES[person.equipped_skin]) return SKIN_IMAGES[person.equipped_skin];
-  return avatarImage(person?.avatar_id, person?.sex);
+  return avatarImage(person?.avatar_id, person?.sex, person?.equipped_hair);
 }
 
 // ---- Unified RARITY tiers (how rare / hard to get) ----
