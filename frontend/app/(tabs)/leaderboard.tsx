@@ -158,9 +158,8 @@ export default function Leaderboards() {
       />
       <GymWatermark />
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
-      <Text style={styles.eyebrow}>RANKINGS</Text>
       <View style={styles.titleRow}>
-        <Text style={styles.h1}>THE CIRCLE</Text>
+        <Text style={styles.h1}>RANKINGS</Text>
         <View style={styles.activePill}>
           <View style={styles.activeDot} />
           <Text style={styles.activeText}>{active ?? "—"} ACTIVE</Text>

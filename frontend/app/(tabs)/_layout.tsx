@@ -17,7 +17,6 @@ const TABS = [
 function CustomTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
   const { token, user } = useAuth();
-  const lite = !!user?.lite_mode;
   const [bossAlert, setBossAlert] = useState(false);
   useEffect(() => {
     if (!token) return;
@@ -33,8 +32,8 @@ function CustomTabBar({ state, navigation }: any) {
     const id = setInterval(check, 30000);
     return () => { live = false; clearInterval(id); };
   }, [token]);
-  // Lite mode strips the social/chatrooms tab.
-  const hidden = lite ? new Set(["community"]) : new Set<string>();
+  // Lite mode keeps the SOCIAL tab (it hosts Groups, which are open to everyone).
+  const hidden = new Set<string>();
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {state.routes.map((route: any, i: number) => {

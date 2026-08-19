@@ -48,6 +48,7 @@ export default function Profile() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [prs, setPrs] = useState<any>(null);
   const [gymRank, setGymRank] = useState<any>(null);
+  const [myGroups, setMyGroups] = useState<any[]>([]);
   const cardRef = useRef<View>(null);
   const gymCardRef = useRef<View>(null);
 
@@ -61,6 +62,7 @@ export default function Profile() {
       try { setAttrs(await apiFetch(token, "/api/profile/attributes")); } catch {}
       try { setPrs(await apiFetch(token, "/api/profile/prs")); } catch {}
       try { setGymRank(await apiFetch(token, "/api/profile/gym-rank")); } catch {}
+      try { setMyGroups((await apiFetch(token, "/api/my-groups")).groups || []); } catch {}
       try { setGyms((await apiFetch(token, "/api/gyms")).gyms || []); } catch {}
     })();
   }, [token, user?.xp]);
@@ -367,6 +369,26 @@ export default function Profile() {
           )}
         </>
       )}
+
+      {/* MY GROUP — clans the athlete belongs to */}
+      <HudSectionHeader label="MY GROUPS" />
+      <View style={{ paddingHorizontal: spacing.lg }}>
+        {myGroups.length === 0 ? (
+          <Pressable testID="find-groups" onPress={() => router.push("/(tabs)/community")} style={styles.groupEmptyBtn}>
+            <Text style={styles.groupEmptyText}>🛡 You're not in a group yet — find one in Social → Groups</Text>
+          </Pressable>
+        ) : (
+          myGroups.map((g) => (
+            <Pressable key={g.id} testID={`my-group-${g.id}`} onPress={() => router.push("/(tabs)/community")} style={styles.myGroupCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.myGroupName}>🛡 {g.name}{g.role === "creator" ? " 👑" : ""}</Text>
+                <Text style={styles.myGroupMeta}>◈ Level {g.level} · {g.member_count} member{g.member_count === 1 ? "" : "s"}</Text>
+              </View>
+              <Text style={styles.gcArrow}>›</Text>
+            </Pressable>
+          ))
+        )}
+      </View>
 
       {/* APP MODE — switch between Lite (utility) and Full (game) */}
       <HudSectionHeader label="APP MODE" />
@@ -782,4 +804,10 @@ const styles = StyleSheet.create({
   gymRankFooter: { color: colors.brandPrimary, fontSize: 12, fontWeight: "800", marginTop: 8 },
   gymShareBtn: { marginTop: spacing.sm, borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 11, alignItems: "center" },
   gymShareText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  groupEmptyBtn: { padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  groupEmptyText: { color: colors.textDim, fontSize: 12, lineHeight: 18 },
+  myGroupCard: { flexDirection: "row", alignItems: "center", padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary, marginBottom: spacing.sm },
+  myGroupName: { color: colors.text, fontWeight: "900", fontSize: 15 },
+  myGroupMeta: { color: colors.brandPrimary, fontSize: 11, marginTop: 2, fontWeight: "700" },
+  gcArrow: { color: colors.brandPrimary, fontSize: 22, fontWeight: "900" },
 });

@@ -5,7 +5,7 @@ from shared import *  # noqa: F401,F403
 # ---------- Chat ----------
 @api_router.get("/chat/{room}/messages")
 async def get_messages(room: str, user=Depends(get_current_user)):
-    if room not in ("main", "the_room", "gym"):
+    if room not in ("main", "the_room", "gym") and not room.startswith("group:"):
         raise HTTPException(status_code=400, detail="Invalid room")
     if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak") and not user.get("all_rooms_access"):
         raise HTTPException(status_code=403, detail="The Room requires Elite rank")
@@ -15,6 +15,10 @@ async def get_messages(room: str, user=Depends(get_current_user)):
         if not gym:
             raise HTTPException(status_code=403, detail="Set your gym in Profile to join its chat")
         store_room = f"gym:{gym.lower()}"
+    if room.startswith("group:"):
+        g = await db.groups.find_one({"id": room.split(":", 1)[1]})
+        if not g or user["user_id"] not in g.get("members", []):
+            raise HTTPException(status_code=403, detail="Members only")
     rows = await db.chat_messages.find({"room": store_room}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
     rows.reverse()
     # Backer status can change after a message is posted — reflect current status on read
@@ -61,7 +65,7 @@ async def get_messages(room: str, user=Depends(get_current_user)):
 
 @api_router.post("/chat/{room}/messages")
 async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_user)):
-    if room not in ("main", "the_room", "gym"):
+    if room not in ("main", "the_room", "gym") and not room.startswith("group:"):
         raise HTTPException(status_code=400, detail="Invalid room")
     b = ban_state(user)
     if b and b["scope"] in ("chat", "all"):
@@ -75,6 +79,10 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         if not gym:
             raise HTTPException(status_code=403, detail="Set your gym in Profile to join its chat")
         store_room = f"gym:{gym.lower()}"
+    if room.startswith("group:"):
+        g = await db.groups.find_one({"id": room.split(":", 1)[1]})
+        if not g or user["user_id"] not in g.get("members", []):
+            raise HTTPException(status_code=403, detail="Members only")
     text = (inp.text or "").strip()
     media = None
     if inp.media_id:
