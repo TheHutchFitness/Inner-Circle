@@ -8,8 +8,23 @@ async def enhanced_status(user=Depends(get_current_user)):
         "age_verified": bool(user.get("age_verified")),
         "enhanced": bool(user.get("enhanced")),
         "enhanced_access": bool(user.get("enhanced") or user.get("enhanced_access")),
+        "enhanced_removal_used": bool(user.get("enhanced_removal_used")),
         "disclaimer": PED_DISCLAIMER,
     }
+
+
+@api_router.post("/enhanced/remove")
+async def enhanced_remove(user=Depends(get_current_user)):
+    """One-time removal of Enhanced status (and the red theme) from a profile."""
+    if user.get("enhanced_removal_used"):
+        raise HTTPException(status_code=400, detail="Enhanced status removal is only available once.")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"enhanced": False, "enhanced_removal_used": True}, "$unset": {"enhanced_since": ""}},
+    )
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    return fresh
 
 
 @api_router.post("/enhanced/verify-age")

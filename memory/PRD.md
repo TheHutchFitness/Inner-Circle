@@ -294,3 +294,6 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Changed (2026-06 — Twilio/phone verification hidden)
 - Per user request, phone verification + Twilio SMS features are HIDDEN from the app UI (email verification kept). VerifyPanel.tsx: removed the PHONE status chip + "VERIFY PHONE" button (email-only now). admin.tsx: removed the "📣 SMS ANNOUNCEMENT" card + its state/handler.
 - Backend endpoints (/verify/phone/*, /admin/announce, /admin/sms-status) and the Twilio env keys (TWILIO_ACCOUNT_SID/AUTH_TOKEN/PHONE_NUMBER) are RETAINED in .env + code for future re-enable — just not surfaced in the UI.
+
+## Implemented (2026-06 — One-time "Remove Enhanced Status")
+- Settings/CONFIG screen (settings.tsx): new "ENHANCED STATUS" section (shown only if user.enhanced or enhanced_removal_used). Button "REMOVE ENHANCED STATUS" → POST /api/enhanced/remove (sets enhanced=false + enhanced_removal_used=true, unsets enhanced_since; reverts red theme via persistEnhancedFlag(false) + reload on web). After use the button greys out and reads "ONLY AVAILABLE ONCE" (disabled). Backend enforces one-time (2nd call → 400). /enhanced/status now returns enhanced_removal_used. Verified end-to-end.

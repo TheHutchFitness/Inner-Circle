@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { VerifyPanel } from "@/src/components/VerifyPanel";
+import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
 
 export default function Settings() {
   const insets = useSafeAreaInsets();
@@ -33,6 +34,17 @@ export default function Settings() {
       await apiFetch(token, "/api/profile/skool-verify", { method: "POST", body: JSON.stringify({ code: code.trim() }) });
       await refresh();
       setMsg("Skool verified! You now have Circle access.");
+    } catch (e: any) { setMsg(e.message); }
+  };
+
+  const removeEnhanced = async () => {
+    if (user?.enhanced_removal_used) return;
+    try {
+      await apiFetch(token, "/api/enhanced/remove", { method: "POST" });
+      await persistEnhancedFlag(false);
+      await refresh();
+      setMsg("Enhanced status removed from your profile.");
+      if (Platform.OS === "web") setTimeout(() => reloadApp(), 500);
     } catch (e: any) { setMsg(e.message); }
   };
 
@@ -71,8 +83,25 @@ export default function Settings() {
         </Pressable>
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>ACCOUNT VERIFICATION</Text>
-        <Text style={styles.helper}>Verify your email or phone number to unlock photo & video sharing in the chatrooms.</Text>
+        <Text style={styles.helper}>Verify your email to unlock photo & video sharing in the chatrooms.</Text>
         <VerifyPanel />
+
+        {(user?.enhanced || user?.enhanced_removal_used) && (
+          <>
+            <Text style={[styles.h1, { marginTop: spacing.xl }]}>ENHANCED STATUS</Text>
+            <Text style={styles.helper}>Remove the Enhanced tag and red theme from your profile. This can only be done once — it cannot be undone.</Text>
+            <Pressable
+              testID="remove-enhanced"
+              onPress={removeEnhanced}
+              disabled={!!user?.enhanced_removal_used}
+              style={[styles.dangerBtn, user?.enhanced_removal_used && styles.dangerBtnDisabled]}
+            >
+              <Text style={[styles.dangerText, user?.enhanced_removal_used && styles.dangerTextDisabled]}>
+                {user?.enhanced_removal_used ? "ONLY AVAILABLE ONCE" : "REMOVE ENHANCED STATUS"}
+              </Text>
+            </Pressable>
+          </>
+        )}
 
         {msg && <Text testID="settings-msg" style={styles.msg}>{msg}</Text>}
       </ScrollView>
@@ -95,4 +124,8 @@ const styles = StyleSheet.create({
   primaryText: { color: "#001122", fontWeight: "900", letterSpacing: 3 },
   helper: { color: colors.textDim, marginBottom: spacing.sm, lineHeight: 19 },
   msg: { color: colors.brandPrimary, marginTop: spacing.md, textAlign: "center", letterSpacing: 2 },
+  dangerBtn: { marginTop: spacing.md, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.error, backgroundColor: "rgba(255,59,48,0.08)" },
+  dangerBtnDisabled: { borderColor: colors.border, backgroundColor: colors.surface2 },
+  dangerText: { color: colors.error, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
+  dangerTextDisabled: { color: colors.textDim },
 });
