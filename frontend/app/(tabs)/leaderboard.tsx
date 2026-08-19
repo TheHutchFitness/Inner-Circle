@@ -85,14 +85,22 @@ export default function Leaderboards() {
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterQuery, setRosterQuery] = useState("");
   const [gymCount, setGymCount] = useState(0);
+  const [gymLogo, setGymLogo] = useState<string | null>(null);
+  const [gymVerified, setGymVerified] = useState(false);
   const myGym = (user?.inperson_gym || "").trim();
 
   useEffect(() => {
     if (!myGym) return;
     (async () => {
-      try { setGymCount((await apiFetch(token, "/api/profile/gym-rank")).members || 0); } catch {}
+      try {
+        const gr = await apiFetch(token, "/api/profile/gym-rank");
+        setGymCount(gr.members || 0);
+        setGymLogo(gr.gym_logo || null);
+        setGymVerified(!!gr.gym_verified);
+      } catch {}
     })();
   }, [token, myGym]);
+  const logoUri = gymLogo ? `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${gymLogo}?token=${token}` : null;
 
   const openRoster = async () => {
     setRosterOpen(true); setRosterLoading(true); setRosterQuery("");
@@ -193,8 +201,21 @@ export default function Leaderboards() {
               <Text style={[styles.scopeText, !gymScope && styles.scopeTextActive]}>🌐 THE CIRCLE</Text>
             </Pressable>
             <Pressable testID="scope-gym" onPress={() => setGymScope(true)} style={[styles.scopeBtn, gymScope && styles.scopeActive]}>
-              <Text style={[styles.scopeText, gymScope && styles.scopeTextActive]} numberOfLines={1}>🏋 {myGym.toUpperCase()}{gymCount > 0 ? ` · ${gymCount}` : ""}</Text>
+              <Text style={[styles.scopeText, gymScope && styles.scopeTextActive]} numberOfLines={1}>🏋 {myGym.toUpperCase()}{gymVerified ? " ✓" : ""}{gymCount > 0 ? ` · ${gymCount}` : ""}</Text>
             </Pressable>
+          </View>
+        )}
+        {!!myGym && gymScope && (
+          <View style={styles.gymHeader}>
+            {logoUri ? (
+              <Image source={{ uri: logoUri }} style={styles.gymHeaderLogo} contentFit="cover" />
+            ) : (
+              <View style={[styles.gymHeaderLogo, styles.gymHeaderLogoEmpty]}><Text style={styles.gymHeaderLogoTxt}>🏋</Text></View>
+            )}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.gymHeaderName} numberOfLines={1}>{myGym.toUpperCase()}</Text>
+              {gymVerified ? <Text style={styles.gymVerified}>✓ VERIFIED GYM</Text> : <Text style={styles.gymHeaderSub}>{gymCount} athlete{gymCount === 1 ? "" : "s"}</Text>}
+            </View>
           </View>
         )}
         {!!myGym && gymScope && (
@@ -337,7 +358,8 @@ export default function Leaderboards() {
       <View style={styles.rosterOverlay}>
         <View style={styles.rosterSheet}>
           <View style={styles.rosterHead}>
-            <Text style={styles.rosterTitle}>🏋 {myGym.toUpperCase()} ROSTER · {gymCount}</Text>
+            {logoUri ? <Image source={{ uri: logoUri }} style={styles.rosterLogo} contentFit="cover" /> : null}
+            <Text style={styles.rosterTitle} numberOfLines={1}>🏋 {myGym.toUpperCase()}{gymVerified ? " ✓" : ""} · {gymCount}</Text>
             <Pressable testID="roster-close" onPress={() => setRosterOpen(false)}><Text style={styles.rosterClose}>✕</Text></Pressable>
           </View>
           {roster.length > 6 && (
@@ -446,6 +468,14 @@ const styles = StyleSheet.create({
   rosterSheet: { maxHeight: "82%", backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, borderTopWidth: 1, borderColor: colors.borderStrong },
   rosterHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
   rosterTitle: { color: colors.brandPrimary, fontWeight: "900", fontSize: 15, letterSpacing: 1 },
+  rosterLogo: { width: 30, height: 30, borderRadius: 6, marginRight: 8 },
+  gymHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
+  gymHeaderLogo: { width: 42, height: 42, borderRadius: 8 },
+  gymHeaderLogoEmpty: { alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3, borderWidth: 1, borderColor: colors.border },
+  gymHeaderLogoTxt: { fontSize: 20 },
+  gymHeaderName: { color: colors.text, fontWeight: "900", fontSize: 14, letterSpacing: 0.5 },
+  gymHeaderSub: { color: colors.textDim, fontSize: 11, marginTop: 2, fontWeight: "700" },
+  gymVerified: { color: colors.success, fontSize: 11, marginTop: 2, fontWeight: "900", letterSpacing: 0.5 },
   rosterClose: { color: colors.textDim, fontSize: 20, fontWeight: "900", paddingHorizontal: 8 },
   rosterSearch: { backgroundColor: colors.surface2, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm, fontSize: 14 },
   listWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },

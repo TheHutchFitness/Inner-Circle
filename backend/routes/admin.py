@@ -320,3 +320,48 @@ async def admin_delete_gym(gym_id: str, user=Depends(get_current_user)):
         {"inperson_gym": {"$regex": f"^{re.escape(g['name'])}$", "$options": "i"}},
         {"$set": {"inperson_gym": "", "inperson_request": False}})
     return {"ok": True}
+
+
+@api_router.post("/admin/gyms/{gym_id}/verify")
+async def admin_verify_gym(gym_id: str, payload: dict = Body(default={}), user=Depends(get_current_user)):
+    """Mark a gym as a verified, real location (or unverify)."""
+    _require_admin(user)
+    g = await db.gyms.find_one({"id": gym_id})
+    if not g:
+        raise HTTPException(status_code=404, detail="Gym not found")
+    on = bool((payload or {}).get("on", True))
+    await db.gyms.update_one({"id": gym_id}, {"$set": {"verified": on}})
+    return {"ok": True, "verified": on}
+
+
+@api_router.post("/admin/gyms/{gym_id}/logo")
+async def admin_gym_logo(gym_id: str, file: UploadFile = File(...), user=Depends(get_current_user)):
+    """Upload a small logo/photo for a gym (shown on its leaderboard & roster)."""
+    _require_admin(user)
+    g = await db.gyms.find_one({"id": gym_id})
+    if not g:
+        raise HTTPException(status_code=404, detail="Gym not found")
+    ct = (file.content_type or "").lower().split(";")[0].strip()
+    if ct not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=400, detail="Use a JPG, PNG or WEBP image")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 8MB)")
+    ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}[ct]
+    path = f"{STORAGE_APP_NAME}/gym-logo/{gym_id}/{uuid.uuid4().hex}.{ext}"
+    try:
+        await storage_put(path, data, ct)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 402:
+            raise HTTPException(status_code=402, detail="Storage credits exhausted — try again later")
+        raise HTTPException(status_code=502, detail="Upload failed — try again")
+    media_id = new_id("gymlogo")
+    await db.chat_media.insert_one({
+        "media_id": media_id, "user_id": user["user_id"], "storage_path": path,
+        "content_type": ct, "media_type": "image", "size": len(data),
+        "original_name": file.filename, "created_at": datetime.now(timezone.utc),
+    })
+    await db.gyms.update_one({"id": gym_id}, {"$set": {"logo_media_id": media_id}})
+    return {"ok": True, "logo_media_id": media_id}

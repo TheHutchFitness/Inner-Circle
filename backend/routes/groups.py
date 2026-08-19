@@ -66,11 +66,13 @@ class GroupTarget(BaseModel):
 async def _brief(g: dict, uid: str) -> dict:
     members = g.get("members", [])
     role = "creator" if g.get("creator_id") == uid else ("member" if uid in members else ("pending" if uid in g.get("pending", []) else "none"))
+    meta = _group_meta(g.get("xp", 0))
     return {
         "id": g["id"], "name": g["name"], "description": g.get("description", ""),
         "creator_id": g.get("creator_id"), "member_count": len(members),
         "xp": g.get("xp", 0),
-        **_group_meta(g.get("xp", 0)),
+        **meta,
+        "champion_title": g.get("champion_title"),
         "role": role, "pending_count": len(g.get("pending", [])),
     }
 
@@ -82,10 +84,14 @@ async def _count_membership(uid: str) -> int:
 @api_router.get("/groups")
 async def list_groups(user=Depends(get_current_user)):
     rows = await db.groups.find({}, {"_id": 0}).sort("xp", -1).to_list(500)
+    uid = user["user_id"]
+    is_admin = bool(user.get("is_admin"))
+    # Private "test" groups are only visible to their creator / admins.
+    rows = [g for g in rows if (g.get("name_lower") != "test" or is_admin or g.get("creator_id") == uid or uid in g.get("members", []))]
     return {
-        "groups": [await _brief(g, user["user_id"]) for g in rows],
+        "groups": [await _brief(g, uid) for g in rows],
         "can_create": _can_create(user),
-        "my_group_count": await _count_membership(user["user_id"]),
+        "my_group_count": await _count_membership(uid),
     }
 
 
@@ -247,3 +253,115 @@ async def announce(gid: str, inp: GroupText, user=Depends(get_current_user)):
 async def my_groups(user=Depends(get_current_user)):
     rows = await db.groups.find({"members": user["user_id"]}, {"_id": 0}).to_list(10)
     return {"groups": [await _brief(g, user["user_id"]) for g in rows]}
+
+
+
+# ---------- Group (Clan) Challenges: monthly clan-vs-clan competition ----------
+CHALLENGE_MEMBER_XP = 500   # personal XP awarded to every member of the winning clan
+CHALLENGE_GROUP_XP = 2500   # bonus XP added to the winning clan itself
+CHALLENGE_BADGE = "Clan Champion"
+
+
+def _require_admin_u(user):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+
+async def _challenge_standings(ch: dict) -> list:
+    snap = ch.get("start_snapshot", {}) or {}
+    groups = await db.groups.find({}, {"_id": 0, "id": 1, "name": 1, "xp": 1, "members": 1}).to_list(500)
+    rows = []
+    for g in groups:
+        gained = max(0, int(g.get("xp", 0)) - int(snap.get(g["id"], 0)))
+        meta = _group_meta(g.get("xp", 0))
+        rows.append({
+            "id": g["id"], "name": g["name"], "color": meta["color"], "badge": meta["badge"],
+            "gained": gained, "member_count": len(g.get("members", [])),
+        })
+    rows.sort(key=lambda r: r["gained"], reverse=True)
+    return rows
+
+
+@api_router.get("/group-challenge")
+async def group_challenge(user=Depends(get_current_user)):
+    ch = await db.group_challenges.find_one({"status": "active"}, {"_id": 0})
+    last = await db.group_challenges.find_one({"status": "ended"}, {"_id": 0}, sort=[("ended_at", -1)])
+    my_ids = [g["id"] for g in await db.groups.find({"members": user["user_id"]}, {"_id": 0, "id": 1}).to_list(10)]
+    out = {"active": None, "standings": [], "last": None, "is_admin": bool(user.get("is_admin")), "my_group_ids": my_ids}
+    if ch:
+        standings = await _challenge_standings(ch)
+        end_at = ch.get("end_at")
+        if isinstance(end_at, datetime):
+            if end_at.tzinfo is None:
+                end_at = end_at.replace(tzinfo=timezone.utc)
+            days_left = max(0, (end_at - datetime.now(timezone.utc)).days)
+            end_iso = end_at.isoformat()
+        else:
+            days_left, end_iso = None, end_at
+        out["active"] = {"id": ch["id"], "title": ch["title"], "end_at": end_iso, "days_left": days_left,
+                         "reward_xp": ch.get("reward_xp", CHALLENGE_GROUP_XP)}
+        out["standings"] = standings[:10]
+    if last:
+        out["last"] = {"title": last.get("title"), "winner_name": last.get("winner_name"),
+                       "winner_group_id": last.get("winner_group_id"),
+                       "ended_at": last.get("ended_at").isoformat() if isinstance(last.get("ended_at"), datetime) else last.get("ended_at")}
+    return out
+
+
+@api_router.post("/admin/group-challenge/start")
+async def start_group_challenge(payload: dict = Body(default={}), user=Depends(get_current_user)):
+    _require_admin_u(user)
+    if await db.group_challenges.find_one({"status": "active"}):
+        raise HTTPException(status_code=400, detail="A challenge is already running — finalize it first")
+    now = datetime.now(timezone.utc)
+    title = (str((payload or {}).get("title", "")) or "").strip()[:60] or f"{now.strftime('%B')} Clan Clash"
+    days = max(1, min(90, int((payload or {}).get("days", 30))))
+    groups = await db.groups.find({}, {"_id": 0, "id": 1, "xp": 1}).to_list(500)
+    snap = {g["id"]: int(g.get("xp", 0)) for g in groups}
+    doc = {
+        "id": new_id("gch"), "title": title, "status": "active",
+        "start_at": now, "end_at": now + timedelta(days=days), "start_snapshot": snap,
+        "reward_xp": max(0, int((payload or {}).get("reward_xp", CHALLENGE_GROUP_XP))),
+        "created_at": now,
+    }
+    await db.group_challenges.insert_one(doc)
+    return {"ok": True, "id": doc["id"], "title": title, "end_at": doc["end_at"].isoformat()}
+
+
+@api_router.post("/admin/group-challenge/finalize")
+async def finalize_group_challenge(user=Depends(get_current_user)):
+    _require_admin_u(user)
+    ch = await db.group_challenges.find_one({"status": "active"})
+    if not ch:
+        raise HTTPException(status_code=404, detail="No active challenge")
+    standings = await _challenge_standings(ch)
+    winner = next((s for s in standings if s["gained"] > 0), None)
+    reward_group_xp = int(ch.get("reward_xp", CHALLENGE_GROUP_XP))
+    now = datetime.now(timezone.utc)
+    winner_name, winner_gid, rewarded_members = None, None, 0
+    if winner:
+        winner_gid, winner_name = winner["id"], winner["name"]
+        g = await db.groups.find_one({"id": winner_gid})
+        await db.groups.update_one(
+            {"id": winner_gid},
+            {"$inc": {"xp": reward_group_xp}, "$set": {"champion": True, "champion_title": ch["title"]}},
+        )
+        for uid in (g or {}).get("members", []):
+            await award_xp(uid, CHALLENGE_MEMBER_XP)
+            await db.users.update_one({"user_id": uid}, {"$addToSet": {"badges": CHALLENGE_BADGE}})
+            rewarded_members += 1
+            try:
+                await send_push([uid], {
+                    "title": "🏆 Clan Champions!",
+                    "message": f"{winner_name} won {ch['title']}! +{CHALLENGE_MEMBER_XP} XP and the Clan Champion badge.",
+                    "action_url": "/(tabs)/community",
+                }, idempotency_key=f"gch:{ch['id']}:{uid}")
+            except Exception:
+                pass
+    await db.group_challenges.update_one(
+        {"id": ch["id"]},
+        {"$set": {"status": "ended", "ended_at": now, "winner_group_id": winner_gid,
+                  "winner_name": winner_name, "final_standings": standings[:10]}},
+    )
+    return {"ok": True, "winner_name": winner_name, "winner_group_id": winner_gid,
+            "group_xp_awarded": reward_group_xp if winner else 0, "members_rewarded": rewarded_members}

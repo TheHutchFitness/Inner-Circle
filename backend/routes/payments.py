@@ -280,7 +280,7 @@ async def founders_list(user=Depends(get_current_user)):
     # First 100 real members (exclude leaderboard bots), earliest signups first
     rows = await db.users.find(
         {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}},
-        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "created_at": 1, "founder_backer": 1, "sex": 1, "social_tiktok": 1, "social_instagram": 1},
+        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "created_at": 1, "founder_backer": 1, "sex": 1, "social_tiktok": 1, "social_instagram": 1, "social_youtube": 1},
     ).sort("created_at", 1).limit(FOUNDER_LIMIT).to_list(FOUNDER_LIMIT)
 
     founders = []
@@ -297,7 +297,7 @@ async def founders_list(user=Depends(get_current_user)):
             "sex": r.get("sex", "male"),
             "rank": rank_from_xp(r.get("xp", 0)),
             "is_backer": bool(r.get("founder_backer")),
-            "is_creator": bool(r.get("social_tiktok") or r.get("social_instagram")),
+            "is_creator": bool(r.get("social_tiktok") or r.get("social_instagram") or r.get("social_youtube")),
         })
 
     backer_rows = await db.users.find(
@@ -317,9 +317,10 @@ async def founders_list(user=Depends(get_current_user)):
         {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, "$or": [
             {"social_tiktok": {"$nin": [None, ""]}},
             {"social_instagram": {"$nin": [None, ""]}},
+            {"social_youtube": {"$nin": [None, ""]}},
         ]},
         {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "sex": 1,
-         "social_tiktok": 1, "social_instagram": 1},
+         "social_tiktok": 1, "social_instagram": 1, "social_youtube": 1},
     ).sort("xp", -1).to_list(300)
     creators = [{
         "user_id": c.get("user_id"),
@@ -329,6 +330,7 @@ async def founders_list(user=Depends(get_current_user)):
         "rank": rank_from_xp(c.get("xp", 0)),
         "social_tiktok": c.get("social_tiktok", "") or "",
         "social_instagram": c.get("social_instagram", "") or "",
+        "social_youtube": c.get("social_youtube", "") or "",
     } for c in creator_rows]
 
     my_receipt = None
@@ -354,7 +356,7 @@ async def founders_list(user=Depends(get_current_user)):
             "number": my_number,
             "is_founder": my_number is not None,
             "is_backer": bool(user.get("founder_backer")),
-            "is_creator": bool(user.get("social_tiktok") or user.get("social_instagram")),
+            "is_creator": bool(user.get("social_tiktok") or user.get("social_instagram") or user.get("social_youtube")),
             "receipt": my_receipt,
         },
     }

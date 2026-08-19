@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Switch, ActivityIndicator, Platform } from "react-native";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, applyEnhancedPalette } from "@/src/lib/theme";
 import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
+
+const API = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function Admin() {
   const insets = useSafeAreaInsets();
@@ -32,7 +36,7 @@ export default function Admin() {
   const loadFeatured = async () => {
     try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
   };
-  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); } /* eslint-disable-line */ }, [token]);
+  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); } /* eslint-disable-line */ }, [token]);
 
   const loadStore = async () => {
     try { setStoreItems((await apiFetch(token, "/api/admin/store")).items || []); } catch {}
@@ -68,6 +72,48 @@ export default function Admin() {
   };
   const deleteGymDir = async (g: any) => {
     try { await apiFetch(token, `/api/admin/gyms/${g.id}`, { method: "DELETE" }); await loadGymDir(); flash("Gym removed ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const toggleGymVerified = async (g: any) => {
+    try { await apiFetch(token, `/api/admin/gyms/${g.id}/verify`, { method: "POST", body: JSON.stringify({ on: !g.verified }) }); await loadGymDir(); flash(g.verified ? "Unverified" : "Verified ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const uploadGymLogo = async (g: any) => {
+    try {
+      const cur = await ImagePicker.getMediaLibraryPermissionsAsync();
+      let status = cur.status;
+      if (status !== "granted") {
+        if (!cur.canAskAgain) { flash("Enable photo access in Settings"); return; }
+        status = (await ImagePicker.requestMediaLibraryPermissionsAsync()).status;
+      }
+      if (status !== "granted") { flash("Photo permission needed"); return; }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
+      if (res.canceled || !res.assets?.length) return;
+      const a = res.assets[0];
+      const form = new FormData();
+      if (Platform.OS === "web") {
+        const blob = await (await fetch(a.uri)).blob();
+        form.append("file", blob, a.fileName || "logo.jpg");
+      } else {
+        form.append("file", { uri: a.uri, name: a.fileName || "logo.jpg", type: a.mimeType || "image/jpeg" } as any);
+      }
+      const r = await fetch(`${API}/api/admin/gyms/${g.id}/logo`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Upload failed"); }
+      await loadGymDir(); flash("Logo set ✓");
+    } catch (e: any) { flash(e?.message || "Upload failed"); }
+  };
+
+  // ---- Group (Clan) Challenge ----
+  const [challenge, setChallenge] = useState<any>(null);
+  const [chalTitle, setChalTitle] = useState("");
+  const loadChallenge = async () => {
+    try { setChallenge(await apiFetch(token, "/api/group-challenge")); } catch {}
+  };
+  const startChallenge = async () => {
+    try { await apiFetch(token, "/api/admin/group-challenge/start", { method: "POST", body: JSON.stringify({ title: chalTitle.trim(), days: 30 }) }); setChalTitle(""); await loadChallenge(); flash("Challenge started ✓"); }
+    catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const finalizeChallenge = async () => {
+    try { const r = await apiFetch(token, "/api/admin/group-challenge/finalize", { method: "POST" }); await loadChallenge(); flash(r.winner_name ? `Winner: ${r.winner_name} ✓` : "Ended — no winner"); }
+    catch (e: any) { flash(e?.message || "Failed"); }
   };
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(null), 2000); };
@@ -148,6 +194,28 @@ export default function Admin() {
           </View>
         </View>
 
+        {/* Group (Clan) Challenge */}
+        <Text style={st.section}>🏆 GROUP CHALLENGE</Text>
+        <View style={st.card}>
+          {challenge?.active ? (
+            <>
+              <Text style={st.cardTitle}>{challenge.active.title}</Text>
+              <Text style={st.cardSub}>Running · {challenge.active.days_left} days left · winner gets +{challenge.active.reward_xp} clan XP + Champion badge for every member.</Text>
+              {(challenge.standings || []).slice(0, 3).map((s: any, i: number) => (
+                <Text key={s.id} style={st.chalStand}>{i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"} {s.name} · +{s.gained} XP</Text>
+              ))}
+              <Pressable testID="finalize-challenge" onPress={finalizeChallenge} style={[st.annBtn, { backgroundColor: colors.warning }]}><Text style={[st.annBtnText, { color: "#221900" }]}>END & AWARD WINNER</Text></Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={st.cardSub}>Start a monthly clan-vs-clan competition. The group that earns the most XP over 30 days wins.</Text>
+              {challenge?.last?.winner_name ? <Text style={st.chalStand}>Last winner: 🏆 {challenge.last.winner_name} ({challenge.last.title})</Text> : null}
+              <TextInput testID="challenge-title" value={chalTitle} onChangeText={setChalTitle} placeholder="Challenge title (optional)" placeholderTextColor={colors.textDim} style={st.annInput2} />
+              <Pressable testID="start-challenge" onPress={startChallenge} style={st.annBtn}><Text style={st.annBtnText}>+ START MONTHLY CHALLENGE</Text></Pressable>
+            </>
+          )}
+        </View>
+
         {/* Store drop creator */}
         <Text style={st.section}>🛒 STORE DROPS ({storeItems.length})</Text>
         <View style={st.card}>
@@ -191,17 +259,31 @@ export default function Admin() {
           <Pressable testID="add-gym" onPress={addGymDir} style={st.featBtn}><Text style={st.featBtnText}>ADD</Text></Pressable>
         </View>
         {gymDir.map((g) => (
-          <View key={g.id} style={st.featRow}>
-            <TextInput
-              testID={`gym-name-${g.id}`}
-              value={editGym[g.id] ?? g.name}
-              onChangeText={(t) => setEditGym((s) => ({ ...s, [g.id]: t }))}
-              style={[st.searchInput, { flex: 1 }]}
-              autoCapitalize="words"
-            />
-            <Text style={st.gymMembers}>{g.members}👤</Text>
-            <Pressable testID={`gym-save-${g.id}`} onPress={() => renameGymDir(g)} style={st.featBtn}><Text style={st.featBtnText}>SAVE</Text></Pressable>
-            <Pressable testID={`gym-del-${g.id}`} onPress={() => deleteGymDir(g)} style={st.removeBtn}><Text style={st.removeText}>✕</Text></Pressable>
+          <View key={g.id} style={st.gymCard}>
+            <View style={st.gymTopRow}>
+              <Pressable testID={`gym-logo-${g.id}`} onPress={() => uploadGymLogo(g)} style={st.gymLogoBtn}>
+                {g.logo_media_id ? (
+                  <Image source={{ uri: `${API}/api/chat/media/${g.logo_media_id}?token=${token}` }} style={st.gymLogoImg} contentFit="cover" />
+                ) : (
+                  <Text style={st.gymLogoPlus}>＋{"\n"}LOGO</Text>
+                )}
+              </Pressable>
+              <TextInput
+                testID={`gym-name-${g.id}`}
+                value={editGym[g.id] ?? g.name}
+                onChangeText={(t) => setEditGym((s) => ({ ...s, [g.id]: t }))}
+                style={[st.searchInput, { flex: 1 }]}
+                autoCapitalize="words"
+              />
+              <Text style={st.gymMembers}>{g.members}👤</Text>
+            </View>
+            <View style={st.tagRow}>
+              <Pressable testID={`gym-verify-${g.id}`} onPress={() => toggleGymVerified(g)} style={[st.tag, g.verified && st.tagOn]}>
+                <Text style={[st.tagText, g.verified && st.tagTextOn]}>{g.verified ? "✓ VERIFIED" : "VERIFY"}</Text>
+              </Pressable>
+              <Pressable testID={`gym-save-${g.id}`} onPress={() => renameGymDir(g)} style={st.featBtn}><Text style={st.featBtnText}>SAVE</Text></Pressable>
+              <Pressable testID={`gym-del-${g.id}`} onPress={() => deleteGymDir(g)} style={st.removeBtn}><Text style={st.removeText}>✕</Text></Pressable>
+            </View>
           </View>
         ))}
 
@@ -359,5 +441,11 @@ const st = StyleSheet.create({
   featBtn: { paddingHorizontal: 14, justifyContent: "center", borderRadius: radius.sm, backgroundColor: colors.warning },
   featBtnText: { color: "#221900", fontWeight: "900", fontSize: 11, letterSpacing: 1 },
   gymMembers: { color: colors.textDim, fontSize: 11, fontWeight: "800", alignSelf: "center", minWidth: 34, textAlign: "center" },
+  gymCard: { padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, marginBottom: spacing.sm },
+  gymTopRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  gymLogoBtn: { width: 44, height: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  gymLogoImg: { width: "100%", height: "100%" },
+  gymLogoPlus: { color: colors.brandPrimary, fontSize: 8, fontWeight: "900", textAlign: "center", letterSpacing: 0.5 },
+  chalStand: { color: colors.text, fontSize: 12, fontWeight: "700", marginTop: 4 },
   msg: { color: colors.success, textAlign: "center", marginTop: spacing.md, fontWeight: "700" },
 });

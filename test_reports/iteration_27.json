@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 27 backend test suite covering 5 new features. 18/21 tests PASS (85.7%). Confirmed: Group Leveling meta fields (level/color/badge/title/xp_into_level/xp_for_next/next_tier/champion_title) present on /api/groups and /api/groups/{id}; /api/group-challenge shape correct and non-admin gets 403 on start/finalize while admin gets 400 when a challenge is already active; verified gym toggle works and surfaces in /api/gyms directory + /api/profile/gym-rank (gym_verified); gym logo upload accepts PNG (returns logo_media_id and surfaces in directory) and rejects text/plain with 400; non-admin gets 403 on both admin gym endpoints; PATCH /api/profile/update normalizes social_youtube full URL and @handle to a bare handle; /api/exercises returns 172 items with new categories Powerlifting/Strongman/Calisthenics/CrossFit; /api/exercises/demo?name= returns instantly (<0.2s) with {name, media_id (nullable)} — no 502 or hang; /api/enhanced/peds returns 39 PEDs including Masteron, Anadrol, MK-677, Tesamorelin. FAILURE: is_creator is not returned by /api/profile/me or /api/auth/me even though social_youtube is stored — spec requires is_creator to be true when any tiktok/instagram/youtube is set. is_creator IS correctly returned by /api/users/{id}/public.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/profile/me & GET /api/auth/me",
+        "issue": "is_creator field is not computed/returned on /profile/me or /auth/me. Spec: 'is_creator is true when any of tiktok/instagram/youtube is set'. Currently only /api/users/{id}/public computes it (via routes/profile.py line 282). /profile/me (routes/profile.py:6-10) and /auth/me (routes/auth.py:101-107) just return the raw user doc which never had is_creator persisted. Fix: compute is_creator = bool(u.get('social_tiktok') or u.get('social_instagram') or u.get('social_youtube')) inside profile_me() and me()."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter27_features.py",
+    "/app/test_reports/pytest/iter27.xml"
+  ],
+  "action_items": [
+    "Fix /api/profile/me and /api/auth/me to include is_creator = bool(social_tiktok or social_instagram or social_youtube). Simplest fix: add two lines inside profile_me() and me() before return, e.g. `user['is_creator'] = bool(user.get('social_tiktok') or user.get('social_instagram') or user.get('social_youtube'))`. This is required by the feature spec so the frontend can gate the creator UI off the same endpoint it already reads for the current user."
+  ],
+  "critical_code_review_comments": [
+    "routes/profile.py: /profile/me returns the raw user doc directly — any future computed field (is_creator, is_founder etc.) has to be added by hand. Consider a small serializer helper that both /profile/me and /auth/me pass through so computed fields stay in sync.",
+    "routes/groups.py: award_group_xp is called from workout logging and the standings diff is computed against a start_snapshot — verified indirectly via the returned meta on /api/groups. Non-admin start/finalize correctly 403 (via _require_admin_u)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter27_features.py (new)"
+  ],
+  "success_rate": {
+    "backend": "85.7% (18/21)",
+    "frontend": "not tested (backend-only per request)"
+  },
+  "seed_data_creation": "Created TEST_Verified_Gym_iter27 gym during TestGymsVerifyAndLogo — cleaned up in fixture teardown (DELETE /admin/gyms/{id}). Bot1 social_youtube was set to 'HandleTwo' during testing and then cleared to '' at the end of the YouTube test class. No leftover DB state.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_iter27_features.py is idempotent and cleans up its own gym. If main agent adds is_creator to /profile/me and /auth/me, the 3 currently-failing tests (TestSocialYouTube::test_patch_and_normalize_full_url, test_patch_handle_form, test_clearing_youtube_updates_is_creator) should pass. Note the 'August Clan Clash' active group challenge is still running — the test test_admin_start_rejects_if_active depends on that; if the challenge gets finalized before retest, that test will need to be updated to first-start-then-expect-conflict-on-second-start.",
+  "rca_of_issue": "Bug: is_creator missing from /profile/me and /auth/me. Root cause: routes/profile.py:6-10 and routes/auth.py:101-107 return the user doc as stored in Mongo. is_creator is a *computed* field (true if any social handle is set) — it's only computed in the public serializer at routes/profile.py:282. Since it was never persisted onto the user doc, the two 'me' endpoints simply don't have it. Reproduction: PATCH /api/profile/update {social_youtube:'https://www.youtube.com/@TestHandle'} → GET /api/profile/me → response has social_youtube='TestHandle' but no is_creator key. Fix: compute it inline in both endpoints (see action_items)."
+}

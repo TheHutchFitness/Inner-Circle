@@ -226,7 +226,7 @@ export default function Founders() {
                     </View>
                     <Text style={styles.creatorTick}>✔ CREATOR</Text>
                   </Pressable>
-                  <SocialLinksBar tiktok={c.social_tiktok} instagram={c.social_instagram} align="flex-start" />
+                  <SocialLinksBar tiktok={c.social_tiktok} instagram={c.social_instagram} youtube={c.social_youtube} align="flex-start" />
                 </View>
               );
             })

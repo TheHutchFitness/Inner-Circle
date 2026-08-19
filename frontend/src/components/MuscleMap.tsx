@@ -7,10 +7,14 @@ import { colors, spacing } from "@/src/lib/theme";
 const FRONT: Record<string, string[]> = {
   Chest: ["upper"], Back: [], Shoulders: ["shoulders"], Arms: ["arms"],
   Core: ["lower"], Legs: ["legs"], Olympic: ["shoulders", "lower", "legs"],
+  Powerlifting: ["shoulders", "upper", "lower", "legs"], Strongman: ["shoulders", "upper", "lower", "legs", "arms"],
+  Calisthenics: ["upper", "lower", "arms"], CrossFit: ["shoulders", "upper", "lower", "legs"],
 };
 const BACK: Record<string, string[]> = {
   Chest: [], Back: ["shoulders", "upper", "lower"], Shoulders: ["shoulders"], Arms: ["arms"],
   Core: ["lower"], Legs: ["legs"], Olympic: ["shoulders", "upper", "legs"],
+  Powerlifting: ["shoulders", "upper", "lower", "legs"], Strongman: ["shoulders", "upper", "lower", "legs"],
+  Calisthenics: ["upper", "lower"], CrossFit: ["shoulders", "upper", "legs"],
 };
 
 function Body({ active, label, back }: { active: string[]; label: string; back?: boolean }) {

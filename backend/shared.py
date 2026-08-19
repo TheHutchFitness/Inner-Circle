@@ -95,13 +95,14 @@ class ProfileUpdate(BaseModel):
     equipped_beard: Optional[str] = None
     social_tiktok: Optional[str] = None
     social_instagram: Optional[str] = None
+    social_youtube: Optional[str] = None
     gym: Optional[str] = None
     lite_mode: Optional[bool] = None
     inperson_request: Optional[bool] = None
 
 
 def social_handle(raw: str) -> str:
-    """Normalize a TikTok/Instagram input (handle or full URL) to a bare username."""
+    """Normalize a TikTok/Instagram/YouTube input (handle or full URL) to a bare username."""
     s = (raw or "").strip()
     if not s:
         return ""
@@ -112,7 +113,7 @@ def social_handle(raw: str) -> str:
     # strip query strings
     s = s.split("?")[0]
     # keep only valid handle chars
-    s = re.sub(r"[^A-Za-z0-9._]", "", s)
+    s = re.sub(r"[^A-Za-z0-9._-]", "", s)
     return s[:30]
 
 
@@ -909,6 +910,74 @@ EXERCISE_LIBRARY = [
     {"name": "Push Jerk", "category": "Olympic", "desc": "Dip, drive, and re-dip under the bar to lock it out overhead."},
     {"name": "Kettlebell Swing", "category": "Olympic", "desc": "Hip-hinge swing for explosive glutes, hamstrings, and conditioning."},
     {"name": "Box Jump", "category": "Olympic", "desc": "Explosive jump onto a box for lower-body power (log your reps)."},
+
+    # ---- Powerlifting ----
+    {"name": "Competition Squat", "category": "Powerlifting", "desc": "Low-bar competition-style squat to depth. Brace, break at the hips, and drive out of the hole."},
+    {"name": "Competition Bench Press", "category": "Powerlifting", "desc": "Paused competition bench with a set grip and leg drive. Pause on the chest, then press to lockout."},
+    {"name": "Competition Deadlift", "category": "Powerlifting", "desc": "Conventional or sumo pull to lockout under meet commands. Own the setup and grind the lockout."},
+    {"name": "Sumo Deadlift", "category": "Powerlifting", "desc": "Wide-stance pull with a more upright torso that shortens the range and loads the hips and quads."},
+    {"name": "Pause Squat", "category": "Powerlifting", "desc": "Squat with a dead-stop pause at the bottom to build out-of-the-hole strength and control."},
+    {"name": "Pause Bench Press", "category": "Powerlifting", "desc": "Bench with a longer pause on the chest to build starting strength and meet-legal control."},
+    {"name": "Deficit Deadlift", "category": "Powerlifting", "desc": "Pull while standing on a plate to increase range of motion and off-the-floor strength."},
+    {"name": "Block Pull", "category": "Powerlifting", "desc": "Deadlift from blocks to overload the mid-range and lockout."},
+    {"name": "Board Press", "category": "Powerlifting", "desc": "Bench to a board to overload the lockout and train triceps strength."},
+    {"name": "Spoto Press", "category": "Powerlifting", "desc": "Bench paused just above the chest to build tension and control mid-press."},
+    {"name": "Pin Squat", "category": "Powerlifting", "desc": "Squat to pins in a rack to train a dead-stop start at a set depth."},
+    {"name": "Good Morning", "category": "Powerlifting", "desc": "Hip hinge with the bar on your back to build the posterior chain and brace for squats."},
+    {"name": "Banded Bench Press", "category": "Powerlifting", "desc": "Bench with bands for accommodating resistance and explosive lockout speed."},
+    {"name": "Banded Deadlift", "category": "Powerlifting", "desc": "Deadlift against band tension to build speed and lockout power."},
+
+    # ---- Strongman ----
+    {"name": "Atlas Stone Lift", "category": "Strongman", "desc": "Lap and load a heavy stone to a platform. Full-body pull, hip drive, and grip."},
+    {"name": "Log Press", "category": "Strongman", "desc": "Clean and press a thick log overhead. Big shoulders, triceps, and bracing."},
+    {"name": "Farmer's Walk", "category": "Strongman", "desc": "Carry heavy implements for distance. Brutal grip, trap, and core conditioning."},
+    {"name": "Yoke Walk", "category": "Strongman", "desc": "Walk with a loaded yoke across your back for total-body stability and speed."},
+    {"name": "Sled Push", "category": "Strongman", "desc": "Drive a loaded sled forward for leg drive and conditioning."},
+    {"name": "Sled Drag", "category": "Strongman", "desc": "Pull a loaded sled backward or forward to build legs and work capacity."},
+    {"name": "Tire Flip", "category": "Strongman", "desc": "Lift and flip a heavy tire using a full posterior-chain drive."},
+    {"name": "Sandbag Carry", "category": "Strongman", "desc": "Bear-hug and carry a sandbag for grip, core, and conditioning."},
+    {"name": "Sandbag-to-Shoulder", "category": "Strongman", "desc": "Explosively load a sandbag to your shoulder. Full hip extension and grip."},
+    {"name": "Keg Clean & Press", "category": "Strongman", "desc": "Clean and press a shifting keg overhead for real-world pressing power."},
+    {"name": "Axle Deadlift", "category": "Strongman", "desc": "Deadlift a thick axle bar to challenge grip and pulling strength."},
+    {"name": "Viking Press", "category": "Strongman", "desc": "Neutral-grip overhead press on a landmine/machine for pressing volume."},
+    {"name": "Circus Dumbbell Press", "category": "Strongman", "desc": "One-arm press of an oversized dumbbell overhead for shoulder and core power."},
+    {"name": "Zercher Carry", "category": "Strongman", "desc": "Carry a load in the crook of your elbows to hammer the core and upper back."},
+
+    # ---- Calisthenics ----
+    {"name": "Muscle-Up", "category": "Calisthenics", "desc": "Explosive pull-up transitioning into a dip above the bar or rings."},
+    {"name": "Pistol Squat", "category": "Calisthenics", "desc": "Single-leg squat to full depth for unilateral strength, balance, and mobility."},
+    {"name": "Handstand Push-Up", "category": "Calisthenics", "desc": "Vertical press in a handstand for overhead strength and shoulder stability."},
+    {"name": "Pike Push-Up", "category": "Calisthenics", "desc": "Elevated-hip push-up that biases the shoulders — a step toward handstand push-ups."},
+    {"name": "Archer Push-Up", "category": "Calisthenics", "desc": "Push-up shifting weight to one arm for unilateral pressing strength."},
+    {"name": "Pseudo Planche Push-Up", "category": "Calisthenics", "desc": "Leaned-forward push-up loading the shoulders toward the planche."},
+    {"name": "Dip", "category": "Calisthenics", "desc": "Bodyweight parallel-bar dip for chest, triceps, and shoulders."},
+    {"name": "L-Sit", "category": "Calisthenics", "desc": "Hold legs straight out while supported to build core and hip-flexor strength (log seconds)."},
+    {"name": "Hollow Body Hold", "category": "Calisthenics", "desc": "Braced hollow position to build a rock-solid midline (log seconds)."},
+    {"name": "Front Lever", "category": "Calisthenics", "desc": "Horizontal body hold under a bar for elite lat and core strength (log seconds)."},
+    {"name": "Back Lever", "category": "Calisthenics", "desc": "Face-down straight-body hold under a bar for shoulder and core strength (log seconds)."},
+    {"name": "Toes-to-Bar", "category": "Calisthenics", "desc": "Hang and bring the toes to the bar for explosive core and grip."},
+    {"name": "Australian Pull-Up", "category": "Calisthenics", "desc": "Body-row under a low bar — a scalable horizontal pull for the back."},
+    {"name": "Nordic Hamstring Curl", "category": "Calisthenics", "desc": "Anchored eccentric curl for powerful, injury-resistant hamstrings."},
+    {"name": "Sissy Squat", "category": "Calisthenics", "desc": "Knees-forward bodyweight squat that torches the quads."},
+    {"name": "Wall Handstand Hold", "category": "Calisthenics", "desc": "Hold an inverted handstand against a wall for shoulder stability (log seconds)."},
+
+    # ---- CrossFit / Conditioning ----
+    {"name": "Thruster", "category": "CrossFit", "desc": "Front squat into an overhead press in one fluid rep. A brutal full-body conditioner."},
+    {"name": "Wall Ball", "category": "CrossFit", "desc": "Squat and throw a medicine ball to a target for legs, shoulders, and lungs."},
+    {"name": "Burpee", "category": "CrossFit", "desc": "Drop, push-up, jump — a full-body conditioning staple (log reps)."},
+    {"name": "Box Jump Over", "category": "CrossFit", "desc": "Jump onto and over a box for explosive, high-rep conditioning."},
+    {"name": "Double-Under", "category": "CrossFit", "desc": "Jump rope passing the rope twice per jump for coordination and conditioning (log reps)."},
+    {"name": "Toes-to-Bar (WOD)", "category": "CrossFit", "desc": "Kipping toes-to-bar for high-rep midline conditioning."},
+    {"name": "Kettlebell Snatch", "category": "CrossFit", "desc": "One-motion kettlebell swing to overhead lockout for power and conditioning."},
+    {"name": "Kettlebell Clean & Jerk", "category": "CrossFit", "desc": "Clean the bell to the rack and jerk it overhead for full-body power."},
+    {"name": "Rowing (Erg)", "category": "CrossFit", "desc": "Full-body erg rowing for calories or meters — a conditioning workhorse."},
+    {"name": "Assault Bike", "category": "CrossFit", "desc": "All-out air-bike intervals for lung-searing conditioning (log calories)."},
+    {"name": "Devil's Press", "category": "CrossFit", "desc": "Dumbbell burpee into an overhead snatch — a savage full-body movement."},
+    {"name": "Dumbbell Snatch", "category": "CrossFit", "desc": "Ground-to-overhead single-dumbbell snatch for power and conditioning."},
+    {"name": "Overhead Squat", "category": "CrossFit", "desc": "Squat with the bar locked out overhead for mobility, midline, and control."},
+    {"name": "Chest-to-Bar Pull-Up", "category": "CrossFit", "desc": "Pull-up bringing the chest to the bar for a bigger range and back strength."},
+    {"name": "Handstand Walk", "category": "CrossFit", "desc": "Walk on your hands for shoulder stability and skill (log distance)."},
+    {"name": "Rope Climb", "category": "CrossFit", "desc": "Climb a rope using legs and grip for pulling strength and skill."},
 ]
 
 
@@ -1306,6 +1375,30 @@ PED_LIBRARY = [
     {"name": "CJC-1295", "class": "Peptide (GHRH)", "desc": "Often paired with Ipamorelin in discussions of GH pulse support."},
     {"name": "Clenbuterol", "class": "Beta-2 agonist", "desc": "Non-steroid stimulant discussed for fat loss and its cardiovascular considerations."},
     {"name": "Semaglutide", "class": "GLP-1 peptide", "desc": "GLP-1 agonist discussed for appetite regulation and body-fat management."},
+    {"name": "Drostanolone (Masteron)", "class": "Anabolic steroid", "desc": "DHT-derived compound discussed for a hard, dry look and anti-estrogenic feel near contest."},
+    {"name": "Methenolone (Primobolan)", "class": "Anabolic steroid", "desc": "Mild long-ester compound discussed for lean, low-side-effect gains over longer blocks."},
+    {"name": "Oxymetholone (Anadrol)", "class": "Oral steroid", "desc": "Strong oral discussed for rapid size and strength; noted for high water/appetite effects."},
+    {"name": "Chlorodehydromethyltestosterone (Turinabol)", "class": "Oral steroid", "desc": "Oral discussed for steady lean strength with minimal water retention."},
+    {"name": "Fluoxymesterone (Halotestin)", "class": "Oral steroid", "desc": "Very potent oral discussed for peak strength and aggression in short pre-meet windows."},
+    {"name": "Methasterone (Superdrol)", "class": "Oral steroid", "desc": "Harsh oral discussed for fast dry mass; noted for significant liver/lipid considerations."},
+    {"name": "Mesterolone (Proviron)", "class": "Oral steroid", "desc": "Mild DHT-derived oral discussed for a drier look and libido/androgen support alongside a cycle."},
+    {"name": "Trestolone (MENT)", "class": "Anabolic steroid", "desc": "Highly androgenic 19-nor discussed for aggressive mass; noted for strong suppression."},
+    {"name": "1-Testosterone (DHB)", "class": "Anabolic steroid", "desc": "Dihydroboldenone discussed for dense lean mass and strength; noted for injection-site soreness."},
+    {"name": "Human Chorionic Gonadotropin (HCG)", "class": "Peptide hormone", "desc": "Discussed for testicular function/fertility support during and after suppressive cycles."},
+    {"name": "MK-677 (Ibutamoren)", "class": "GH secretagogue", "desc": "Oral GH secretagogue discussed for appetite, sleep and gradual GH/IGF-1 support."},
+    {"name": "GHRP-6", "class": "Peptide (GH secretagogue)", "desc": "GH-releasing peptide discussed for GH pulses and strong appetite stimulation."},
+    {"name": "GHRP-2", "class": "Peptide (GH secretagogue)", "desc": "GH-releasing peptide discussed for GH support with less hunger than GHRP-6."},
+    {"name": "Hexarelin", "class": "Peptide (GH secretagogue)", "desc": "Potent GH-releasing peptide discussed for short, strong GH pulses."},
+    {"name": "Tesamorelin", "class": "Peptide (GHRH)", "desc": "GHRH analog discussed for visceral-fat reduction and GH support."},
+    {"name": "Sermorelin", "class": "Peptide (GHRH)", "desc": "GHRH analog discussed for gentle, sleep-timed GH release."},
+    {"name": "Tirzepatide", "class": "GLP-1/GIP peptide", "desc": "Dual GLP-1/GIP agonist discussed for appetite control and body-fat management."},
+    {"name": "AOD-9604", "class": "Peptide", "desc": "GH-fragment peptide discussed around fat metabolism without broad GH effects."},
+    {"name": "Follistatin-344", "class": "Peptide", "desc": "Myostatin-related peptide discussed for muscle-growth potential in research settings."},
+    {"name": "Thymosin Alpha-1", "class": "Peptide", "desc": "Immune-modulating peptide discussed for recovery and immune support."},
+    {"name": "GHK-Cu", "class": "Copper peptide", "desc": "Copper peptide discussed for skin, connective-tissue and recovery support."},
+    {"name": "PT-141 (Bremelanotide)", "class": "Peptide", "desc": "Melanocortin peptide discussed for libido support."},
+    {"name": "Melanotan II", "class": "Peptide", "desc": "Melanocortin peptide discussed for tanning and appetite/libido effects."},
+    {"name": "DSIP", "class": "Peptide", "desc": "Delta sleep-inducing peptide discussed for sleep quality and recovery."},
 ]
 PED_DISCLAIMER = "This is not medical advice. The Enhanced is a discussion space only. Nothing here recommends, prescribes or endorses using any substance. Consult a licensed physician."
 
@@ -1843,6 +1936,17 @@ async def list_gym_names() -> list:
             await ensure_gym(n)
         rows = await db.gyms.find({}, {"_id": 0, "name": 1}).sort("name", 1).to_list(1000)
     return [r["name"] for r in rows]
+
+
+async def gym_meta(name: str) -> dict:
+    """Logo + verified status for a gym by (case-insensitive) name."""
+    name = (name or "").strip()
+    if not name:
+        return {"logo_media_id": None, "verified": False}
+    g = await db.gyms.find_one({"name_lower": name.lower()}, {"_id": 0, "logo_media_id": 1, "verified": 1})
+    if not g:
+        return {"logo_media_id": None, "verified": False}
+    return {"logo_media_id": g.get("logo_media_id"), "verified": bool(g.get("verified"))}
 
 
 # ---------- Emergent Managed Push Notifications ----------

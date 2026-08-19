@@ -17,8 +17,32 @@ const REP_RANGES: Record<string, { label: string; range: string }[]> = {
   Arms: [{ label: "HYPERTROPHY", range: "8-12" }, { label: "PUMP", range: "12-15" }],
   Core: [{ label: "ENDURANCE", range: "12-20" }],
   Olympic: [{ label: "POWER", range: "2-5" }],
+  Powerlifting: [{ label: "STRENGTH", range: "1-5" }, { label: "VOLUME", range: "5-8" }],
+  Strongman: [{ label: "POWER", range: "3-6" }, { label: "CARRY", range: "20-50m" }],
+  Calisthenics: [{ label: "STRENGTH", range: "3-8" }, { label: "SKILL/HOLD", range: "10-30s" }],
+  CrossFit: [{ label: "CONDITIONING", range: "10-20" }, { label: "POWER", range: "3-6" }],
 };
 const repRanges = (cat?: string) => REP_RANGES[cat || ""] || [{ label: "HYPERTROPHY", range: "8-12" }];
+
+// Instant, reliable form cues shown for every exercise (no network / no AI needed).
+const FORM_CUES: Record<string, string[]> = {
+  Chest: ["Set your shoulder blades back and down, feet planted.", "Lower under control to your chest for a full stretch.", "Drive up explosively and squeeze the chest at the top.", "Keep wrists stacked over your elbows."],
+  Back: ["Brace your core and keep a neutral spine.", "Initiate the pull with your back, not your arms.", "Pull elbows toward your hips and squeeze the shoulder blades.", "Control the negative — no swinging."],
+  Shoulders: ["Brace hard and keep ribs down.", "Press or raise in a smooth, controlled arc.", "Stop just short of locking out to keep tension.", "Lower slowly — don't let gravity win."],
+  Arms: ["Pin your elbows in place and stay strict.", "Squeeze hard at peak contraction.", "Lower slowly for 2-3 seconds each rep.", "Avoid using momentum or body english."],
+  Core: ["Exhale and brace as you contract.", "Move slowly and feel every rep.", "Keep your lower back safe and supported.", "Hold the peak for a full second."],
+  Legs: ["Set your stance and brace your core.", "Drive through your whole foot.", "Hit full depth with control.", "Explode up and lock out the rep."],
+  Olympic: ["Start tight with the bar close to your body.", "Extend explosively through hips and knees.", "Pull yourself under fast and catch solid.", "Stabilize before you stand or reset."],
+  Powerlifting: ["Set your brace and full-body tension before you move.", "Own the eccentric — stay tight in the bottom.", "Drive with intent and finish every rep.", "Reset your setup between reps for consistency."],
+  Strongman: ["Get a secure grip and brace your whole body.", "Use your legs and hips to move the load.", "Keep the implement close and your back flat.", "Breathe and stay braced through carries."],
+  Calisthenics: ["Own your full bodyweight — move slow and controlled.", "Keep a tight hollow body and squeezed glutes.", "Full range of motion beats extra reps.", "Build to harder progressions over time."],
+  CrossFit: ["Nail the movement standard before adding speed.", "Pace your reps to keep good form under fatigue.", "Breathe rhythmically — don't hold your breath.", "Scale the load/reps to move consistently."],
+};
+const formCues = (e?: Ex | null) => {
+  if (!e) return [];
+  const base = FORM_CUES[e.category] || ["Set up with a stable, braced position.", "Move under control through a full range.", "Squeeze at the peak of each rep.", "Lower slowly and keep tension."];
+  return e.desc ? [e.desc, ...base] : base;
+};
 
 export function ExerciseLibraryModal({
   visible, onClose, onAdd, token,
@@ -38,8 +62,6 @@ export function ExerciseLibraryModal({
   // demo detail sheet
   const [detail, setDetail] = useState<Ex | null>(null);
   const [demoUri, setDemoUri] = useState<string | null>(null);
-  const [demoLoading, setDemoLoading] = useState(false);
-  const [demoErr, setDemoErr] = useState(false);
 
   const load = async () => {
     try {
@@ -113,13 +135,13 @@ export function ExerciseLibraryModal({
     setCreating(false);
   };
 
-  const openDemo = async (e: Ex, force = false) => {
-    setDetail(e); setDemoUri(null); setDemoErr(false); setDemoLoading(true);
+  const openDemo = async (e: Ex) => {
+    setDetail(e); setDemoUri(null);
+    // Instant sheet (cues + muscle map). Fetch a cached illustration in the background if one exists.
     try {
-      const r = await apiFetch(token, `/api/exercises/demo?name=${encodeURIComponent(e.name)}${force ? "&force=1" : ""}`);
-      setDemoUri(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${r.media_id}?token=${token}&v=${Date.now()}`);
-    } catch { setDemoErr(true); }
-    setDemoLoading(false);
+      const r = await apiFetch(token, `/api/exercises/demo?name=${encodeURIComponent(e.name)}`);
+      if (r?.media_id) setDemoUri(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${r.media_id}?token=${token}`);
+    } catch {}
   };
 
   const confirm = () => { if (sel.length) onAdd(sel); onClose(); };
@@ -244,37 +266,24 @@ export function ExerciseLibraryModal({
                 </View>
               ))}
             </View>
-            <View style={styles.demoBox}>
-              {demoLoading ? (
-                <View style={styles.demoCenter}>
-                  <ActivityIndicator color={colors.brandPrimary} />
-                  <Text style={styles.demoHint}>{"Generating form demo..."}</Text>
-                </View>
-              ) : demoErr ? (
-                <View style={styles.demoCenter}><Text style={styles.demoHint}>{"Couldn't load a demo. Tap regenerate to retry."}</Text></View>
-              ) : demoUri ? (
+            {demoUri ? (
+              <View style={styles.demoBox}>
                 <Image source={{ uri: demoUri }} style={styles.demoImg} contentFit="cover" transition={200} />
-              ) : null}
-            </View>
+              </View>
+            ) : null}
+            <Text style={styles.cuesLabel}>HOW TO PERFORM</Text>
+            {formCues(detail).map((c, i) => (
+              <View key={i} style={styles.cueRow}>
+                <Text style={styles.cueNum}>{i + 1}</Text>
+                <Text style={styles.cueText}>{c}</Text>
+              </View>
+            ))}
             <MuscleMap category={detail?.category} />
             <View style={styles.actionRow}>
-              <Pressable
-                testID="demo-regen"
-                onPress={() => detail && openDemo(detail, true)}
-                disabled={demoLoading}
-                style={[styles.smallBtn, demoLoading && { opacity: 0.5 }]}
-              >
-                <Text style={styles.smallBtnText}>{"\u21BB REGENERATE"}</Text>
-              </Pressable>
-              <Pressable
-                testID="demo-share"
-                onPress={shareDemo}
-                style={styles.smallBtn}
-              >
+              <Pressable testID="demo-share" onPress={shareDemo} style={[styles.smallBtn, { flex: 1 }]}>
                 <Text style={styles.smallBtnText}>{"\u2934 SHARE"}</Text>
               </Pressable>
             </View>
-            {!!detail?.desc && <Text style={styles.detailDesc}>{detail.desc}</Text>}
             <Pressable
               testID="demo-add"
               onPress={() => { if (detail) { setSel((s) => (s.includes(detail.name) ? s : [...s, detail.name])); setDetail(null); } }}
@@ -334,6 +343,10 @@ const styles = StyleSheet.create({
   demoCenter: { flex: 1, alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.lg },
   demoHint: { color: colors.textDim, fontSize: 12, textAlign: "center" },
   demoImg: { width: "100%", height: "100%" },
+  cuesLabel: { color: colors.brandPrimary, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginTop: spacing.sm, marginBottom: spacing.sm },
+  cueRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, marginBottom: spacing.sm },
+  cueNum: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.brandTertiary, color: colors.brandPrimary, fontWeight: "900", fontSize: 11, textAlign: "center", lineHeight: 20, overflow: "hidden" },
+  cueText: { flex: 1, color: colors.textMid, fontSize: 13, lineHeight: 19 },
   actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm, marginBottom: spacing.md },
   smallBtn: { flex: 1, borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 9, alignItems: "center" },
   smallBtnText: { color: colors.brandPrimary, fontWeight: "800", fontSize: 11, letterSpacing: 1 },

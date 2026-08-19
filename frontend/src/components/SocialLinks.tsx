@@ -7,6 +7,7 @@ import { colors, spacing, radius } from "@/src/lib/theme";
 // and fall back to the mobile website (or browser on web) when the app is absent.
 export const tiktokUrl = (h: string) => `https://www.tiktok.com/@${h}`;
 export const instagramUrl = (h: string) => `https://www.instagram.com/${h}`;
+export const youtubeUrl = (h: string) => `https://www.youtube.com/@${h}`;
 
 const open = (url: string) => {
   Linking.openURL(url).catch(() => {});
@@ -16,15 +17,18 @@ const open = (url: string) => {
 export function SocialLinksBar({
   tiktok,
   instagram,
+  youtube,
   align = "center",
 }: {
   tiktok?: string;
   instagram?: string;
+  youtube?: string;
   align?: "center" | "flex-start";
 }) {
   const tt = (tiktok || "").trim();
   const ig = (instagram || "").trim();
-  if (!tt && !ig) return null;
+  const yt = (youtube || "").trim();
+  if (!tt && !ig && !yt) return null;
   return (
     <View style={[styles.barRow, { justifyContent: align }]}>
       {!!tt && (
@@ -39,6 +43,12 @@ export function SocialLinksBar({
           <Text style={styles.chipText}>@{ig}</Text>
         </Pressable>
       )}
+      {!!yt && (
+        <Pressable testID="social-youtube-link" onPress={() => open(youtubeUrl(yt))} style={styles.chip}>
+          <Text style={styles.chipIcon}>▶️</Text>
+          <Text style={styles.chipText}>@{yt}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -48,31 +58,35 @@ export function SocialLinksEditor({
   token,
   tiktok,
   instagram,
+  youtube,
   onSaved,
 }: {
   token: string | null;
   tiktok?: string;
   instagram?: string;
+  youtube?: string;
   onSaved?: () => void | Promise<void>;
 }) {
   const [tt, setTt] = useState(tiktok || "");
   const [ig, setIg] = useState(instagram || "");
+  const [yt, setYt] = useState(youtube || "");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     setTt(tiktok || "");
     setIg(instagram || "");
-  }, [tiktok, instagram]);
+    setYt(youtube || "");
+  }, [tiktok, instagram, youtube]);
 
-  const dirty = tt.trim() !== (tiktok || "").trim() || ig.trim() !== (instagram || "").trim();
+  const dirty = tt.trim() !== (tiktok || "").trim() || ig.trim() !== (instagram || "").trim() || yt.trim() !== (youtube || "").trim();
 
   const save = async () => {
     setBusy(true);
     try {
       await apiFetch(token, "/api/profile/update", {
         method: "PATCH",
-        body: JSON.stringify({ social_tiktok: tt.trim(), social_instagram: ig.trim() }),
+        body: JSON.stringify({ social_tiktok: tt.trim(), social_instagram: ig.trim(), social_youtube: yt.trim() }),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2200);
@@ -112,13 +126,27 @@ export function SocialLinksEditor({
           style={styles.input}
         />
       </View>
+      <View style={styles.inputRow}>
+        <Text style={styles.inputIcon}>▶️</Text>
+        <Text style={styles.at}>@</Text>
+        <TextInput
+          testID="social-youtube-input"
+          value={yt}
+          onChangeText={setYt}
+          placeholder="youtube handle"
+          placeholderTextColor={colors.textDim}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.input}
+        />
+      </View>
       {dirty && (
         <Pressable testID="social-save" onPress={save} disabled={busy} style={styles.saveBtn}>
           <Text style={styles.saveText}>{busy ? "SAVING..." : "SAVE LINKS"}</Text>
         </Pressable>
       )}
       {saved && <Text style={styles.savedMsg}>Links saved ✓</Text>}
-      <SocialLinksBar tiktok={tt} instagram={ig} />
+      <SocialLinksBar tiktok={tt} instagram={ig} youtube={yt} />
     </View>
   );
 }

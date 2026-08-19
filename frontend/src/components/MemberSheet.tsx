@@ -112,7 +112,7 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
                 <Stat label="BADGES" value={`${m.badges_count}`} />
               </View>
 
-              <SocialLinksBar tiktok={m.social_tiktok} instagram={m.social_instagram} />
+              <SocialLinksBar tiktok={m.social_tiktok} instagram={m.social_instagram} youtube={m.social_youtube} />
             </>
           )}
           <Pressable testID="member-sheet-close" onPress={onClose} style={styles.closeBtn}>

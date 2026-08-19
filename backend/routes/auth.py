@@ -103,6 +103,7 @@ async def me(user=Depends(get_current_user)):
     user = await ensure_owner_admin(user)
     user["rank"] = rank_from_xp(user["xp"])
     user.update(await founder_status(user))
+    user["is_creator"] = bool(user.get("social_tiktok") or user.get("social_instagram") or user.get("social_youtube"))
     user["season_champ_titles"] = await season_titles_for(user["user_id"])
     return user
 

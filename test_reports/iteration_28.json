@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 28 pre-publish validation. Backend is_creator fix RE-VERIFIED — 6/6 pytest cases pass on /api/auth/me and /api/profile/me (owner with socials => is_creator True, fresh bot with no socials => False, transitions on set/clear work end-to-end incl. TikTok URL normalization). Frontend flows PASS: login screen hero image (login-bg.png) renders + LOGIN/ENLIST tabs work + Test@Test.com/test lands on Home (WELCOME, TEST); Admin GROUP CHALLENGE START → flips to standings + END & AWARD WINNER → finalized and reverts to START; Admin GYM DIRECTORY shows exactly the 'test' gym with '✓ VERIFIED' toggle and gym-logo upload tile (toggle tested); OWNER Social → GROUPS shows the 'test' group (Lv 1 · Cyan Cell) and detail page renders level progress bar + clan color; BOT1 sees 0 groups (ALL GROUPS (0)); Leaderboard XP endpoint returns exactly 10 bots (Apex Prime → Plate Prophet), owner + Test excluded; verified gym check 'TEST ✓ · 1' visible in leaderboard header for a member with the verified gym; Profile ME SOCIAL LINKS editor has TikTok + Instagram + YouTube (▶️) inputs, saving 'hutchYT' persists and renders a tappable social-youtube-link chip; Exercise Library opens instantly (0.34s) with rep-range tags (STRENGTH 4-6, HYPERTROPHY 8-12), numbered HOW TO PERFORM cue list, and a FRONT/BACK muscle map targeting Chest — no 'Generating form demo…' spinner and no error. Category chips include All/Chest/Back/Shoulders/Legs/Arms/Core/Olympic + new Powerlifting/Strongman/Calisthenics/CrossFit.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter28_is_creator.py",
+    "/app/test_reports/pytest/iter28_is_creator.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/auth.py:106 & routes/profile.py:10 — is_creator is now computed inline on both /auth/me and /profile/me. Fix is minimal and matches the pattern in /users/{id}/public. Consider a single helper serializer to avoid drift if more computed fields are added later.",
+    "frontend/app/(tabs)/social exposes the Groups panel via testID chat-room-groups seg (not a discoverable label named 'GROUPS' in tab-bar). Not a bug, but a first-time test agent could miss it — noted in context_for_next_testing_agent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter28_is_creator.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 is_creator + prior 18/21 iter27; only iter27 flakes were the same is_creator issue now fixed)",
+    "frontend": "100% (7/7 flows PASS: login+hero, admin challenge, admin gym verify, owner groups list+detail, bot groups hidden, leaderboard 10 bots + verified gym check, YouTube social link save/chip, exercise demo instant with new categories)"
+  },
+  "seed_data_creation": "Set bot1 social_tiktok=testcreator then cleared it back to empty in the test suite (cleaned up on last test). Started + finalized an ad-hoc 'TEST_iter28_challenge' via the Admin UI (finalize completed — DB is back to no-active-challenge state).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Groups panel is reached from Social tab via testID 'chat-room-groups' seg (not the label 'GROUPS'). To reach Exercise Library, TRAIN → template-push (or any template) → in the workout screen tap '+ ADD EXERCISE' — the modal exposes lib-search, lib-cat-{category}, lib-ex-{name}, lib-info-{name}, and demo-close. Owner (the9hutch@gmail.com) is is_admin=true + level 1001, so full admin surface is available. Test@Test.com/test successfully logs in and lands on Home. The 'test' gym and 'test' group are single-instance and hidden from non-owners.",
+  "rca_of_issue": ""
+}

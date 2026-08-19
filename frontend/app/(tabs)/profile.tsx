@@ -235,16 +235,17 @@ export default function Profile() {
         <Text style={styles.tapHint}>TAP THE CARD TO SWITCH YOUR CLASS</Text>
         {user.is_founder && <FoundingRibbon number={user.founder_number} />}
         <SeasonChampBadge seasons={user.season_champ_titles} />
-        {(user.social_tiktok || user.social_instagram) && (
+        {(user.social_tiktok || user.social_instagram || user.social_youtube) && (
           <View style={styles.creatorWrap}><CreatorBadge /></View>
         )}
       </View>
 
-      {/* SOCIAL LINKS — TikTok / Instagram (shown on your card + others') */}
+      {/* SOCIAL LINKS — TikTok / Instagram / YouTube (shown on your card + others') */}
       <SocialLinksEditor
         token={token}
         tiktok={user.social_tiktok}
         instagram={user.social_instagram}
+        youtube={user.social_youtube}
         onSaved={refresh}
       />
 

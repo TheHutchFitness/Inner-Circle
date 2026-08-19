@@ -49,11 +49,14 @@ async def exercise_demo(name: str, force: bool = False, user=Depends(get_current
     key = (name or "").strip()
     if not key:
         raise HTTPException(status_code=400, detail="name required")
-    if force:
-        await db.exercise_demos.delete_one({"name": key})
-    cached = await db.exercise_demos.find_one({"name": key}, {"_id": 0})
-    if cached and cached.get("media_id"):
-        return {"name": key, "media_id": cached["media_id"]}
+    # Fast path: return a cached illustration instantly if we have one, else null.
+    # We never generate on-demand for members (slow + rate-limited) — the detail sheet
+    # shows instant form cues + a muscle map instead.
+    if not (force and user.get("is_admin")):
+        cached = await db.exercise_demos.find_one({"name": key}, {"_id": 0})
+        return {"name": key, "media_id": cached.get("media_id") if cached else None}
+    # Admin-only regeneration (used to pre-seed illustrations).
+    await db.exercise_demos.delete_one({"name": key})
     desc = next((e.get("desc", "") for e in EXERCISE_LIBRARY if e["name"] == key), "")
     try:
         import base64 as _b64

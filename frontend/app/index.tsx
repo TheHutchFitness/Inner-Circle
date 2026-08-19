@@ -273,7 +273,7 @@ export default function Index() {
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   container: { paddingBottom: spacing.xl },
-  heroWrap: { width: "100%", aspectRatio: 1.79, position: "relative" },
+  heroWrap: { width: "100%", aspectRatio: 1.7, position: "relative" },
   hero: { width: "100%", height: "100%" },
   brandMark: { color: colors.brandPrimary, fontSize: 14, letterSpacing: 6, fontWeight: "700" },
   brandBig: { color: colors.text, fontSize: 34, fontWeight: "900", letterSpacing: 3, marginTop: 4 },

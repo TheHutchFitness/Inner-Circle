@@ -19,9 +19,11 @@ export function GroupsPanel() {
   const [invite, setInvite] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [challenge, setChallenge] = useState<any>(null);
 
   const loadList = async () => {
     try { const d = await apiFetch(token, "/api/groups"); setList(d.groups || []); setCanCreate(d.can_create); setMyCount(d.my_group_count || 0); } catch {}
+    try { setChallenge(await apiFetch(token, "/api/group-challenge")); } catch {}
     setLoading(false);
   };
   const openGroup = async (id: string) => {
@@ -65,6 +67,7 @@ export function GroupsPanel() {
           <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
             <Text style={[styles.gName, { color: sel.color || colors.text }]}>{sel.badge ? sel.badge + " " : ""}{sel.name}</Text>
             <Text style={[styles.gLvl, { color: sel.color || colors.brandPrimary }]}>◈ LEVEL {sel.level} · {sel.title} · {sel.member_count} member{sel.member_count === 1 ? "" : "s"}</Text>
+            {sel.champion_title ? <Text style={styles.champLine}>🏆 CLAN CHAMPION · {sel.champion_title}</Text> : null}
             <View style={styles.progWrap}>
               <View style={styles.progBar}>
                 <View style={[styles.progFill, { width: `${Math.min(100, Math.round(((sel.xp_into_level || 0) / (sel.xp_for_next || 1000)) * 100))}%`, backgroundColor: sel.color || colors.brandPrimary }]} />
@@ -162,6 +165,34 @@ export function GroupsPanel() {
         <Text style={styles.dim}>Groups can be created by Founders & premium members. You can still join up to 2 groups.</Text>
       )}
       {msg && <Text style={styles.err}>{msg}</Text>}
+
+      {/* Group (Clan) Challenge */}
+      {challenge?.active ? (
+        <View style={styles.chalBox}>
+          <View style={styles.chalHead}>
+            <Text style={styles.chalTitle}>🏆 {challenge.active.title}</Text>
+            <Text style={styles.chalDays}>{challenge.active.days_left}d left</Text>
+          </View>
+          <Text style={styles.chalSub}>Clan vs clan — the group that earns the most XP wins. Winner's clan gets +{challenge.active.reward_xp} XP and every member earns the Clan Champion badge.</Text>
+          {(challenge.standings || []).length === 0 ? (
+            <Text style={styles.dim}>No XP earned yet — log workouts to climb!</Text>
+          ) : (challenge.standings || []).slice(0, 5).map((s: any, i: number) => {
+            const mine = (challenge.my_group_ids || []).includes(s.id);
+            return (
+              <View key={s.id} style={[styles.chalRow, mine && styles.chalRowMine]}>
+                <Text style={[styles.chalRank, i === 0 && { color: "#FBBF24" }]}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</Text>
+                <Text style={[styles.chalName, { color: s.color }]} numberOfLines={1}>{s.badge ? s.badge + " " : ""}{s.name}{mine ? " (you)" : ""}</Text>
+                <Text style={styles.chalXp}>+{s.gained} XP</Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : challenge?.last?.winner_name ? (
+        <View style={styles.chalBoxDim}>
+          <Text style={styles.chalLast}>🏆 Last clash — <Text style={{ color: colors.brandPrimary }}>{challenge.last.winner_name}</Text> won {challenge.last.title}</Text>
+        </View>
+      ) : null}
+
       <Text style={styles.section}>ALL GROUPS ({list.length})</Text>
       {list.length === 0 ? <Text style={styles.dim}>No groups yet. Be the first to start one!</Text> :
         list.map((g) => (
@@ -194,6 +225,19 @@ const styles = StyleSheet.create({
   progBar: { height: 8, borderRadius: 4, backgroundColor: colors.surface3, overflow: "hidden", borderWidth: 1, borderColor: colors.border },
   progFill: { height: "100%", borderRadius: 4 },
   progText: { color: colors.textDim, fontSize: 10, fontWeight: "700", marginTop: 5, letterSpacing: 0.3 },
+  champLine: { color: "#FBBF24", fontSize: 11, fontWeight: "900", letterSpacing: 0.5, marginTop: 4 },
+  chalBox: { backgroundColor: "rgba(251,191,36,0.08)", borderRadius: radius.md, borderWidth: 1, borderColor: "#FBBF24", padding: spacing.md, marginTop: spacing.md },
+  chalBoxDim: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginTop: spacing.md },
+  chalHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  chalTitle: { color: "#FBBF24", fontWeight: "900", fontSize: 14, letterSpacing: 0.5, flex: 1 },
+  chalDays: { color: colors.text, fontWeight: "900", fontSize: 11, backgroundColor: colors.surface3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill },
+  chalSub: { color: colors.textMid, fontSize: 11, lineHeight: 16, marginTop: 4, marginBottom: spacing.sm },
+  chalRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 6, borderTopWidth: 1, borderTopColor: colors.border },
+  chalRowMine: { backgroundColor: "rgba(110,231,249,0.06)" },
+  chalRank: { width: 30, color: colors.textDim, fontWeight: "900", fontSize: 13, textAlign: "center" },
+  chalName: { flex: 1, fontWeight: "900", fontSize: 13 },
+  chalXp: { color: colors.text, fontWeight: "800", fontSize: 12 },
+  chalLast: { color: colors.textMid, fontSize: 12, fontWeight: "700" },
   gDesc: { color: colors.textMid, fontSize: 13, marginTop: spacing.sm, lineHeight: 19 },
   gCreator: { color: colors.textDim, fontSize: 11, marginTop: 4 },
   section: { color: colors.textDim, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginTop: spacing.lg, marginBottom: spacing.sm },

@@ -7,6 +7,7 @@ from shared import *  # noqa: F401,F403
 async def profile_me(user=Depends(get_current_user)):
     user["rank"] = rank_from_xp(user["xp"])
     user.update(await founder_status(user))
+    user["is_creator"] = bool(user.get("social_tiktok") or user.get("social_instagram") or user.get("social_youtube"))
     return user
 
 
@@ -19,7 +20,7 @@ async def _compute_gym_rank(target: dict) -> dict:
     """Rank a member (by Big-4 total) among the athletes at their own gym."""
     gym = (target.get("inperson_gym", "") or "").strip()
     if not gym:
-        return {"gym": "", "rank": 0, "members": 0, "big4": 0}
+        return {"gym": "", "rank": 0, "members": 0, "big4": 0, "gym_logo": None, "gym_verified": False}
     gl = gym.lower()
     rows = await db.users.find(
         {"is_admin": {"$ne": True}}, {"_id": 0, "prs": 1, "inperson_gym": 1, "user_id": 1}
@@ -31,7 +32,9 @@ async def _compute_gym_rank(target: dict) -> dict:
 
     members.sort(key=tot, reverse=True)
     rank = next((i + 1 for i, m in enumerate(members) if m["user_id"] == target["user_id"]), 0)
-    return {"gym": gym, "rank": rank, "members": len(members), "big4": tot(target)}
+    meta = await gym_meta(gym)
+    return {"gym": gym, "rank": rank, "members": len(members), "big4": tot(target),
+            "gym_logo": meta["logo_media_id"], "gym_verified": meta["verified"]}
 
 
 @api_router.get("/profile/gym-rank")
@@ -105,6 +108,8 @@ async def update_profile(inp: ProfileUpdate, user=Depends(get_current_user)):
         update["social_tiktok"] = social_handle(update["social_tiktok"])
     if "social_instagram" in update:
         update["social_instagram"] = social_handle(update["social_instagram"])
+    if "social_youtube" in update:
+        update["social_youtube"] = social_handle(update["social_youtube"])
     # Lite/Full app mode — picking a mode marks the first-login choice as made.
     if "lite_mode" in update:
         update["mode_selected"] = True
@@ -154,7 +159,16 @@ async def set_background(inp: BackgroundSet, user=Depends(get_current_user)):
 @api_router.get("/gyms")
 async def list_gyms():
     """Curated gym directory for the signup/profile dropdown. Public (no auth)."""
-    return {"gyms": await list_gym_names()}
+    rows = await db.gyms.find({}, {"_id": 0, "name": 1, "verified": 1, "logo_media_id": 1}).sort("name", 1).to_list(1000)
+    if not rows:
+        await list_gym_names()  # backfill
+        rows = await db.gyms.find({}, {"_id": 0, "name": 1, "verified": 1, "logo_media_id": 1}).sort("name", 1).to_list(1000)
+    # The private "test" gym is not shown in the public directory.
+    rows = [r for r in rows if (r.get("name", "").strip().lower() != "test")]
+    return {
+        "gyms": [r["name"] for r in rows],
+        "directory": [{"name": r["name"], "verified": bool(r.get("verified")), "logo_media_id": r.get("logo_media_id")} for r in rows],
+    }
 
 
 @api_router.get("/profile/frames")
@@ -240,6 +254,7 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
     fs = await founder_status(u)
     tt = u.get("social_tiktok", "") or ""
     ig = u.get("social_instagram", "") or ""
+    yt = u.get("social_youtube", "") or ""
     gr = await _compute_gym_rank(u)
     return {
         "user_id": u["user_id"],
@@ -266,7 +281,8 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
         "active_frame": u.get("active_frame"),
         "social_tiktok": tt,
         "social_instagram": ig,
-        "is_creator": bool(tt or ig),
+        "social_youtube": yt,
+        "is_creator": bool(tt or ig or yt),
         "equipped_pet": u.get("equipped_pet"),
         "equipped_skin": u.get("equipped_skin"),
         "equipped_weapon": u.get("equipped_weapon"),
