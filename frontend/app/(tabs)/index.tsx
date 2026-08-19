@@ -184,7 +184,7 @@ export default function Dashboard() {
         ))}
       </View>
 
-      <HudSectionHeader label="NEXT MISSION" />
+      <HudSectionHeader label="NEXT WORKOUT" />
       {suggestion ? (
         <Pressable testID="adaptive-suggestion" onPress={() => router.push("/(tabs)/workout")} style={styles.adaptiveCard}>
           <View style={styles.adaptiveHead}>
