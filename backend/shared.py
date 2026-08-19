@@ -1806,10 +1806,6 @@ async def seed():
 
     # NOTE: demo/test human accounts are intentionally NOT seeded. Leaderboards are
     # populated by the 10 permanent AI bot athletes below + real member signups.
-    # Purge the legacy canonical demo accounts if they still exist (idempotent).
-    await db.users.delete_many({"email": {"$in": [
-        "athlete@test.com", "elite@test.com", "freak@test.com", "delivered@resend.dev",
-    ]}})
     # Seed 10 permanent "milestone" bot athletes so leaderboards are always populated
     BOTS = [
         {"name": "Plate Prophet", "xp": 620, "prs": {"bench": 185, "squat": 275, "deadlift": 315, "ohp": 115}, "bw": 175, "avatar": "avatar_white", "sprints": {"40yd": 5.3, "100m": 14.1}, "cardio": [("run", 5.2, 1620), ("run", 3.1, 960)]},
@@ -1858,16 +1854,17 @@ async def seed():
                 "user_id": uid, "email": email, "picture": "", "password_hash": "",
                 "created_at": datetime.now(timezone.utc), **canonical,
             })
-        # Reset bot cardio each startup so cardio boards stay deterministic
-        await db.cardio.delete_many({"user_id": uid})
-        for act, km, dur in b.get("cardio", []):
-            await db.cardio.insert_one({
-                "cardio_id": new_id("cardio"), "user_id": uid, "activity_type": act,
-                "distance_km": km, "duration_s": dur, "elevation_gain_m": 0, "temperature_c": None,
-                "avg_pace_min_km": round((dur / 60) / km, 2) if km else 0,
-                "avg_speed_kmh": round(km / (dur / 3600), 2) if dur else 0,
-                "route": [], "logged_at": datetime.now(timezone.utc),
-            })
+        # Seed bot cardio once (idempotent) so cardio boards stay populated without
+        # deleting data on every startup.
+        if await db.cardio.count_documents({"user_id": uid}) == 0:
+            for act, km, dur in b.get("cardio", []):
+                await db.cardio.insert_one({
+                    "cardio_id": new_id("cardio"), "user_id": uid, "activity_type": act,
+                    "distance_km": km, "duration_s": dur, "elevation_gain_m": 0, "temperature_c": None,
+                    "avg_pace_min_km": round((dur / 60) / km, 2) if km else 0,
+                    "avg_speed_kmh": round(km / (dur / 3600), 2) if dur else 0,
+                    "route": [], "logged_at": datetime.now(timezone.utc),
+                })
 
     # Seed a couple of welcome chat messages
     existing_msg = await db.chat_messages.count_documents({"room": "main"})

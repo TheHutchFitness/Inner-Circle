@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.poweruparena.p5ck2j",
@@ -27,7 +27,6 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.emergent.poweruparena.p5ck2j",
-      "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -56,6 +55,16 @@
       ],
       "react-native-health-connect",
       "@kingstinct/react-native-healthkit",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35
+          }
+        }
+      ],
       "expo-video",
       [
         "expo-image-picker",
@@ -65,8 +74,14 @@
           "microphonePermission": "Record audio for videos you share in chat"
         }
       ],
-      ["expo-audio", { "microphonePermission": "Ask your coach a question with your voice" }],
-      "expo-notifications"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Ask your coach a question with your voice"
+        }
+      ],
+      "expo-notifications",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true
