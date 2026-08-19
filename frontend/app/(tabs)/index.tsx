@@ -11,6 +11,7 @@ import { HudSectionHeader, HudFrame } from "@/src/components/Hud";
 import { MemberSheet } from "@/src/components/MemberSheet";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
+import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 
 function nextRankInfo(xp: number) {
   const thresholds = [
@@ -24,6 +25,11 @@ function nextRankInfo(xp: number) {
   ];
   for (const t of thresholds) if (xp < t.xp) return { name: t.name, xp: t.xp };
   return { name: "MAX", xp };
+}
+
+function fmtSeason(s: string) {
+  const [y, q] = (s || "").split("-");
+  return q ? `${q} ${y}` : s;
 }
 
 export default function Dashboard() {
@@ -56,9 +62,11 @@ export default function Dashboard() {
 
   const [featured, setFeatured] = useState<any[]>([]);
   const [spotId, setSpotId] = useState<string | null>(null);
+  const [champion, setChampion] = useState<any>(null);
   useEffect(() => {
     (async () => {
       try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
+      try { const h = await apiFetch(token, "/api/leaderboard/season/history"); setChampion((h || [])[0] || null); } catch {}
     })();
   }, [token]);
 
@@ -121,6 +129,19 @@ export default function Dashboard() {
           <Pressable testID="store-entry" onPress={() => router.push("/store")} style={styles.storeBtn}><Text style={styles.storeBtnText}>🛒 STORE</Text></Pressable>
         </View>
       </LinearGradient>
+
+      {champion && (
+        <Pressable testID="reigning-champion" onPress={() => setSpotId(champion.user_id)} style={styles.champCard}>
+          <View style={styles.champAvatar}><PlayerAvatar person={champion} token={token} size={56} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.champEyebrow}>👑 REIGNING CHAMPION · {fmtSeason(champion.season)}</Text>
+            <Text style={styles.champName} numberOfLines={1}>{champion.display_name}</Text>
+            <Text style={styles.champMeta}>{champion.bosses} boss{champion.bosses === 1 ? "" : "es"} slain · {(champion.rank || "").toUpperCase()}</Text>
+            <Text style={styles.champHint}>Dethrone them this season →</Text>
+          </View>
+          <Text style={styles.champTrophy}>🏆</Text>
+        </Pressable>
+      )}
 
       {featured.length > 0 && (
         <>
@@ -330,6 +351,13 @@ const styles = StyleSheet.create({
   storeBtn: { backgroundColor: "rgba(255,234,0,0.1)", borderWidth: 1, borderColor: colors.warning, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 12 },
   storeBtnText: { color: colors.warning, fontWeight: "900", fontSize: 11, letterSpacing: 2 },
   spotCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.06)" },
+  champCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: "#FFD700", backgroundColor: "rgba(255,215,0,0.08)" },
+  champAvatar: { width: 58, height: 58, borderRadius: radius.md, borderWidth: 2, borderColor: "#FFD700", alignItems: "center", justifyContent: "center", overflow: "hidden", backgroundColor: colors.surface },
+  champEyebrow: { color: "#FFD700", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  champName: { color: colors.text, fontSize: 17, fontWeight: "900", marginTop: 2 },
+  champMeta: { color: colors.textMid, fontSize: 11, fontWeight: "700", marginTop: 1 },
+  champHint: { color: "#FFD700", fontSize: 10, fontWeight: "800", marginTop: 3 },
+  champTrophy: { fontSize: 28 },
   spotDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warning },
   spotName: { color: colors.text, fontWeight: "900", fontSize: 14 },
   spotRank: { color: colors.textDim, fontWeight: "700", fontSize: 11 },
