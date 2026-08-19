@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -12,7 +12,7 @@ import { ExerciseLibraryModal } from "@/src/components/ExerciseLibraryModal";
 import { takePendingWorkout } from "@/src/lib/pendingWorkout";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
-type SetT = { reps: number; weight_lb: number; rpe: number };
+type SetT = { reps: number; weight_lb: number; rpe: number; id?: string };
 type Exercise = { name: string; sets: SetT[] };
 type Active = { templateName: string; splitKey: string; exercises: Exercise[]; source?: string; monthlyDay?: number };
 
@@ -82,7 +82,7 @@ export default function WorkoutScreen() {
   const addSetFromPreset = (ei: number, p: any) => {
     if (!active) return;
     const copy = { ...active };
-    copy.exercises[ei].sets.push({ reps: p.reps, weight_lb: p.weight_lb, rpe: p.rpe });
+    copy.exercises[ei].sets.push({ reps: p.reps, weight_lb: p.weight_lb, rpe: p.rpe, id: sid() });
     setActive({ ...copy });
     setPresetPickerFor(null);
   };
@@ -96,6 +96,21 @@ export default function WorkoutScreen() {
       loadPresets();
     })();
   }, [token]);
+
+  // Ensure every set has a stable id (covers AI/monthly/template/repeat/plan paths)
+  // so each SetRow keeps its own independent input state across re-renders.
+  useEffect(() => {
+    if (!active) return;
+    let changed = false;
+    const exs = active.exercises.map((ex: any) => ({
+      ...ex,
+      sets: (ex.sets || []).map((s: any) => {
+        if (!s.id) { changed = true; return { ...s, id: sid() }; }
+        return s;
+      }),
+    }));
+    if (changed) setActive({ ...active, exercises: exs });
+  }, [active]);
 
   // Accept an AI-built session from the Athlete's Center
   useFocusEffect(useCallback(() => {
@@ -170,7 +185,7 @@ export default function WorkoutScreen() {
     const copy = { ...active };
     const sets = copy.exercises[ei].sets;
     const last = sets[sets.length - 1];
-    sets.push(last ? { ...last } : { reps: 8, weight_lb: units.toLb(units.unit === "kg" ? 40 : 95), rpe: 7 });
+    sets.push(last ? { ...last, id: sid() } : { reps: 8, weight_lb: units.toLb(units.unit === "kg" ? 40 : 95), rpe: 7, id: sid() });
     setActive({ ...copy });
   };
 
@@ -306,22 +321,28 @@ export default function WorkoutScreen() {
               </View>
               {ex.sets.length > 0 && (
                 <View style={styles.setHeader}>
-                  <Text style={styles.setHeaderText}>SET</Text>
-                  <Text style={styles.setHeaderText}>REPS</Text>
-                  <Text style={styles.setHeaderText}>{units.unit.toUpperCase()}</Text>
-                  <Text style={styles.setHeaderText}></Text>
+                  <Text style={[styles.setHeaderText, { width: 40, flex: 0 }]}>SET</Text>
+                  <Text style={[styles.setHeaderText, { flex: 1 }]}>REPS</Text>
+                  <Text style={[styles.setHeaderText, { flex: 1 }]}>{units.unit.toUpperCase()}</Text>
+                  <View style={{ width: 56 }} />
                 </View>
               )}
               {ex.sets.map((s, si) => (
-                <View key={si} style={styles.setRow}>
-                  <Text style={styles.setNum}>{si + 1}</Text>
-                  <NumInput testID={`set-${ei}-${si}-reps`} value={s.reps} onChange={(v) => editSet(ei, si, "reps", Math.round(v))} />
-                  <NumInput testID={`set-${ei}-${si}-weight`} value={Math.round(units.toDisplay(s.weight_lb) * 10) / 10} decimal onChange={(v) => editWeight(ei, si, v)} />
-                  <View style={styles.rowActions}>
-                    <Pressable testID={`save-preset-${ei}-${si}`} onPress={() => savePreset(s)} hitSlop={8}><Text style={styles.saveStar}>☆</Text></Pressable>
-                    <Pressable testID={`remove-set-${ei}-${si}`} onPress={() => removeSet(ei, si)} hitSlop={8}><Text style={styles.rmX}>✕</Text></Pressable>
-                  </View>
-                </View>
+                <SetRow
+                  key={`${s.id || si}-${units.unit}`}
+                  index={si}
+                  set={s}
+                  unit={units.unit}
+                  toDisplay={units.toDisplay}
+                  onReps={(v) => editSet(ei, si, "reps", v)}
+                  onWeight={(v) => editWeight(ei, si, v)}
+                  onSave={() => savePreset(s)}
+                  onRemove={() => removeSet(ei, si)}
+                  repsTestID={`set-${ei}-${si}-reps`}
+                  weightTestID={`set-${ei}-${si}-weight`}
+                  saveTestID={`save-preset-${ei}-${si}`}
+                  removeTestID={`remove-set-${ei}-${si}`}
+                />
               ))}
               <View style={styles.addRow}>
                 <Pressable testID={`add-set-${ei}`} onPress={() => addSet(ei)} style={[styles.addSetBtn, { flex: 1, marginTop: 0 }]}>
@@ -556,17 +577,19 @@ export default function WorkoutScreen() {
 }
 
 const sstyles = StyleSheet.create({
-  wrap: { flexDirection: "row", alignItems: "center", flex: 1, justifyContent: "center" },
-  btn: { width: 22, height: 22, backgroundColor: colors.surface3, borderRadius: 3, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
-  txt: { color: colors.brandPrimary, fontWeight: "900" },
-  value: { color: colors.text, marginHorizontal: 4, fontWeight: "700", minWidth: 30, textAlign: "center", fontVariant: ["tabular-nums"] },
-  inputWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
-  input: {
-    color: colors.text, fontWeight: "800", fontSize: 16, textAlign: "center",
-    minWidth: 52, paddingVertical: 6, paddingHorizontal: 4,
+  setRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.surface3, gap: spacing.sm },
+  setNumWrap: { width: 40, height: 40, borderRadius: radius.sm, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  setNumText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 16, fontVariant: ["tabular-nums"] },
+  cell: { flex: 1 },
+  cellInput: {
+    color: colors.text, fontWeight: "800", fontSize: 17, textAlign: "center",
+    height: 44, paddingVertical: 0, paddingHorizontal: 4,
     backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border,
     fontVariant: ["tabular-nums"],
   },
+  actions: { width: 56, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 12 },
+  saveStar: { color: colors.warning, fontSize: 18 },
+  rmX: { color: colors.error, fontSize: 16 },
 });
 
 function fmtNum(value: number, decimal?: boolean) {
@@ -574,32 +597,75 @@ function fmtNum(value: number, decimal?: boolean) {
   return String(Math.round(value || 0));
 }
 
-// Free-entry numeric field (phone keypad) for reps/weight; commits on change, reformats on blur.
-function NumInput({ value, onChange, decimal, testID }: { value: number; onChange: (v: number) => void; decimal?: boolean; testID?: string }) {
-  const [text, setText] = useState(fmtNum(value, decimal));
-  const focused = useRef(false);
-  useEffect(() => {
-    if (!focused.current) setText(fmtNum(value, decimal));
-  }, [value, decimal]);
-  const onText = (t: string) => {
-    const cleaned = decimal ? t.replace(/[^0-9.]/g, "") : t.replace(/[^0-9]/g, "");
-    setText(cleaned);
-    const n = parseFloat(cleaned);
-    onChange(isFinite(n) ? n : 0);
+let SET_SEQ = 0;
+function sid() { return `s${Date.now().toString(36)}_${SET_SEQ++}`; }
+
+// Self-contained set row: SET number (auto-ascending) + independent REPS & WEIGHT
+// text boxes. Each input keeps its OWN local text state so typing never jumps or
+// clears; changes are reported up on every keystroke. Keyed by set id + unit upstream.
+function SetRow({
+  index, set, unit, toDisplay, onReps, onWeight, onSave, onRemove,
+  repsTestID, weightTestID, saveTestID, removeTestID,
+}: {
+  index: number;
+  set: SetT;
+  unit: string;
+  toDisplay: (lb: number) => number;
+  onReps: (v: number) => void;
+  onWeight: (displayVal: number) => void;
+  onSave: () => void;
+  onRemove: () => void;
+  repsTestID: string; weightTestID: string; saveTestID: string; removeTestID: string;
+}) {
+  const [reps, setReps] = useState(fmtNum(set.reps));
+  const [wt, setWt] = useState(fmtNum(Math.round(toDisplay(set.weight_lb) * 10) / 10, unit === "kg"));
+
+  const onRepsText = (t: string) => {
+    const c = t.replace(/[^0-9]/g, "").slice(0, 4);
+    setReps(c);
+    onReps(c === "" ? 0 : parseInt(c, 10) || 0);
   };
+  const onWtText = (t: string) => {
+    let c = t.replace(/[^0-9.]/g, "").slice(0, 6);
+    const firstDot = c.indexOf(".");
+    if (firstDot !== -1) c = c.slice(0, firstDot + 1) + c.slice(firstDot + 1).replace(/\./g, "");
+    setWt(c);
+    onWeight(c === "" || c === "." ? 0 : parseFloat(c) || 0);
+  };
+
   return (
-    <View style={sstyles.inputWrap}>
-      <TextInput
-        testID={testID}
-        value={text}
-        onChangeText={onText}
-        onFocus={() => { focused.current = true; }}
-        onBlur={() => { focused.current = false; setText(fmtNum(value, decimal)); }}
-        keyboardType={decimal ? "decimal-pad" : "number-pad"}
-        selectTextOnFocus
-        maxLength={decimal ? 6 : 4}
-        style={sstyles.input}
-      />
+    <View style={sstyles.setRow}>
+      <View style={sstyles.setNumWrap}><Text style={sstyles.setNumText}>{index + 1}</Text></View>
+      <View style={sstyles.cell}>
+        <TextInput
+          testID={repsTestID}
+          value={reps}
+          onChangeText={onRepsText}
+          onBlur={() => setReps(fmtNum(set.reps))}
+          keyboardType="number-pad"
+          selectTextOnFocus
+          placeholder="0"
+          placeholderTextColor={colors.textDim}
+          style={sstyles.cellInput}
+        />
+      </View>
+      <View style={sstyles.cell}>
+        <TextInput
+          testID={weightTestID}
+          value={wt}
+          onChangeText={onWtText}
+          onBlur={() => setWt(fmtNum(Math.round(toDisplay(set.weight_lb) * 10) / 10, unit === "kg"))}
+          keyboardType="decimal-pad"
+          selectTextOnFocus
+          placeholder="0"
+          placeholderTextColor={colors.textDim}
+          style={sstyles.cellInput}
+        />
+      </View>
+      <View style={sstyles.actions}>
+        <Pressable testID={saveTestID} onPress={onSave} hitSlop={8}><Text style={sstyles.saveStar}>☆</Text></Pressable>
+        <Pressable testID={removeTestID} onPress={onRemove} hitSlop={8}><Text style={sstyles.rmX}>✕</Text></Pressable>
+      </View>
     </View>
   );
 }
@@ -666,7 +732,7 @@ const styles = StyleSheet.create({
   exName: { color: colors.text, fontWeight: "800", letterSpacing: 1, fontSize: 15 },
   exStatsLink: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 1, fontWeight: "700", marginTop: 3 },
   exRemove: { padding: 4 },
-  setHeader: { flexDirection: "row", paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: colors.border },
+  setHeader: { flexDirection: "row", alignItems: "center", paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.sm },
   setHeaderText: { flex: 1, color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "700", textAlign: "center" },
   setRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: colors.surface3 },
   setNum: { flex: 1, color: colors.brandPrimary, textAlign: "center", fontWeight: "900" },

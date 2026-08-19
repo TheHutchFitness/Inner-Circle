@@ -166,4 +166,5 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
         "equipped_weapon": u.get("equipped_weapon"),
         "equipped_hair": u.get("equipped_hair"),
         "equipped_beard": u.get("equipped_beard"),
+        "season_champ_titles": await season_titles_for(u["user_id"]),
     }

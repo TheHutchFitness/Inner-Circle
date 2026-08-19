@@ -52,49 +52,27 @@ async def leaderboard(board_type: str, filter: str = "all", user=Depends(get_cur
     return users[:50]
 
 
-def _season_label(dt: datetime) -> str:
-    q = (dt.month - 1) // 3 + 1
-    return f"{dt.year}-S{q}"
-
-
 @api_router.get("/leaderboard/season/history")
 async def season_history(user=Depends(get_current_user)):
     """Hall of Fame: top boss-slayer of each PAST season (calendar quarter)."""
-    now = datetime.now(timezone.utc)
-    cur = _season_label(now)
-    # Bucket every boss claim by season -> per-user counts
-    buckets: dict[str, dict[str, int]] = {}
-    async for c in db.quest_claims.find({"quest_key": {"$regex": "^boss:"}}):
-        ts = c.get("claimed_at")
-        uid = c.get("user_id")
-        if not ts or not uid:
-            continue
-        if getattr(ts, "tzinfo", None) is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        label = _season_label(ts)
-        if label == cur:
-            continue  # current season lives on the live board
-        buckets.setdefault(label, {})
-        buckets[label][uid] = buckets[label].get(uid, 0) + 1
-    if not buckets:
+    champs = await season_champions_map()
+    if not champs:
         return []
-    # Resolve champion (top count) per season
-    champ_ids = {max(counts.items(), key=lambda kv: kv[1])[0] for counts in buckets.values()}
+    champ_ids = {v["user_id"] for v in champs.values()}
     users = await db.users.find(
         {"user_id": {"$in": list(champ_ids)}},
         {"_id": 0, "password_hash": 0},
     ).to_list(1000)
     umap = {u["user_id"]: u for u in users}
     out = []
-    for label, counts in buckets.items():
-        uid, n = max(counts.items(), key=lambda kv: kv[1])
-        u = umap.get(uid)
+    for label, v in champs.items():
+        u = umap.get(v["user_id"])
         if not u:
             continue
         out.append({
             "season": label,
-            "bosses": n,
-            "user_id": uid,
+            "bosses": v["bosses"],
+            "user_id": v["user_id"],
             "display_name": u.get("display_name", "Athlete"),
             "avatar_id": u.get("avatar_id", "avatar_white"),
             "sex": u.get("sex"),
@@ -106,6 +84,5 @@ async def season_history(user=Depends(get_current_user)):
             "level": level_from_xp(u.get("xp", 0)),
             "founder_backer": bool(u.get("founder_backer")),
         })
-    # Newest season first
     out.sort(key=lambda x: x["season"], reverse=True)
     return out

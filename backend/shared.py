@@ -331,6 +331,44 @@ async def founder_status(user) -> dict:
     return {"is_founder": num <= FOUNDER_LIMIT, "founder_number": num if num <= FOUNDER_LIMIT else None}
 
 
+# ---------- Season champions (Hall of Fame) ----------
+def season_label_for(dt) -> str:
+    """Calendar-quarter season label, e.g. 2026-S3."""
+    q = (dt.month - 1) // 3 + 1
+    return f"{dt.year}-S{q}"
+
+
+async def season_champions_map() -> dict:
+    """{season_label: {user_id, bosses}} — top boss-slayer of each PAST season
+    (the current season stays on the live board, so it is excluded)."""
+    now = datetime.now(timezone.utc)
+    cur = season_label_for(now)
+    buckets: dict = {}
+    async for c in db.quest_claims.find({"quest_key": {"$regex": "^boss:"}}):
+        ts = c.get("claimed_at")
+        uid = c.get("user_id")
+        if not ts or not uid:
+            continue
+        if getattr(ts, "tzinfo", None) is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        label = season_label_for(ts)
+        if label == cur:
+            continue
+        buckets.setdefault(label, {})
+        buckets[label][uid] = buckets[label].get(uid, 0) + 1
+    out: dict = {}
+    for label, counts in buckets.items():
+        uid, n = max(counts.items(), key=lambda kv: kv[1])
+        out[label] = {"user_id": uid, "bosses": n}
+    return out
+
+
+async def season_titles_for(user_id: str) -> list:
+    """Sorted (newest-first) list of season labels this user won."""
+    m = await season_champions_map()
+    return sorted([s for s, v in m.items() if v.get("user_id") == user_id], reverse=True)
+
+
 # ---------- Referral rewards ----------
 REFERRER_XP = 100      # bonus XP the inviter earns per successful referral
 REFERRED_XP = 50       # welcome XP boost for the new friend who used a code

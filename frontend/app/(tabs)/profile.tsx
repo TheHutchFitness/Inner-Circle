@@ -17,7 +17,7 @@ import { HudSectionHeader } from "@/src/components/Hud";
 import { HealthCard } from "@/src/components/HealthCard";
 import { NutritionCard } from "@/src/components/NutritionCard";
 import { SocialLinksEditor } from "@/src/components/SocialLinks";
-import { FoundingRibbon, CreatorBadge } from "@/src/components/Badges";
+import { FoundingRibbon, CreatorBadge, SeasonChampBadge } from "@/src/components/Badges";
 import { PetCompanion } from "@/src/components/PetCompanion";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
@@ -171,6 +171,7 @@ export default function Profile() {
         </Pressable>
         <Text style={styles.tapHint}>TAP THE CARD TO SWITCH YOUR CLASS</Text>
         {user.is_founder && <FoundingRibbon number={user.founder_number} />}
+        <SeasonChampBadge seasons={user.season_champ_titles} />
         {(user.social_tiktok || user.social_instagram) && (
           <View style={styles.creatorWrap}><CreatorBadge /></View>
         )}

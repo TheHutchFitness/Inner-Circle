@@ -32,6 +32,35 @@ export function CreatorBadge() {
   );
 }
 
+function fmtSeason(s: string) {
+  const [y, q] = (s || "").split("-");
+  return q ? `${q} ${y}` : s;
+}
+
+/** Permanent gold trophy badge(s) for past-season boss-slaying champions. */
+export function SeasonChampBadge({ seasons }: { seasons?: string[] | null }) {
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    glow.value = withRepeat(withTiming(1, { duration: 1500, easing: Easing.inOut(Easing.ease) }), -1, true);
+  }, []);
+  const style = useAnimatedStyle(() => ({
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.4 + glow.value * 0.5,
+    shadowRadius: 7 + glow.value * 9,
+    shadowOffset: { width: 0, height: 0 },
+  }));
+  if (!seasons || seasons.length === 0) return null;
+  return (
+    <View testID="season-champ-badges" style={styles.champWrap}>
+      {seasons.map((s) => (
+        <Animated.View key={s} style={[styles.champ, style]}>
+          <Text style={styles.champText}>🏆 {fmtSeason(s)} CHAMP</Text>
+        </Animated.View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   ribbon: {
     alignSelf: "center", marginTop: spacing.sm, paddingHorizontal: 14, paddingVertical: 6,
@@ -43,4 +72,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.1)",
   },
   creatorText: { color: colors.brandPrimary, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  champWrap: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.sm, marginTop: spacing.sm },
+  champ: {
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: radius.pill,
+    borderWidth: 1.5, borderColor: "#FFD700", backgroundColor: "rgba(255,215,0,0.12)",
+  },
+  champText: { color: "#FFD700", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
 });

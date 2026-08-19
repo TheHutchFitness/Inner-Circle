@@ -9,6 +9,11 @@ import { SocialLinksBar } from "@/src/components/SocialLinks";
 
 const LIFTS: [string, string][] = [["bench", "BENCH"], ["squat", "SQUAT"], ["deadlift", "DEAD"], ["ohp", "OHP"]];
 
+function fmtSeason(s: string) {
+  const [y, q] = (s || "").split("-");
+  return q ? `${q} ${y}` : s;
+}
+
 export function MemberSheet({ userId, visible, onClose }: { userId: string | null; visible: boolean; onClose: () => void }) {
   const { token, user } = useAuth();
   const [m, setM] = useState<any>(null);
@@ -74,6 +79,9 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
 
               <View style={styles.badges}>
                 {m.is_founder && <View style={styles.bFounder}><Text style={styles.bFounderText}>★ FOUNDING 100{m.founder_number ? ` · #${m.founder_number}` : ""}</Text></View>}
+                {(m.season_champ_titles || []).map((s: string) => (
+                  <View key={s} style={styles.bChamp}><Text style={styles.bChampText}>🏆 {fmtSeason(s)} CHAMP</Text></View>
+                ))}
                 {m.is_creator && <View style={styles.bCreator}><Text style={styles.bCreatorText}>✔ CREATOR</Text></View>}
                 {m.founder_backer && <View style={styles.bBacker}><Text style={styles.bBackerText}>★ FOUNDING BACKER</Text></View>}
                 {m.skool_verified && <View style={styles.bSkool}><Text style={styles.bSkoolText}>✓ SKOOL</Text></View>}
@@ -144,6 +152,8 @@ const styles = StyleSheet.create({
   bBackerText: { color: "#221900", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   bFounder: { backgroundColor: "rgba(255,234,0,0.14)", borderWidth: 1, borderColor: colors.warning, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
   bFounderText: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  bChamp: { backgroundColor: "rgba(255,215,0,0.14)", borderWidth: 1, borderColor: "#FFD700", paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
+  bChampText: { color: "#FFD700", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   bCreator: { backgroundColor: "rgba(0,229,255,0.1)", borderWidth: 1, borderColor: colors.brandPrimary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
   bCreatorText: { color: colors.brandPrimary, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   bSkool: { backgroundColor: colors.success, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },

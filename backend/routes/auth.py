@@ -22,6 +22,7 @@ async def register(inp: RegisterInput):
     fresh = await db.users.find_one({"user_id": doc["user_id"]}, {"_id": 0, "password_hash": 0})
     fresh["rank"] = rank_from_xp(fresh["xp"])
     fresh.update(await founder_status(fresh))
+    fresh["season_champ_titles"] = await season_titles_for(fresh["user_id"])
     return {"session_token": token, "user": fresh}
 
 
@@ -43,6 +44,7 @@ async def login(inp: LoginInput):
     user = await ensure_owner_admin(user)
     user["rank"] = rank_from_xp(user["xp"])
     user.update(await founder_status(user))
+    user["season_champ_titles"] = await season_titles_for(user["user_id"])
     return {"session_token": token, "user": user}
 
 
@@ -87,6 +89,7 @@ async def google_session(inp: SessionInput):
             raise HTTPException(status_code=403, detail=f"Your access is suspended until {until}." + (f" Reason: {b['reason']}" if b['reason'] else ""))
     user["rank"] = rank_from_xp(user["xp"])
     user.update(await founder_status(user))
+    user["season_champ_titles"] = await season_titles_for(user["user_id"])
     return {"session_token": session_token, "user": user}
 
 
@@ -95,6 +98,7 @@ async def me(user=Depends(get_current_user)):
     user = await ensure_owner_admin(user)
     user["rank"] = rank_from_xp(user["xp"])
     user.update(await founder_status(user))
+    user["season_champ_titles"] = await season_titles_for(user["user_id"])
     return user
 
 
