@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, TextInput } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing } from "react-native-reanimated";
@@ -83,10 +83,19 @@ export default function Leaderboards() {
   const [rosterOpen, setRosterOpen] = useState(false);
   const [roster, setRoster] = useState<any[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterQuery, setRosterQuery] = useState("");
+  const [gymCount, setGymCount] = useState(0);
   const myGym = (user?.inperson_gym || "").trim();
 
+  useEffect(() => {
+    if (!myGym) return;
+    (async () => {
+      try { setGymCount((await apiFetch(token, "/api/profile/gym-rank")).members || 0); } catch {}
+    })();
+  }, [token, myGym]);
+
   const openRoster = async () => {
-    setRosterOpen(true); setRosterLoading(true);
+    setRosterOpen(true); setRosterLoading(true); setRosterQuery("");
     try { setRoster(await apiFetch(token, `/api/leaderboard/strength?gym=${encodeURIComponent(myGym)}`)); }
     catch { setRoster([]); }
     setRosterLoading(false);
@@ -185,13 +194,13 @@ export default function Leaderboards() {
               <Text style={[styles.scopeText, !gymScope && styles.scopeTextActive]}>🌐 THE CIRCLE</Text>
             </Pressable>
             <Pressable testID="scope-gym" onPress={() => setGymScope(true)} style={[styles.scopeBtn, gymScope && styles.scopeActive]}>
-              <Text style={[styles.scopeText, gymScope && styles.scopeTextActive]} numberOfLines={1}>🏋 {myGym.toUpperCase()}</Text>
+              <Text style={[styles.scopeText, gymScope && styles.scopeTextActive]} numberOfLines={1}>🏋 {myGym.toUpperCase()}{gymCount > 0 ? ` · ${gymCount}` : ""}</Text>
             </Pressable>
           </View>
         )}
         {!!myGym && gymScope && (
           <Pressable testID="open-roster" onPress={openRoster} style={styles.rosterBtn}>
-            <Text style={styles.rosterBtnText}>👥 VIEW FULL {myGym.toUpperCase()} ROSTER</Text>
+            <Text style={styles.rosterBtnText}>👥 VIEW FULL ROSTER · {gymCount} ATHLETE{gymCount === 1 ? "" : "S"}</Text>
           </Pressable>
         )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -329,18 +338,31 @@ export default function Leaderboards() {
       <View style={styles.rosterOverlay}>
         <View style={styles.rosterSheet}>
           <View style={styles.rosterHead}>
-            <Text style={styles.rosterTitle}>🏋 {myGym.toUpperCase()} ROSTER</Text>
+            <Text style={styles.rosterTitle}>🏋 {myGym.toUpperCase()} ROSTER · {gymCount}</Text>
             <Pressable testID="roster-close" onPress={() => setRosterOpen(false)}><Text style={styles.rosterClose}>✕</Text></Pressable>
           </View>
+          {roster.length > 6 && (
+            <TextInput
+              testID="roster-search"
+              value={rosterQuery}
+              onChangeText={setRosterQuery}
+              placeholder="Search athletes…"
+              placeholderTextColor={colors.textDim}
+              style={styles.rosterSearch}
+              autoCapitalize="none"
+            />
+          )}
           {rosterLoading ? (
             <ActivityIndicator color={colors.brandPrimary} style={{ marginVertical: 30 }} />
           ) : roster.length === 0 ? (
             <Text style={styles.emptyBoard}>No athletes at this gym yet.</Text>
           ) : (
             <ScrollView contentContainerStyle={{ paddingBottom: spacing.lg }}>
-              {roster.map((r, i) => (
+              {roster
+                .filter((r) => !rosterQuery.trim() || (r.display_name || "").toLowerCase().includes(rosterQuery.trim().toLowerCase()))
+                .map((r, i) => (
                 <Pressable key={r.user_id} testID={`roster-${i}`} onPress={() => { setRosterOpen(false); setMemberId(r.user_id); }} style={styles.row}>
-                  <Text style={styles.rowRank}>#{i + 1}</Text>
+                  <Text style={styles.rowRank}>#{roster.indexOf(r) + 1}</Text>
                   <View style={{ marginRight: 4 }}><PlayerAvatar person={r} token={token} size={34} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.rowName, r.founder_backer && { color: colors.warning }]} numberOfLines={1}>{r.display_name}</Text>
@@ -426,6 +448,7 @@ const styles = StyleSheet.create({
   rosterHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
   rosterTitle: { color: colors.brandPrimary, fontWeight: "900", fontSize: 15, letterSpacing: 1 },
   rosterClose: { color: colors.textDim, fontSize: 20, fontWeight: "900", paddingHorizontal: 8 },
+  rosterSearch: { backgroundColor: colors.surface2, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm, fontSize: 14 },
   listWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   rowMe: { backgroundColor: colors.brandTertiary, paddingHorizontal: spacing.md, borderRadius: radius.sm, marginVertical: 2, borderBottomWidth: 0 },
