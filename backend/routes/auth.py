@@ -32,6 +32,11 @@ async def login(inp: LoginInput):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not verify_password(inp.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not user.get("is_admin"):
+        b = ban_state(user)
+        if b and b["scope"] in ("login", "all"):
+            until = b["until"].strftime("%b %d, %H:%M UTC")
+            raise HTTPException(status_code=403, detail=f"Your access is suspended until {until}." + (f" Reason: {b['reason']}" if b['reason'] else ""))
     token = await create_session(user["user_id"])
     user.pop("password_hash", None)
     user.pop("_id", None)

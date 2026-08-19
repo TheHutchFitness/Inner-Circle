@@ -107,7 +107,7 @@ export default function Judge() {
   const { token, user } = useAuth();
   const { isSubscribed } = useSubscription();
 
-  const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
+  const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder || user?.is_admin;
   const isVerified = !!(user?.email_verified || user?.phone_verified);
   const [verifyOpen, setVerifyOpen] = useState(false);
 
@@ -215,6 +215,14 @@ export default function Judge() {
     setPosting(false);
   };
 
+  const deleteComment = async (c: any) => {
+    if (!active) return;
+    setComments((list) => list.filter((x) => x.comment_id !== c.comment_id));
+    setFeed((f) => f.map((s) => s.submission_id === active.submission_id ? { ...s, comment_count: Math.max(0, (s.comment_count || 1) - 1) } : s));
+    try {
+      await apiFetch(token, `/api/judge/${active.submission_id}/comments/${c.comment_id}`, { method: "DELETE" });
+    } catch {}
+  };
   if (!canJudge) {
     return (
       <View style={[st.gate, { paddingTop: insets.top + spacing.xl }]}>
@@ -371,6 +379,11 @@ export default function Judge() {
                       <Text style={[st.commentName, c.founder_backer && { color: colors.warning }]}>{c.display_name} {c.founder_backer ? <Text style={{ color: colors.warning }}>★</Text> : null}</Text>
                     </Pressable>
                     <Text style={[st.cardRank, { color: RANK_COLORS[c.rank] || colors.brandPrimary }]}>{c.rank?.toUpperCase()}</Text>
+                    {(user?.is_admin || c.user_id === user?.user_id) && (
+                      <Pressable testID={`del-comment-${c.comment_id}`} onPress={() => deleteComment(c)} hitSlop={8} style={st.delComment}>
+                        <Text style={st.delCommentText}>✕</Text>
+                      </Pressable>
+                    )}
                   </View>
                   <Text style={st.commentText}>{c.text}</Text>
                 </View>
@@ -483,6 +496,8 @@ const st = StyleSheet.create({
   modalX: { color: colors.textDim, fontSize: 20, fontWeight: "900" },
   comment: { paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   commentHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  delComment: { marginLeft: "auto", width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.error },
+  delCommentText: { color: colors.error, fontSize: 12, fontWeight: "900", lineHeight: 14 },
   commentName: { color: colors.text, fontWeight: "800", fontSize: 13, flex: 1 },
   commentText: { color: colors.textMid, marginTop: 4, lineHeight: 19 },
   commentInputRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, alignItems: "center" },

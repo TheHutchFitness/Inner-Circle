@@ -224,6 +224,23 @@ def milestones_for(weight: float) -> List[int]:
             milestones.append(m)
     return milestones
 
+def ban_state(user) -> Optional[dict]:
+    """Active temporary-ban info for a user, or None. scope: login|chat|all."""
+    until = user.get("banned_until")
+    if not until:
+        return None
+    if isinstance(until, str):
+        try:
+            until = datetime.fromisoformat(until)
+        except Exception:
+            return None
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+    if until <= datetime.now(timezone.utc):
+        return None
+    return {"until": until, "scope": user.get("ban_scope", "all"), "reason": user.get("ban_reason", "")}
+
+
 async def get_current_user(authorization: Optional[str] = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing token")
@@ -240,6 +257,11 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
     user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0, "password_hash": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    if not user.get("is_admin"):
+        b = ban_state(user)
+        if b and b["scope"] in ("login", "all"):
+            until = b["until"].strftime("%b %d, %H:%M UTC")
+            raise HTTPException(status_code=403, detail=f"Your access is suspended until {until}." + (f" Reason: {b['reason']}" if b['reason'] else ""))
     return user
 
 async def create_session(user_id: str) -> str:
@@ -295,6 +317,8 @@ async def founder_status(user) -> dict:
     get all subscription/Skool-gated perks free. Returns {is_founder, founder_number}."""
     if not user or user.get("is_bot") or user.get("is_admin"):
         return {"is_founder": False, "founder_number": None}
+    if user.get("founder_grant"):
+        return {"is_founder": True, "founder_number": user.get("founder_number_override")}
     created = user.get("created_at")
     if not created:
         return {"is_founder": False, "founder_number": None}
@@ -1527,6 +1551,12 @@ _STT = None
 # ---------- Seed ----------
 # Owner accounts get full access to every chatroom regardless of rank/subscription
 OWNER_EMAILS = ["the9hutch@gmail.com"]
+
+# Curated badges the admin can hand out from the admin panel.
+ADMIN_BADGE_OPTIONS = [
+    "recruiter", "pr_hunter", "consistency_week1", "og_member", "verified_athlete",
+    "coach_pick", "community_mvp", "beast_mode", "iron_will", "comeback_kid",
+]
 
 async def seed():
     # Ensure the creator/admin account exists with full access (persists across restarts).

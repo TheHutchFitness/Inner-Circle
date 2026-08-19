@@ -160,3 +160,18 @@ async def judge_comment_add(submission_id: str, inp: JudgeComment, user=Depends(
     doc.pop("_id", None)
     doc["created_at"] = doc["created_at"].isoformat()
     return doc
+
+
+@api_router.delete("/judge/{submission_id}/comments/{comment_id}")
+async def judge_comment_delete(submission_id: str, comment_id: str, user=Depends(get_current_user)):
+    """Admin (or the comment's author) can remove a Judge comment."""
+    c = await db.judge_comments.find_one({"comment_id": comment_id, "submission_id": submission_id})
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if not user.get("is_admin") and c.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    await db.judge_comments.delete_one({"comment_id": comment_id})
+    await db.judge_submissions.update_one(
+        {"submission_id": submission_id, "comment_count": {"$gt": 0}}, {"$inc": {"comment_count": -1}}
+    )
+    return {"ok": True}

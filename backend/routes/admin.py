@@ -1,0 +1,206 @@
+# ruff: noqa: F403, F405
+from shared import *  # noqa: F401,F403
+
+
+def _require_admin(user):
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+
+async def _member_brief(u: dict) -> dict:
+    b = ban_state(u)
+    return {
+        "user_id": u.get("user_id"),
+        "display_name": u.get("display_name", "Athlete"),
+        "avatar_id": u.get("avatar_id", "avatar_ronin"),
+        "sex": u.get("sex", "male"),
+        "xp": u.get("xp", 0),
+        "rank": rank_from_xp(u.get("xp", 0)),
+        "level": level_from_xp(u.get("xp", 0)),
+        "skool_verified": bool(u.get("skool_verified")),
+        "founder_backer": bool(u.get("founder_backer")),
+        "founder_grant": bool(u.get("founder_grant")),
+        "badges": u.get("badges", []) or [],
+        "ban_active": bool(b),
+        "ban_scope": b["scope"] if b else None,
+        "ban_until": b["until"].isoformat() if b else None,
+    }
+
+
+@api_router.get("/admin/members")
+async def admin_members(q: str = "", user=Depends(get_current_user)):
+    _require_admin(user)
+    query = {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}}
+    if q.strip():
+        query["display_name"] = {"$regex": re.escape(q.strip()), "$options": "i"}
+    rows = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(100)
+    return {"members": [await _member_brief(r) for r in rows], "badge_options": ADMIN_BADGE_OPTIONS}
+
+
+@api_router.post("/admin/grant-badge")
+async def admin_grant_badge(payload: dict, user=Depends(get_current_user)):
+    _require_admin(user)
+    uid = payload.get("user_id"); badge = (payload.get("badge") or "").strip()[:40]
+    on = payload.get("on", True)
+    if not uid or not badge:
+        raise HTTPException(status_code=400, detail="user_id and badge required")
+    op = {"$addToSet": {"badges": badge}} if on else {"$pull": {"badges": badge}}
+    r = await db.users.update_one({"user_id": uid}, op)
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Member not found")
+    fresh = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    return await _member_brief(fresh)
+
+
+@api_router.post("/admin/verify-member")
+async def admin_verify_member(payload: dict, user=Depends(get_current_user)):
+    _require_admin(user)
+    uid = payload.get("user_id")
+    if not uid:
+        raise HTTPException(status_code=400, detail="user_id required")
+    updates = {}
+    for k in ("skool_verified", "email_verified", "phone_verified"):
+        if k in payload:
+            updates[k] = bool(payload[k])
+    if updates:
+        await db.users.update_one({"user_id": uid}, {"$set": updates})
+    fresh = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    if not fresh:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return await _member_brief(fresh)
+
+
+@api_router.post("/admin/founder")
+async def admin_set_founder(payload: dict, user=Depends(get_current_user)):
+    _require_admin(user)
+    uid = payload.get("user_id"); on = bool(payload.get("on", True))
+    if not uid:
+        raise HTTPException(status_code=400, detail="user_id required")
+    await db.users.update_one({"user_id": uid}, {"$set": {"founder_grant": on}})
+    fresh = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    if not fresh:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return await _member_brief(fresh)
+
+
+@api_router.post("/admin/enhanced-theme")
+async def admin_enhanced_theme(payload: dict, user=Depends(get_current_user)):
+    """Admin flips the global RED Enhanced theme on/off for their own account at will."""
+    _require_admin(user)
+    on = bool(payload.get("on", True))
+    upd = {"enhanced": on}
+    if on:
+        upd["enhanced_since"] = datetime.now(timezone.utc)
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": upd})
+    return {"enhanced": on}
+
+
+# ---------- Rank control + temporary bans ----------
+@api_router.post("/admin/set-rank")
+async def admin_set_rank(payload: dict, user=Depends(get_current_user)):
+    """Up-rank or de-rank a member by one tier (snaps XP to that rank's floor)."""
+    _require_admin(user)
+    uid = payload.get("user_id"); direction = payload.get("direction", "up")
+    if not uid:
+        raise HTTPException(status_code=400, detail="user_id required")
+    target = await db.users.find_one({"user_id": uid})
+    if not target:
+        raise HTTPException(status_code=404, detail="Member not found")
+    cur_idx = RANK_ORDER.index(rank_from_xp(target.get("xp", 0)))
+    if direction == "up":
+        new_idx = min(cur_idx + 1, len(RANK_ORDER) - 1)
+    elif direction == "down":
+        new_idx = max(cur_idx - 1, 0)
+    else:
+        new_idx = cur_idx
+    new_xp = new_idx * LEVELS_PER_RANK * 250
+    await db.users.update_one({"user_id": uid}, {"$set": {"xp": new_xp, "level": level_from_xp(new_xp)}})
+    fresh = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    return await _member_brief(fresh)
+
+
+@api_router.post("/admin/ban")
+async def admin_ban(payload: dict, user=Depends(get_current_user)):
+    """Temporarily suspend a member. scope: login | chat | all. duration in minutes."""
+    _require_admin(user)
+    uid = payload.get("user_id")
+    if not uid:
+        raise HTTPException(status_code=400, detail="user_id required")
+    target = await db.users.find_one({"user_id": uid})
+    if not target:
+        raise HTTPException(status_code=404, detail="Member not found")
+    if target.get("is_admin"):
+        raise HTTPException(status_code=400, detail="Cannot ban an admin")
+    scope = payload.get("scope", "all")
+    if scope not in ("login", "chat", "all"):
+        scope = "all"
+    minutes = max(1, int(payload.get("minutes", 60)))
+    until = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+    await db.users.update_one({"user_id": uid}, {"$set": {
+        "banned_until": until, "ban_scope": scope, "ban_reason": (payload.get("reason") or "")[:200],
+    }})
+    if scope in ("login", "all"):
+        await db.user_sessions.delete_many({"user_id": uid})  # force logout
+    fresh = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    return await _member_brief(fresh)
+
+
+@api_router.post("/admin/unban")
+async def admin_unban(payload: dict, user=Depends(get_current_user)):
+    _require_admin(user)
+    uid = payload.get("user_id")
+    if not uid:
+        raise HTTPException(status_code=400, detail="user_id required")
+    await db.users.update_one({"user_id": uid}, {"$unset": {"banned_until": "", "ban_scope": "", "ban_reason": ""}})
+    fresh = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    if not fresh:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return await _member_brief(fresh)
+
+
+# ---------- Featured / Spotlight members on Home ----------
+@api_router.get("/featured")
+async def featured_members(user=Depends(get_current_user)):
+    rows = await db.featured_members.find({}, {"_id": 0}).sort("created_at", -1).to_list(20)
+    out = []
+    for f in rows:
+        u = await db.users.find_one({"user_id": f["user_id"]}, {"_id": 0, "password_hash": 0})
+        if not u:
+            continue
+        out.append({
+            "user_id": u["user_id"],
+            "display_name": u.get("display_name", "Athlete"),
+            "avatar_id": u.get("avatar_id", "avatar_ronin"),
+            "sex": u.get("sex", "male"),
+            "rank": rank_from_xp(u.get("xp", 0)),
+            "level": level_from_xp(u.get("xp", 0)),
+            "use_photo": bool(u.get("use_photo")),
+            "photo_media_id": u.get("photo_media_id"),
+            "reason": f.get("reason", ""),
+        })
+    return {"featured": out}
+
+
+@api_router.post("/admin/featured")
+async def admin_add_featured(payload: dict, user=Depends(get_current_user)):
+    _require_admin(user)
+    uid = payload.get("user_id"); reason = (payload.get("reason") or "").strip()[:200]
+    if not uid:
+        raise HTTPException(status_code=400, detail="user_id required")
+    target = await db.users.find_one({"user_id": uid})
+    if not target:
+        raise HTTPException(status_code=404, detail="Member not found")
+    await db.featured_members.update_one(
+        {"user_id": uid},
+        {"$set": {"reason": reason, "added_by": user["user_id"]},
+         "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api_router.delete("/admin/featured/{user_id}")
+async def admin_remove_featured(user_id: str, user=Depends(get_current_user)):
+    _require_admin(user)
+    await db.featured_members.delete_one({"user_id": user_id})
+    return {"ok": True}

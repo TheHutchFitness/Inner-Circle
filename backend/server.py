@@ -4,6 +4,7 @@ from shared import app, api_router  # noqa: F401
 
 # Importing each route module runs its @api_router decorators (registration).
 from routes import (  # noqa: F401
+    admin,
     ai,
     auth,
     cardio,

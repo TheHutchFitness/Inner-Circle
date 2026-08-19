@@ -46,6 +46,10 @@ async def get_messages(room: str, user=Depends(get_current_user)):
 async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_user)):
     if room not in ("main", "the_room"):
         raise HTTPException(status_code=400, detail="Invalid room")
+    b = ban_state(user)
+    if b and b["scope"] in ("chat", "all"):
+        until = b["until"].strftime("%b %d, %H:%M UTC")
+        raise HTTPException(status_code=403, detail=f"You're muted in chat until {until}." + (f" Reason: {b['reason']}" if b['reason'] else ""))
     if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak") and not user.get("all_rooms_access"):
         raise HTTPException(status_code=403, detail="The Room requires Elite rank")
     text = (inp.text or "").strip()

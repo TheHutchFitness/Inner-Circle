@@ -8,6 +8,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage, avatarImage, rankIndex } from "@/src/lib/theme";
 import { HudSectionHeader, HudFrame } from "@/src/components/Hud";
+import { MemberSheet } from "@/src/components/MemberSheet";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 function nextRankInfo(xp: number) {
@@ -46,11 +47,19 @@ export default function Dashboard() {
   }, [token]);
 
   useEffect(() => {
-    if (!user?.enhanced) { setNextDose(null); return; }
+    if (!user?.enhanced && !user?.enhanced_access) { setNextDose(null); return; }
     (async () => {
       try { setNextDose(await apiFetch(token, "/api/enhanced/next-dose")); } catch {}
     })();
-  }, [token, user?.enhanced]);
+  }, [token, user?.enhanced, user?.enhanced_access]);
+
+  const [featured, setFeatured] = useState<any[]>([]);
+  const [spotId, setSpotId] = useState<string | null>(null);
+  useEffect(() => {
+    (async () => {
+      try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
+    })();
+  }, [token]);
 
   if (!user) return null;
   const avatar = avatarFor(user.avatar_id);
@@ -110,8 +119,25 @@ export default function Dashboard() {
         </View>
         <View style={styles.badgeRow}>
           {isPremium && <View testID="premium-badge" style={styles.premiumBadge}><Text style={styles.premiumBadgeText}>{isSubscribed ? "★ PREMIUM" : user?.skool_verified ? "✓ SKOOL" : "★ FOUNDER"}</Text></View>}
+          {user?.is_admin && <Pressable testID="admin-entry" onPress={() => router.push("/admin")} style={styles.adminBtn}><Text style={styles.adminBtnText}>⚙ ADMIN</Text></Pressable>}
         </View>
       </LinearGradient>
+
+      {featured.length > 0 && (
+        <>
+          <HudSectionHeader label="★ SPOTLIGHT" />
+          {featured.map((f) => (
+            <Pressable key={f.user_id} testID={`spotlight-${f.user_id}`} onPress={() => setSpotId(f.user_id)} style={styles.spotCard}>
+              <View style={styles.spotDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.spotName}>{f.display_name} <Text style={styles.spotRank}>· {(f.rank || "").toUpperCase()}</Text></Text>
+                {!!f.reason && <Text style={styles.spotReason}>{f.reason}</Text>}
+              </View>
+              <Text style={styles.spotChevron}>›</Text>
+            </Pressable>
+          ))}
+        </>
+      )}
 
       <View style={styles.grid}>
         <View style={styles.statCard}>
@@ -261,6 +287,7 @@ export default function Dashboard() {
         </Pressable>
       )}
       </ScrollView>
+      <MemberSheet userId={spotId} visible={!!spotId} onClose={() => setSpotId(null)} />
     </View>
     </SwipeTabs>
   );
@@ -296,9 +323,17 @@ const styles = StyleSheet.create({
   xpBar: { height: 6, backgroundColor: colors.surface3, borderRadius: 3, marginTop: 8, overflow: "hidden" },
   xpFill: { height: "100%" },
   xpNext: { color: colors.textDim, fontSize: 10, marginTop: 4, letterSpacing: 2 },
-  badgeRow: { flexDirection: "row", marginTop: spacing.md },
+  badgeRow: { flexDirection: "row", marginTop: spacing.md, gap: spacing.sm, flexWrap: "wrap" },
   premiumBadge: { paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill, backgroundColor: colors.warning },
   premiumBadgeText: { color: "#332200", fontWeight: "900", fontSize: 11, letterSpacing: 2 },
+  adminBtn: { backgroundColor: colors.surface3, borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 12 },
+  adminBtnText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 11, letterSpacing: 2 },
+  spotCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.06)" },
+  spotDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warning },
+  spotName: { color: colors.text, fontWeight: "900", fontSize: 14 },
+  spotRank: { color: colors.textDim, fontWeight: "700", fontSize: 11 },
+  spotReason: { color: colors.warning, fontSize: 12, marginTop: 2, lineHeight: 16 },
+  spotChevron: { color: colors.textDim, fontSize: 22, fontWeight: "300" },
   grid: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, marginTop: spacing.md, flexWrap: "wrap" },
   statCard: { flex: 1, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.md, minWidth: 90 },
   statLabel: { color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
