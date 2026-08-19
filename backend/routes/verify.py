@@ -42,7 +42,14 @@ async def verify_phone_send(inp: PhoneSendIn, user=Depends(get_current_user)):
     await _check_send_rate(user["user_id"], "phone")
     code = gen_verify_code()
     await _store_code(user["user_id"], "phone", code, {"phone": inp.phone.strip()})
-    # MOCK SMS: Twilio keys not configured yet — code is returned so the app can show it on screen.
+    if twilio_configured():
+        try:
+            await send_sms(inp.phone, f"{code} is your Hutch's Inner Circle verification code. Expires in {VERIFY_TTL_MIN} min.")
+            return {"status": "sent", "mock": False}
+        except Exception as e:
+            logger.warning(f"Twilio SMS failed for {inp.phone}: {e}")
+            raise HTTPException(status_code=502, detail="Couldn't send the text. Double-check the number (include country code, e.g. +1).")
+    # Fallback when Twilio isn't configured — code returned so the app can show it on screen.
     logger.info(f"[MOCK SMS] verification code {code} for {inp.phone}")
     return {"status": "sent", "mock": True, "code": code}
 

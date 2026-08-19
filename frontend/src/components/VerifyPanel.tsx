@@ -30,6 +30,7 @@ export function VerifyPanel({ onVerified }: { onVerified?: () => void }) {
       } else {
         const r = await apiFetch(token, "/api/verify/phone/send", { method: "POST", body: JSON.stringify({ phone }) });
         if (r.mock && r.code) setMockCode(r.code);
+        else setMsg(`Code texted to ${phone} — enter it below.`);
       }
       setStage("sent");
     } catch (e: any) { setMsg(e.message); }

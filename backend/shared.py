@@ -358,6 +358,48 @@ async def apply_referral(new_user: dict, code: str) -> Optional[dict]:
     return {"user_id": referrer["user_id"], "display_name": referrer.get("display_name", "Athlete")}
 
 
+# ---------- Twilio SMS (phone OTP + admin announcements) ----------
+from starlette.concurrency import run_in_threadpool  # noqa: E402
+
+TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID", "")
+TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN", "")
+TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER", "")
+_twilio_client = None
+
+
+def twilio_configured() -> bool:
+    return bool(TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER)
+
+
+def _twilio():
+    global _twilio_client
+    if _twilio_client is None and TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+        from twilio.rest import Client
+        _twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    return _twilio_client
+
+
+def to_e164(phone: str) -> str:
+    p = (phone or "").strip()
+    digits = re.sub(r"\D", "", p)
+    if p.startswith("+"):
+        return "+" + digits
+    if len(digits) == 10:  # assume North America if no country code
+        return "+1" + digits
+    return "+" + digits
+
+
+async def send_sms(to: str, body: str) -> str:
+    """Send an SMS via Twilio (runs the sync SDK in a threadpool). Returns message SID."""
+    client = _twilio()
+    if not client or not TWILIO_PHONE_NUMBER:
+        raise RuntimeError("Twilio not configured")
+    msg = await run_in_threadpool(
+        lambda: client.messages.create(from_=TWILIO_PHONE_NUMBER, to=to_e164(to), body=body)
+    )
+    return msg.sid
+
+
 
 # ---------- Object Storage helpers ----------
 async def init_storage() -> str:

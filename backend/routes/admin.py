@@ -159,6 +159,46 @@ async def admin_unban(payload: dict, user=Depends(get_current_user)):
 
 
 # ---------- Featured / Spotlight members on Home ----------
+@api_router.get("/admin/sms-status")
+async def admin_sms_status(user=Depends(get_current_user)):
+    _require_admin(user)
+    reach = await db.users.count_documents({"is_bot": {"$ne": True}, "phone_verified": True, "phone": {"$nin": [None, ""]}})
+    return {"configured": twilio_configured(), "from_number": TWILIO_PHONE_NUMBER if twilio_configured() else "", "reachable": reach}
+
+
+@api_router.post("/admin/announce")
+async def admin_announce(payload: dict, user=Depends(get_current_user)):
+    """Broadcast an SMS announcement to every phone-verified member."""
+    _require_admin(user)
+    message = (payload.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Message required")
+    if len(message) > 1200:
+        raise HTTPException(status_code=400, detail="Message too long (max 1200 chars)")
+    if not twilio_configured():
+        raise HTTPException(status_code=400, detail="Twilio SMS is not configured")
+    recips = await db.users.find(
+        {"is_bot": {"$ne": True}, "phone_verified": True, "phone": {"$nin": [None, ""]}},
+        {"_id": 0, "user_id": 1, "phone": 1},
+    ).to_list(5000)
+    body = f"{message}\n\n— Hutch's Inner Circle"
+    sent, failed = 0, 0
+    for r in recips:
+        try:
+            await send_sms(r["phone"], body)
+            sent += 1
+        except Exception as e:
+            failed += 1
+            logger.warning(f"announce SMS failed for {r.get('user_id')}: {e}")
+    await db.announcements.insert_one({
+        "id": new_id("ann"), "message": message, "sent_by": user["user_id"],
+        "sent": sent, "failed": failed, "recipients": len(recips),
+        "created_at": datetime.now(timezone.utc),
+    })
+    return {"sent": sent, "failed": failed, "recipients": len(recips)}
+
+
+# ---------- Featured / Spotlight members on Home ----------
 @api_router.get("/featured")
 async def featured_members(user=Depends(get_current_user)):
     rows = await db.featured_members.find({}, {"_id": 0}).sort("created_at", -1).to_list(20)
