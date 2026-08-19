@@ -58,7 +58,7 @@ export default function Enhanced() {
 
   useEffect(() => {
     if (!token) return;
-    apiFetch(token, "/api/enhanced/status").then((s) => { setStatus(s); if (user?.enhanced) loadRoom(); }).catch(() => {}).finally(() => setLoading(false));
+    apiFetch(token, "/api/enhanced/status").then((s) => { setStatus(s); if (user?.enhanced || user?.enhanced_access) loadRoom(); }).catch(() => {}).finally(() => setLoading(false));
   }, [token]);
 
   const verifyAge = async () => {
@@ -108,7 +108,8 @@ export default function Enhanced() {
     } catch (e: any) { setMsg(e?.message || "Couldn't save"); }
   };
 
-  const enhanced = user?.enhanced || status?.enhanced;
+  // Admins get enhanced_access → the room/tracker unlocks WITHOUT the red app takeover.
+  const enhanced = user?.enhanced || status?.enhanced || user?.enhanced_access || status?.enhanced_access;
 
   if (loading) return <View style={[s.wrap, { justifyContent: "center" }]}><ActivityIndicator color={RED} /></View>;
 

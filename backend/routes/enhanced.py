@@ -7,6 +7,7 @@ async def enhanced_status(user=Depends(get_current_user)):
     return {
         "age_verified": bool(user.get("age_verified")),
         "enhanced": bool(user.get("enhanced")),
+        "enhanced_access": bool(user.get("enhanced") or user.get("enhanced_access")),
         "disclaimer": PED_DISCLAIMER,
     }
 
@@ -51,7 +52,7 @@ async def get_regimen(user=Depends(get_current_user)):
 
 @api_router.post("/enhanced/regimen")
 async def set_regimen(inp: RegimenIn, user=Depends(get_current_user)):
-    if not user.get("enhanced"):
+    if not (user.get("enhanced") or user.get("enhanced_access")):
         raise HTTPException(status_code=403, detail="Enhanced access required.")
     if not inp.items:
         raise HTTPException(status_code=400, detail="Add at least one item.")
@@ -72,7 +73,7 @@ async def set_regimen(inp: RegimenIn, user=Depends(get_current_user)):
 
 @api_router.post("/enhanced/regimen/note")
 async def update_regimen_note(inp: RegimenNoteIn, user=Depends(get_current_user)):
-    if not user.get("enhanced"):
+    if not (user.get("enhanced") or user.get("enhanced_access")):
         raise HTTPException(status_code=403, detail="Enhanced access required.")
     active = await db.ped_regimens.find_one({"user_id": user["user_id"], "active": True}, sort=[("created_at", -1)])
     if not active:
@@ -87,7 +88,7 @@ async def update_regimen_note(inp: RegimenNoteIn, user=Depends(get_current_user)
 
 @api_router.get("/enhanced/next-dose")
 async def enhanced_next_dose(user=Depends(get_current_user)):
-    if not user.get("enhanced"):
+    if not (user.get("enhanced") or user.get("enhanced_access")):
         return {"enhanced": False, "active": False, "items": [], "due_count": 0}
     active = await db.ped_regimens.find_one({"user_id": user["user_id"], "active": True}, {"_id": 0}, sort=[("created_at", -1)])
     if not active:

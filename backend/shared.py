@@ -74,6 +74,7 @@ class RegisterInput(BaseModel):
     password: str
     display_name: str
     sex: Optional[Literal["male", "female", "other"]] = None
+    referral_code: Optional[str] = None
 
 class LoginInput(BaseModel):
     email: EmailStr
@@ -275,6 +276,9 @@ def default_user_doc(email: str, name: str, picture: str = "") -> dict:
         "athletes_center_access": False,
         "custom_program_purchased": False,
         "active_background": "bg_default",
+        "referral_code": "HIC" + uuid.uuid4().hex[:6].upper(),
+        "referred_by": None,
+        "referral_count": 0,
         "created_at": datetime.now(timezone.utc),
     }
 
@@ -289,16 +293,45 @@ async def award_xp(user_id: str, amount: int):
 async def founder_status(user) -> dict:
     """First FOUNDER_LIMIT real members (by signup order) are Founding Beta members and
     get all subscription/Skool-gated perks free. Returns {is_founder, founder_number}."""
-    if not user or user.get("is_bot"):
+    if not user or user.get("is_bot") or user.get("is_admin"):
         return {"is_founder": False, "founder_number": None}
     created = user.get("created_at")
     if not created:
         return {"is_founder": False, "founder_number": None}
     ahead = await db.users.count_documents(
-        {"is_bot": {"$ne": True}, "created_at": {"$lt": created}}
+        {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, "created_at": {"$lt": created}}
     )
     num = ahead + 1
     return {"is_founder": num <= FOUNDER_LIMIT, "founder_number": num if num <= FOUNDER_LIMIT else None}
+
+
+# ---------- Referral rewards ----------
+REFERRER_XP = 100      # bonus XP the inviter earns per successful referral
+REFERRED_XP = 50       # welcome XP boost for the new friend who used a code
+RECRUITER_BADGE_AT = 3  # successful referrals needed for the RECRUITER badge
+
+
+async def apply_referral(new_user: dict, code: str) -> Optional[dict]:
+    """Link a fresh signup to their inviter (by referral_code) and pay both sides.
+    Returns the referrer's public-ish info dict, or None if code invalid/self."""
+    code = (code or "").strip().upper()
+    if not code:
+        return None
+    referrer = await db.users.find_one({"referral_code": code})
+    if not referrer or referrer["user_id"] == new_user["user_id"]:
+        return None
+    # Link + reward the new friend
+    await db.users.update_one(
+        {"user_id": new_user["user_id"]}, {"$set": {"referred_by": referrer["user_id"]}}
+    )
+    await award_xp(new_user["user_id"], REFERRED_XP)
+    # Reward the inviter + tally
+    await db.users.update_one({"user_id": referrer["user_id"]}, {"$inc": {"referral_count": 1}})
+    await award_xp(referrer["user_id"], REFERRER_XP)
+    fresh_ref = await db.users.find_one({"user_id": referrer["user_id"]}, {"_id": 0})
+    if (fresh_ref.get("referral_count", 0) >= RECRUITER_BADGE_AT) and "recruiter" not in (fresh_ref.get("badges") or []):
+        await db.users.update_one({"user_id": referrer["user_id"]}, {"$addToSet": {"badges": "recruiter"}})
+    return {"user_id": referrer["user_id"], "display_name": referrer.get("display_name", "Athlete")}
 
 
 
@@ -1362,6 +1395,30 @@ def _is_owner(user) -> bool:
     return (user.get("email", "").lower() in [e.lower() for e in OWNER_EMAILS]) or bool(user.get("all_rooms_access"))
 
 
+# Full admin grant for the creator account(s). enhanced_access unlocks The Enhanced
+# room/tracker WITHOUT the red theme (that only flips on the `enhanced` flag).
+OWNER_ADMIN_SET = {
+    "all_rooms_access": True,
+    "skool_verified": True,
+    "athletes_center_access": True,
+    "enhanced_access": True,
+    "is_admin": True,
+}
+
+
+async def ensure_owner_admin(user):
+    """Idempotently grant the creator account every access flag (no red theme)."""
+    if not user:
+        return user
+    if user.get("email", "").lower() not in [e.lower() for e in OWNER_EMAILS]:
+        return user
+    missing = {k: v for k, v in OWNER_ADMIN_SET.items() if user.get(k) != v}
+    if missing:
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": missing})
+        user.update(missing)
+    return user
+
+
 
 
 # ---------- Founders (first 100 members + development backers) ----------
@@ -1472,11 +1529,17 @@ _STT = None
 OWNER_EMAILS = ["the9hutch@gmail.com"]
 
 async def seed():
-    # Grant owner accounts full room access (persists across restarts)
-    await db.users.update_many(
-        {"email": {"$in": OWNER_EMAILS}},
-        {"$set": {"all_rooms_access": True, "skool_verified": True}},
-    )
+    # Ensure the creator/admin account exists with full access (persists across restarts).
+    # It signs in via Google (no password); this guarantees it's present + admin even
+    # before first login, and is excluded from founder counts + leaderboards.
+    for oemail in OWNER_EMAILS:
+        existing = await db.users.find_one({"email": oemail})
+        if existing:
+            await db.users.update_one({"email": oemail}, {"$set": OWNER_ADMIN_SET})
+        else:
+            doc = default_user_doc(oemail, "The Hutch")
+            doc.update(OWNER_ADMIN_SET)
+            await db.users.insert_one(doc)
     # Indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("user_id", unique=True)

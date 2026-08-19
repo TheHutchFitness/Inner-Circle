@@ -13,12 +13,16 @@ async def register(inp: RegisterInput):
     if inp.sex:
         doc["sex"] = inp.sex
     await db.users.insert_one(doc)
+    if inp.referral_code:
+        try:
+            await apply_referral(doc, inp.referral_code)
+        except Exception as e:
+            logger.warning(f"referral apply failed: {e}")
     token = await create_session(doc["user_id"])
-    doc.pop("password_hash", None)
-    doc.pop("_id", None)
-    doc["rank"] = rank_from_xp(doc["xp"])
-    doc.update(await founder_status(doc))
-    return {"session_token": token, "user": doc}
+    fresh = await db.users.find_one({"user_id": doc["user_id"]}, {"_id": 0, "password_hash": 0})
+    fresh["rank"] = rank_from_xp(fresh["xp"])
+    fresh.update(await founder_status(fresh))
+    return {"session_token": token, "user": fresh}
 
 
 @api_router.post("/auth/login")
@@ -31,6 +35,7 @@ async def login(inp: LoginInput):
     token = await create_session(user["user_id"])
     user.pop("password_hash", None)
     user.pop("_id", None)
+    user = await ensure_owner_admin(user)
     user["rank"] = rank_from_xp(user["xp"])
     user.update(await founder_status(user))
     return {"session_token": token, "user": user}
@@ -68,12 +73,15 @@ async def google_session(inp: SessionInput):
     })
     user.pop("password_hash", None)
     user.pop("_id", None)
+    user = await ensure_owner_admin(user)
     user["rank"] = rank_from_xp(user["xp"])
+    user.update(await founder_status(user))
     return {"session_token": session_token, "user": user}
 
 
 @api_router.get("/auth/me")
 async def me(user=Depends(get_current_user)):
+    user = await ensure_owner_admin(user)
     user["rank"] = rank_from_xp(user["xp"])
     user.update(await founder_status(user))
     return user

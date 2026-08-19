@@ -135,6 +135,9 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
     if not u:
         raise HTTPException(status_code=404, detail="Member not found")
     prs = u.get("prs", {}) or {}
+    fs = await founder_status(u)
+    tt = u.get("social_tiktok", "") or ""
+    ig = u.get("social_instagram", "") or ""
     return {
         "user_id": u["user_id"],
         "display_name": u.get("display_name", "Athlete"),
@@ -145,6 +148,8 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
         "xp": u.get("xp", 0),
         "founder_backer": bool(u.get("founder_backer")),
         "skool_verified": bool(u.get("skool_verified")),
+        "is_founder": fs["is_founder"],
+        "founder_number": fs["founder_number"],
         "prs": prs,
         "total_lift": sum(prs.values()),
         "workouts_logged": u.get("workouts_logged", 0),
@@ -153,6 +158,7 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
         "photo_media_id": u.get("photo_media_id"),
         "use_photo": bool(u.get("use_photo")),
         "active_frame": u.get("active_frame"),
-        "social_tiktok": u.get("social_tiktok", "") or "",
-        "social_instagram": u.get("social_instagram", "") or "",
+        "social_tiktok": tt,
+        "social_instagram": ig,
+        "is_creator": bool(tt or ig),
     }

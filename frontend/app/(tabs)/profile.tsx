@@ -17,6 +17,7 @@ import { HudSectionHeader } from "@/src/components/Hud";
 import { HealthCard } from "@/src/components/HealthCard";
 import { NutritionCard } from "@/src/components/NutritionCard";
 import { SocialLinksEditor } from "@/src/components/SocialLinks";
+import { FoundingRibbon, CreatorBadge } from "@/src/components/Badges";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 
 const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"], ["OHP", "ohp"]];
@@ -150,6 +151,10 @@ export default function Profile() {
           </View>
         </Pressable>
         <Text style={styles.tapHint}>TAP THE CARD TO SWITCH YOUR CLASS</Text>
+        {user.is_founder && <FoundingRibbon number={user.founder_number} />}
+        {(user.social_tiktok || user.social_instagram) && (
+          <View style={styles.creatorWrap}><CreatorBadge /></View>
+        )}
       </View>
 
       {/* SOCIAL LINKS — TikTok / Instagram (shown on your card + others') */}
@@ -366,6 +371,7 @@ const styles = StyleSheet.create({
   barTrack: { flex: 1, height: 6, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden" },
   barFill: { height: "100%" },
   tapHint: { color: colors.textDim, fontSize: 10, letterSpacing: 2, marginTop: spacing.sm, fontWeight: "700" },
+  creatorWrap: { alignItems: "center", marginTop: spacing.sm },
   radarCard: { marginHorizontal: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, alignItems: "center" },
   radarClassRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md, marginBottom: spacing.sm },
   radarClassTitle: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 2 },

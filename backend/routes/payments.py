@@ -270,7 +270,7 @@ async def custom_program_deliver(request_id: str, file: UploadFile = File(...), 
 @api_router.get("/founders/spots")
 async def founder_spots():
     """Public (no auth): how many Founding Beta spots remain. Shown on the login screen."""
-    taken = await db.users.count_documents({"is_bot": {"$ne": True}})
+    taken = await db.users.count_documents({"is_bot": {"$ne": True}, "is_admin": {"$ne": True}})
     taken = min(taken, FOUNDER_LIMIT)
     return {"taken": taken, "limit": FOUNDER_LIMIT, "remaining": max(0, FOUNDER_LIMIT - taken)}
 
@@ -279,8 +279,8 @@ async def founder_spots():
 async def founders_list(user=Depends(get_current_user)):
     # First 100 real members (exclude leaderboard bots), earliest signups first
     rows = await db.users.find(
-        {"is_bot": {"$ne": True}},
-        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "created_at": 1, "founder_backer": 1, "sex": 1},
+        {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}},
+        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "created_at": 1, "founder_backer": 1, "sex": 1, "social_tiktok": 1, "social_instagram": 1},
     ).sort("created_at", 1).limit(FOUNDER_LIMIT).to_list(FOUNDER_LIMIT)
 
     founders = []
@@ -297,6 +297,7 @@ async def founders_list(user=Depends(get_current_user)):
             "sex": r.get("sex", "male"),
             "rank": rank_from_xp(r.get("xp", 0)),
             "is_backer": bool(r.get("founder_backer")),
+            "is_creator": bool(r.get("social_tiktok") or r.get("social_instagram")),
         })
 
     backer_rows = await db.users.find(
@@ -310,6 +311,25 @@ async def founders_list(user=Depends(get_current_user)):
         "sex": b.get("sex", "male"),
         "rank": rank_from_xp(b.get("xp", 0)),
     } for b in backer_rows]
+
+    # Creators — members who linked a TikTok/Instagram (top creators stand out).
+    creator_rows = await db.users.find(
+        {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, "$or": [
+            {"social_tiktok": {"$nin": [None, ""]}},
+            {"social_instagram": {"$nin": [None, ""]}},
+        ]},
+        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "sex": 1,
+         "social_tiktok": 1, "social_instagram": 1},
+    ).sort("xp", -1).to_list(300)
+    creators = [{
+        "user_id": c.get("user_id"),
+        "display_name": c.get("display_name", "Athlete"),
+        "avatar_id": c.get("avatar_id", "avatar_ronin"),
+        "sex": c.get("sex", "male"),
+        "rank": rank_from_xp(c.get("xp", 0)),
+        "social_tiktok": c.get("social_tiktok", "") or "",
+        "social_instagram": c.get("social_instagram", "") or "",
+    } for c in creator_rows]
 
     my_receipt = None
     if user.get("founder_backer"):
@@ -328,13 +348,46 @@ async def founders_list(user=Depends(get_current_user)):
     return {
         "founders": founders,
         "backers": backers,
+        "creators": creators,
         "founder_limit": FOUNDER_LIMIT,
         "me": {
             "number": my_number,
             "is_founder": my_number is not None,
             "is_backer": bool(user.get("founder_backer")),
+            "is_creator": bool(user.get("social_tiktok") or user.get("social_instagram")),
             "receipt": my_receipt,
         },
+    }
+
+
+@api_router.get("/referral")
+async def referral_info(user=Depends(get_current_user)):
+    """The signed-in athlete's invite code + progress toward the RECRUITER badge."""
+    code = user.get("referral_code")
+    if not code:
+        code = "HIC" + uuid.uuid4().hex[:6].upper()
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"referral_code": code}})
+    invited = await db.users.find(
+        {"referred_by": user["user_id"]},
+        {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "sex": 1},
+    ).sort("created_at", 1).to_list(200)
+    recruits = [{
+        "user_id": r.get("user_id"),
+        "display_name": r.get("display_name", "Athlete"),
+        "avatar_id": r.get("avatar_id", "avatar_ronin"),
+        "sex": r.get("sex", "male"),
+        "rank": rank_from_xp(r.get("xp", 0)),
+    } for r in invited]
+    count = user.get("referral_count", 0) or 0
+    return {
+        "code": code,
+        "count": count,
+        "recruits": recruits,
+        "referrer_xp": REFERRER_XP,
+        "referred_xp": REFERRED_XP,
+        "badge_at": RECRUITER_BADGE_AT,
+        "has_badge": count >= RECRUITER_BADGE_AT,
+        "to_badge": max(0, RECRUITER_BADGE_AT - count),
     }
 
 

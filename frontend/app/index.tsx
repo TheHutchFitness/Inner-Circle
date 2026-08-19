@@ -19,6 +19,7 @@ export default function Index() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [spots, setSpots] = useState<{ remaining: number; limit: number } | null>(null);
@@ -74,7 +75,7 @@ export default function Index() {
     setSubmitting(true);
     try {
       if (mode === "login") await loginEmail(email.trim(), password);
-      else await registerEmail(email.trim(), password, name.trim() || email.split("@")[0], sex);
+      else await registerEmail(email.trim(), password, name.trim() || email.split("@")[0], sex, referralCode.trim());
     } catch (e: any) {
       setErr(e.message || "Auth failed");
     } finally {
@@ -193,6 +194,18 @@ export default function Index() {
             style={styles.input}
             secureTextEntry
           />
+          {mode === "signup" && (
+            <TextInput
+              testID="input-referral"
+              value={referralCode}
+              onChangeText={setReferralCode}
+              placeholder="Referral code (optional)"
+              placeholderTextColor={colors.textDim}
+              style={styles.input}
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+          )}
 
           {err && <Text testID="auth-error" style={styles.err}>{err}</Text>}
 

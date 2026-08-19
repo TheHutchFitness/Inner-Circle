@@ -49,6 +49,8 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
               {!!loadoutTitle(m.loadout) && <Text style={styles.mtitle}>❰ {loadoutTitle(m.loadout)} ❱</Text>}
 
               <View style={styles.badges}>
+                {m.is_founder && <View style={styles.bFounder}><Text style={styles.bFounderText}>★ FOUNDING 100{m.founder_number ? ` · #${m.founder_number}` : ""}</Text></View>}
+                {m.is_creator && <View style={styles.bCreator}><Text style={styles.bCreatorText}>✔ CREATOR</Text></View>}
                 {m.founder_backer && <View style={styles.bBacker}><Text style={styles.bBackerText}>★ FOUNDING BACKER</Text></View>}
                 {m.skool_verified && <View style={styles.bSkool}><Text style={styles.bSkoolText}>✓ SKOOL</Text></View>}
               </View>
@@ -103,6 +105,10 @@ const styles = StyleSheet.create({
   badges: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap", justifyContent: "center" },
   bBacker: { backgroundColor: colors.warning, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
   bBackerText: { color: "#221900", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  bFounder: { backgroundColor: "rgba(255,234,0,0.14)", borderWidth: 1, borderColor: colors.warning, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
+  bFounderText: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  bCreator: { backgroundColor: "rgba(0,229,255,0.1)", borderWidth: 1, borderColor: colors.brandPrimary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
+  bCreatorText: { color: colors.brandPrimary, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   bSkool: { backgroundColor: colors.success, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
   bSkoolText: { color: "#002200", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   prGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.lg, width: "100%" },

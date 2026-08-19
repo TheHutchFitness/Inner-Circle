@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Modal, Platform, Share } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, withDelay, Easing, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -9,6 +9,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription, rcEnabled } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, RANK_COLORS, avatarFor, avatarImage } from "@/src/lib/theme";
 import { MemberSheet } from "@/src/components/MemberSheet";
+import { SocialLinksBar } from "@/src/components/SocialLinks";
 
 const BACKER_FALLBACK_PRICE = "$25.00";
 
@@ -77,8 +78,9 @@ export default function Founders() {
   const { offerings, hasBackerEntitlement, purchase, isPurchasing, identityReady } = useSubscription();
 
   const [data, setData] = useState<any>(null);
+  const [ref, setRef] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"founders" | "backers">("founders");
+  const [tab, setTab] = useState<"founders" | "creators" | "backers">("founders");
   const [msg, setMsg] = useState<string | null>(null);
   const [celebrate, setCelebrate] = useState(false);
   const [memberId, setMemberId] = useState<string | null>(null);
@@ -88,9 +90,19 @@ export default function Founders() {
 
   const load = async () => {
     try { setData(await apiFetch(token, "/api/founders")); } catch {}
+    try { setRef(await apiFetch(token, "/api/referral")); } catch {}
     setLoading(false);
   };
   useEffect(() => { if (token) load(); /* eslint-disable-next-line */ }, [token]);
+
+  const shareInvite = async () => {
+    if (!ref?.code) return;
+    try {
+      await Share.share({
+        message: `Join me in Hutch's Inner Circle 💪 Use my code ${ref.code} when you enlist and we both earn bonus XP. First 100 members get FREE Founder access.`,
+      });
+    } catch {}
+  };
 
   // Backer status is granted server-side only after RevenueCat confirms the purchase
   // via its webhook — retry briefly to cover webhook lag.
@@ -143,9 +155,35 @@ export default function Founders() {
           </LinearGradient>
         )}
 
+        {/* RECRUIT — referral code, share + progress to the RECRUITER badge */}
+        {ref?.code && (
+          <View style={styles.recruitCard}>
+            <Text style={styles.recruitTitle}>RECRUIT YOUR CREW</Text>
+            <Text style={styles.recruitBody}>
+              Invite friends before the {data?.founder_limit ?? 100} founder spots fill up.
+              You earn +{ref.referrer_xp} XP per friend; they get +{ref.referred_xp} XP.
+            </Text>
+            <View style={styles.codeRow}>
+              <View style={styles.codeBox}><Text testID="referral-code" style={styles.codeText}>{ref.code}</Text></View>
+              <Pressable testID="referral-share" onPress={shareInvite} style={styles.shareBtn}>
+                <Text style={styles.shareText}>↗ SHARE</Text>
+              </Pressable>
+            </View>
+            <View style={styles.recruitStatRow}>
+              <Text style={styles.recruitStat}>{ref.count} RECRUITED</Text>
+              <Text style={[styles.recruitStat, ref.has_badge && { color: colors.warning }]}>
+                {ref.has_badge ? "★ RECRUITER BADGE EARNED" : `${ref.to_badge} MORE → RECRUITER BADGE`}
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.tabRow}>
           <Pressable testID="founders-tab-list" onPress={() => setTab("founders")} style={[styles.tabBtn, tab === "founders" && styles.tabBtnActive]}>
             <Text style={[styles.tabBtnText, tab === "founders" && styles.tabBtnTextActive]}>FIRST 100</Text>
+          </Pressable>
+          <Pressable testID="founders-tab-creators" onPress={() => setTab("creators")} style={[styles.tabBtn, tab === "creators" && styles.tabBtnActive]}>
+            <Text style={[styles.tabBtnText, tab === "creators" && styles.tabBtnTextActive]}>CREATORS ({data?.creators?.length ?? 0})</Text>
           </Pressable>
           <Pressable testID="founders-tab-backers" onPress={() => setTab("backers")} style={[styles.tabBtn, tab === "backers" && styles.tabBtnActive]}>
             <Text style={[styles.tabBtnText, tab === "backers" && styles.tabBtnTextActive]}>BACKERS ({data?.backers?.length ?? 0})</Text>
@@ -166,12 +204,34 @@ export default function Founders() {
                     <Text style={[styles.name, f.is_backer && { color: colors.warning }]}>{f.display_name}</Text>
                     <Text style={[styles.rank, { color: rc }]}>{f.rank.toUpperCase()}</Text>
                   </View>
+                  {f.is_creator && <Text style={styles.creatorTick}>✔</Text>}
                   {f.is_backer && <Text style={styles.backerStar}>★</Text>}
                 </Pressable>
               );
             })
           ) : (
             <Text style={styles.empty}>No founders yet. Be the first to enlist.</Text>
+          )
+        ) : tab === "creators" ? (
+          data?.creators?.length ? (
+            data.creators.map((c: any, i: number) => {
+              const rc = RANK_COLORS[c.rank] || colors.brandPrimary;
+              return (
+                <View key={c.user_id || i} testID={`creator-${i}`} style={styles.creatorRow}>
+                  <Pressable onPress={() => c.user_id && setMemberId(c.user_id)} style={styles.creatorHead}>
+                    <Avatar id={c.avatar_id} sex={c.sex} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.name} numberOfLines={1}>{c.display_name}</Text>
+                      <Text style={[styles.rank, { color: rc }]}>{(c.rank || "").toUpperCase()}</Text>
+                    </View>
+                    <Text style={styles.creatorTick}>✔ CREATOR</Text>
+                  </Pressable>
+                  <SocialLinksBar tiktok={c.social_tiktok} instagram={c.social_instagram} align="flex-start" />
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.empty}>No creators yet. Add your TikTok / Instagram on your profile to appear here.</Text>
           )
         ) : (
           <>
@@ -261,6 +321,19 @@ const styles = StyleSheet.create({
   meLabel: { color: colors.brandPrimary, letterSpacing: 3, fontSize: 10, fontWeight: "800" },
   meNumber: { color: colors.text, fontSize: 26, fontWeight: "900", letterSpacing: 2, marginTop: 4 },
   meBacker: { color: colors.warning, letterSpacing: 2, fontWeight: "800", fontSize: 12, marginTop: 6 },
+  recruitCard: { marginTop: spacing.lg, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.05)" },
+  recruitTitle: { color: colors.brandPrimary, letterSpacing: 3, fontWeight: "900", fontSize: 14 },
+  recruitBody: { color: colors.textMid, marginTop: 6, lineHeight: 18, fontSize: 13 },
+  codeRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, alignItems: "center" },
+  codeBox: { flex: 1, paddingVertical: 12, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.surface3 },
+  codeText: { color: colors.text, fontWeight: "900", letterSpacing: 4, fontSize: 18, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  shareBtn: { paddingVertical: 12, paddingHorizontal: 18, borderRadius: radius.sm, backgroundColor: colors.brandPrimary },
+  shareText: { color: "#001122", fontWeight: "900", letterSpacing: 2, fontSize: 13 },
+  recruitStatRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.md, flexWrap: "wrap", gap: 4 },
+  recruitStat: { color: colors.textDim, fontWeight: "800", letterSpacing: 1, fontSize: 11 },
+  creatorRow: { backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  creatorHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  creatorTick: { color: colors.brandPrimary, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
   tabRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.lg, marginBottom: spacing.md },
   tabBtn: { flex: 1, paddingVertical: spacing.sm, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
   tabBtnActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
