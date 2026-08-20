@@ -270,16 +270,16 @@ async def custom_program_deliver(request_id: str, file: UploadFile = File(...), 
 @api_router.get("/founders/spots")
 async def founder_spots():
     """Public (no auth): how many Founding Beta spots remain. Shown on the login screen."""
-    taken = await db.users.count_documents({"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, **NOT_TEST_EMAIL})
+    taken = await db.users.count_documents({"is_bot": {"$ne": True}, **NOT_TEST_EMAIL})
     taken = min(taken, FOUNDER_LIMIT)
     return {"taken": taken, "limit": FOUNDER_LIMIT, "remaining": max(0, FOUNDER_LIMIT - taken)}
 
 
 @api_router.get("/founders")
 async def founders_list(user=Depends(get_current_user)):
-    # First 100 real members (exclude leaderboard bots), earliest signups first
+    # First 100 real members (bots excluded; admins/owner included), earliest signups first
     rows = await db.users.find(
-        {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, **NOT_TEST_EMAIL},
+        {"is_bot": {"$ne": True}, **NOT_TEST_EMAIL},
         {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "created_at": 1, "founder_backer": 1, "sex": 1, "social_tiktok": 1, "social_instagram": 1, "social_youtube": 1},
     ).sort("created_at", 1).limit(FOUNDER_LIMIT).to_list(FOUNDER_LIMIT)
 
@@ -314,7 +314,7 @@ async def founders_list(user=Depends(get_current_user)):
 
     # Creators — members who linked a TikTok/Instagram (top creators stand out).
     creator_rows = await db.users.find(
-        {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, "$or": [
+        {"is_bot": {"$ne": True}, "$or": [
             {"social_tiktok": {"$nin": [None, ""]}},
             {"social_instagram": {"$nin": [None, ""]}},
             {"social_youtube": {"$nin": [None, ""]}},

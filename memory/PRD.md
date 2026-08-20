@@ -556,3 +556,9 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Root cause: GET /api/founders calls rank_from_xp on each candidate; level_from_xp did `1 + xp // 250` which throws TypeError if a founder-eligible user's xp is None/non-int → 500. founders.tsx load() swallows fetch errors (try/catch {}) so data stays null and the screen renders the "No founders yet" empty state — masking the 500. Reproduced in preview by inserting a real (non-bot/non-admin/non-test-email) user with xp=None → /api/founders returned 500.
 - Fix: hardened level_from_xp (shared.py) to coerce None/invalid/negative xp to 0. This fixes rank_from_xp app-wide (leaderboard/chat/profile/founders). Verified: /api/founders now 200 and lists founders even with a null-xp user present. Sim user cleaned up.
 - NOTE: fix is in preview; user must REDEPLOY to push to production.
+
+## Change (2026-08) — Include admins/owner in Founders + diagnosis
+- Diagnosed via direct PRODUCTION API calls: GET /api/founders returned 200 and listed founders (backend crash fix confirmed live). Real signups that were ADMIN accounts were being hidden by the `is_admin: {$ne: True}` filter.
+- Per user request, removed the is_admin exclusion from founders_list query, founder_spots count, and creators query in routes/payments.py (bots + test/example emails still excluded). Verified in preview: founders list now includes "The Hutch" (owner/admin).
+- Created a throwaway PRODUCTION account diag_1787260262@gmail.com (display "DiagCheck") to test; no delete-user endpoint exists so it remains and will show as a founder in prod until removed.
+- NOTE: backend change — user must REDEPLOY for production to reflect it.
