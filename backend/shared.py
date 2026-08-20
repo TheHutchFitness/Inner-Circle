@@ -345,7 +345,7 @@ async def founder_status(user) -> dict:
     if not created:
         return {"is_founder": False, "founder_number": None}
     ahead = await db.users.count_documents(
-        {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, "created_at": {"$lt": created}}
+        {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, "created_at": {"$lt": created}, **NOT_TEST_EMAIL}
     )
     num = ahead + 1
     return {"is_founder": num <= FOUNDER_LIMIT, "founder_number": num if num <= FOUNDER_LIMIT else None}
@@ -1656,6 +1656,9 @@ async def ensure_owner_admin(user):
 
 # ---------- Founders (first 100 members + development backers) ----------
 FOUNDER_LIMIT = 100
+# Keep obvious test/QA accounts (…@test.com, …@example.com) out of the public
+# Founders list and its counts, without deleting them (some are used for QA login).
+NOT_TEST_EMAIL = {"email": {"$not": {"$regex": r"@(?:test|example)\.com$", "$options": "i"}}}
 
 
 
