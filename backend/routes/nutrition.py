@@ -6,7 +6,20 @@ from shared import *  # noqa: F401,F403
 async def nutrition_today(user=Depends(get_current_user)):
     d = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     row = await db.nutrition_logs.find_one({"user_id": user["user_id"], "date": d}, {"_id": 0, "user_id": 0, "updated_at": 0})
-    return row or {"date": d, "calories": 0, "protein": 0, "carbs": 0, "fats": 0}
+    return row or {"date": d, "calories": 0, "protein": 0, "carbs": 0, "fats": 0, "water_ml": 0}
+
+
+@api_router.post("/nutrition/water")
+async def nutrition_water(payload: dict = Body(default={}), user=Depends(get_current_user)):
+    d = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    ml = max(0, min(20000, int((payload or {}).get("ml", 0) or 0)))
+    await db.nutrition_logs.update_one(
+        {"user_id": user["user_id"], "date": d},
+        {"$set": {"water_ml": ml, "updated_at": datetime.now(timezone.utc)},
+         "$setOnInsert": {"user_id": user["user_id"], "date": d}},
+        upsert=True,
+    )
+    return {"date": d, "water_ml": ml}
 
 
 @api_router.post("/nutrition/today")
@@ -103,16 +116,20 @@ async def delete_custom_food(food_id: str, user=Depends(get_current_user)):
 async def get_goals(user=Depends(get_current_user)):
     g = user.get("macro_goals") or {}
     return {"calories": int(g.get("calories", 0) or 0), "protein": int(g.get("protein", 0) or 0),
-            "carbs": int(g.get("carbs", 0) or 0), "fats": int(g.get("fats", 0) or 0)}
+            "carbs": int(g.get("carbs", 0) or 0), "fats": int(g.get("fats", 0) or 0),
+            "water_goal": int(g.get("water_goal", 3000) or 3000)}
 
 
 @api_router.post("/nutrition/goals")
 async def set_goals(payload: dict = Body(default={}), user=Depends(get_current_user)):
+    existing = user.get("macro_goals") or {}
+    p = payload or {}
     goals = {
-        "calories": max(0, int((payload or {}).get("calories", 0) or 0)),
-        "protein": max(0, int((payload or {}).get("protein", 0) or 0)),
-        "carbs": max(0, int((payload or {}).get("carbs", 0) or 0)),
-        "fats": max(0, int((payload or {}).get("fats", 0) or 0)),
+        "calories": max(0, int(p.get("calories", 0) or 0)),
+        "protein": max(0, int(p.get("protein", 0) or 0)),
+        "carbs": max(0, int(p.get("carbs", 0) or 0)),
+        "fats": max(0, int(p.get("fats", 0) or 0)),
+        "water_goal": max(0, min(20000, int(p.get("water_goal", existing.get("water_goal", 3000)) or 0))),
     }
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"macro_goals": goals}})
     return goals
