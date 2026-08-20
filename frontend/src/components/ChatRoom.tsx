@@ -160,6 +160,9 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
                 )}
                 {m.clan_role === "leader" && <Text style={st.crown}>👑</Text>}
                 {m.clan_role === "officer" && <Text style={st.crown}>⭐</Text>}
+                {typeof m.founder_number === "number" && (
+                  <View style={st.founderChip}><Text style={st.founderChipText}>F#{m.founder_number}</Text></View>
+                )}
                 <Text style={[st.msgRank, { color: RANK_COLORS[m.rank] || accent }]}>{m.rank?.toUpperCase()}</Text>
                 {m.founder_backer && (
                   <View style={st.backerPill}>
@@ -242,6 +245,8 @@ const st = StyleSheet.create({
   lvlChip: { borderWidth: 1, borderColor: colors.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
   lvlChipText: { color: colors.textMid, fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   crown: { fontSize: 12 },
+  founderChip: { borderWidth: 1, borderColor: "#FBBF24", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, backgroundColor: "rgba(251,191,36,0.12)" },
+  founderChipText: { color: "#FBBF24", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   msgRank: { fontSize: 9, letterSpacing: 2, fontWeight: "800" },
   msgSkool: { color: colors.success, fontWeight: "900" },
   msgBacker: { color: colors.warning, fontWeight: "900" },

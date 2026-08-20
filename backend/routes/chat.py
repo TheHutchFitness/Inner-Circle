@@ -28,10 +28,11 @@ async def get_messages(room: str, user=Depends(get_current_user)):
     if sender_ids:
         async for u in db.users.find(
             {"user_id": {"$in": sender_ids}},
-            {"user_id": 1, "founder_backer": 1, "photo_media_id": 1, "use_photo": 1, "loadout": 1, "avatar_id": 1, "equipped_skin": 1, "equipped_weapon": 1, "equipped_hair": 1, "equipped_beard": 1, "sex": 1, "xp": 1},
+            {"user_id": 1, "founder_backer": 1, "photo_media_id": 1, "use_photo": 1, "loadout": 1, "avatar_id": 1, "equipped_skin": 1, "equipped_weapon": 1, "equipped_hair": 1, "equipped_beard": 1, "sex": 1, "xp": 1, "created_at": 1, "is_bot": 1, "is_admin": 1, "email": 1},
         ):
             if u.get("founder_backer"):
                 backers.add(u["user_id"])
+            fs = await founder_status(u)
             profiles[u["user_id"]] = {
                 "photo_media_id": u.get("photo_media_id"),
                 "use_photo": bool(u.get("use_photo")),
@@ -43,6 +44,7 @@ async def get_messages(room: str, user=Depends(get_current_user)):
                 "equipped_beard": u.get("equipped_beard"),
                 "sex": u.get("sex"),
                 "level": level_from_xp(u.get("xp", 0)),
+                "founder_number": fs.get("founder_number") if fs.get("is_founder") else None,
             }
     # In a clan (group) room, tag each sender with their role + the clan's colour.
     clan_creator = None
@@ -66,6 +68,7 @@ async def get_messages(room: str, user=Depends(get_current_user)):
             r["equipped_hair"] = p.get("equipped_hair")
             r["equipped_beard"] = p.get("equipped_beard")
             r["level"] = p.get("level", 1)
+            r["founder_number"] = p.get("founder_number")
             if p.get("sex"):
                 r["sex"] = p["sex"]
             if p.get("avatar_id"):
@@ -106,6 +109,7 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
             raise HTTPException(status_code=400, detail="Invalid media attachment")
     if not text and not media:
         raise HTTPException(status_code=400, detail="Message is empty")
+    _fs = await founder_status(user)
     msg = {
         "message_id": new_id("msg"),
         "room": store_room,
@@ -119,9 +123,9 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         "sex": user.get("sex", "male"),
         "rank": rank_from_xp(user["xp"]),
         "level": level_from_xp(user.get("xp", 0)),
+        "founder_number": _fs.get("founder_number") if _fs.get("is_founder") else None,
         "skool_verified": user.get("skool_verified", False),
-        "founder_backer": user.get("founder_backer", False),
-        "text": text[:500],
+        "founder_backer": user.get("founder_backer", False),        "text": text[:500],
         "media_id": media["media_id"] if media else None,
         "media_type": media["media_type"] if media else None,
         "created_at": datetime.now(timezone.utc),
