@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Share, Platform } from "react-native";
 import * as ExpoLinking from "expo-linking";
+import { useLocalSearchParams } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { ChatRoom } from "@/src/components/ChatRoom";
@@ -33,6 +34,17 @@ export function GroupsPanel() {
     try { setSel(await apiFetch(token, `/api/groups/${id}`)); setTab("home"); } catch (e: any) { setMsg(e?.message); }
   };
   useEffect(() => { loadList(); }, [token]);
+
+  // Deep-link: when opened from the Groups list with a ?group=<id>, auto-open that clan once.
+  const params = useLocalSearchParams<{ group?: string }>();
+  const openedParam = useRef<string | null>(null);
+  useEffect(() => {
+    const gid = typeof params.group === "string" ? params.group : undefined;
+    if (gid && openedParam.current !== gid) {
+      openedParam.current = gid;
+      openGroup(gid);
+    }
+  }, [params.group]);
 
   const act = async (path: string, body?: any) => {
     try {

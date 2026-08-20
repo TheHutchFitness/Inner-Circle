@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius } from "@/src/lib/theme";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { ChatRoom } from "@/src/components/ChatRoom";
 import { GroupsPanel } from "@/src/components/GroupsPanel";
@@ -14,8 +14,9 @@ export default function Community() {
   const { user } = useAuth();
   const { isSubscribed } = useSubscription();
   const router = useRouter();
+  const params = useLocalSearchParams<{ group?: string }>();
   const lite = !!user?.lite_mode;
-  const [room, setRoom] = useState<"main" | "gym" | "groups">(lite ? "groups" : "main");
+  const [room, setRoom] = useState<"main" | "gym" | "groups">(params.group ? "groups" : lite ? "groups" : "main");
   const gym = (user?.inperson_gym || "").trim();
 
   const canChat = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder || user?.inperson_client;

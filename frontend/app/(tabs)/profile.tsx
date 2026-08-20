@@ -561,7 +561,7 @@ function StatBar({ label, value, color }: { label: string; value: number; color:
 }
 
 const styles = StyleSheet.create({
-  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, marginBottom: spacing.md },
+  topRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, paddingRight: 72, marginBottom: spacing.md },
   hudTag: { color: colors.brandPrimary, letterSpacing: 3, fontSize: 12, fontWeight: "900" },
   gearBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, minHeight: 40, justifyContent: "center", borderRadius: radius.sm },
   gearText: { color: colors.brandPrimary, fontWeight: "800", letterSpacing: 2, fontSize: 11 },

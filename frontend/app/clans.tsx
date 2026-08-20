@@ -44,7 +44,7 @@ export default function Clans() {
               <Pressable
                 key={c.id}
                 testID={`clan-row-${c.id}`}
-                onPress={() => router.push("/(tabs)/community")}
+                onPress={() => router.push({ pathname: "/(tabs)/community", params: { group: c.id } })}
                 style={[styles.row, isDesktop && styles.rowGrid, i === 0 && styles.rowTop]}
               >
                 <Text style={[styles.rank, i === 0 && { color: "#FBBF24" }]}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</Text>

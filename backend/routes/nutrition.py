@@ -25,8 +25,6 @@ async def nutrition_save(inp: NutritionIn, user=Depends(get_current_user)):
 @api_router.get("/supplements")
 async def get_supplements(user=Depends(get_current_user)):
     return {"supplements": user.get("supplements", []) or []}
-
-
 @api_router.post("/supplements")
 async def toggle_supplement(inp: SupplementIn, user=Depends(get_current_user)):
     name = (inp.name or "").strip()[:60]
@@ -36,3 +34,34 @@ async def toggle_supplement(inp: SupplementIn, user=Depends(get_current_user)):
     await db.users.update_one({"user_id": user["user_id"]}, op)
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "supplements": 1})
     return {"supplements": fresh.get("supplements", []) or []}
+
+
+@api_router.get("/nutrition/meals")
+async def list_meals(user=Depends(get_current_user)):
+    rows = await db.saved_meals.find({"user_id": user["user_id"]}, {"_id": 0, "user_id": 0}).sort("created_at", 1).to_list(200)
+    return {"meals": rows}
+
+
+@api_router.post("/nutrition/meals")
+async def save_meal(payload: dict = Body(default={}), user=Depends(get_current_user)):
+    name = str((payload or {}).get("name", "")).strip()[:40]
+    if not name:
+        raise HTTPException(status_code=400, detail="Meal name required")
+    doc = {
+        "id": new_id("meal"), "user_id": user["user_id"], "name": name,
+        "calories": max(0, int((payload or {}).get("calories", 0) or 0)),
+        "protein": max(0, int((payload or {}).get("protein", 0) or 0)),
+        "carbs": max(0, int((payload or {}).get("carbs", 0) or 0)),
+        "fats": max(0, int((payload or {}).get("fats", 0) or 0)),
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.saved_meals.insert_one(dict(doc))
+    doc.pop("created_at", None)
+    doc.pop("user_id", None)
+    return doc
+
+
+@api_router.delete("/nutrition/meals/{meal_id}")
+async def delete_meal(meal_id: str, user=Depends(get_current_user)):
+    await db.saved_meals.delete_one({"id": meal_id, "user_id": user["user_id"]})
+    return {"ok": True}

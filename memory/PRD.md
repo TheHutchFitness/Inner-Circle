@@ -475,3 +475,15 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - ExerciseLibraryModal.tsx: exercise demo images contentFit contain (fully visible).
 ### Tests
 - iteration_31.json: backend 8/8 + frontend flows all pass.
+
+## Iteration 32 (2026-08) — polish follow-ups
+- Switch overlap: Me-screen topRow paddingRight:72 so ⚙ CONFIG clears the floating LITE/FULL switch.
+- Save Meals: backend db.saved_meals + GET/POST/DELETE /api/nutrition/meals (per-user, empty name -> 400). NutritionCard "★ SAVE CURRENT AS A MEAL" (meal-name-input/meal-save-confirm) + MY MEALS chips (meal-add-/meal-del-) that add macros with one tap.
+- Food Search: food-search box filters the ~55-item food list.
+- Clan Preview: clans.tsx rows push /(tabs)/community?group=<id>; community starts on Groups tab; GroupsPanel reads useLocalSearchParams and auto-opens that clan once.
+### Tests: iteration_32.json — backend 10/10 + frontend flows all pass.
+
+## Iteration 32b — Food quantity + standardized units
+- NutritionCard FOODS now standardized to GRAMS: each food has grams (default serving) + household hint (serving e.g. "≈6 oz"); macros scale linearly.
+- Each food row has a −/＋ gram stepper (25g steps, min 5g) + ADD button; displayed macros update live and ADD logs the scaled macros. testIDs: food-minus-<name>, food-plus-<name>, food-opt-<name> (ADD).
+- Self-verified: 220g Chicken -> 362 kcal / 67p / 8f added correctly.
