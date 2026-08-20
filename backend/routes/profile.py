@@ -176,7 +176,7 @@ async def gyms_map():
     """Public: every gym that has a map location set, for the Gyms Map screen."""
     rows = await db.gyms.find(
         {"lat": {"$ne": None}, "lng": {"$ne": None}},
-        {"_id": 0, "name": 1, "verified": 1, "logo_media_id": 1, "lat": 1, "lng": 1, "address": 1},
+        {"_id": 0, "id": 1, "name": 1, "verified": 1, "logo_media_id": 1, "lat": 1, "lng": 1, "address": 1},
     ).sort("name", 1).to_list(1000)
     out = []
     for r in rows:
@@ -187,12 +187,68 @@ async def gyms_map():
         members = await db.users.count_documents(
             {"inperson_gym": {"$regex": f"^{re.escape(r['name'])}$", "$options": "i"}})
         out.append({
-            "name": r["name"], "verified": bool(r.get("verified")),
+            "id": r.get("id"), "name": r["name"], "verified": bool(r.get("verified")),
             "logo_media_id": r.get("logo_media_id"),
             "lat": r["lat"], "lng": r["lng"], "address": r.get("address", ""),
             "members": members,
         })
     return {"gyms": out}
+
+
+CHECKIN_XP = 150            # XP for checking in at a gym you're physically at
+CHECKIN_RADIUS_KM = 0.5     # must be within 500 m of the gym's pin
+
+
+def _haversine_km(lat1, lng1, lat2, lng2):
+    import math
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
+@api_router.get("/gyms/checkins")
+async def gym_checkins_status(user=Depends(get_current_user)):
+    """The caller's gym check-in status: which gyms they've hit today + lifetime total."""
+    uid = user["user_id"]
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    todays = await db.gym_checkins.find({"user_id": uid, "day": today}, {"_id": 0, "gym_id": 1}).to_list(50)
+    total = await db.gym_checkins.count_documents({"user_id": uid})
+    return {"today_gym_ids": [t["gym_id"] for t in todays], "total": total}
+
+
+@api_router.post("/gyms/check-in")
+async def gym_check_in(payload: dict = Body(default={}), user=Depends(get_current_user)):
+    """Check in at a nearby gym (must be within range) to earn XP. Once per gym per day."""
+    uid = user["user_id"]
+    gym_id = str((payload or {}).get("gym_id", "") or "").strip()
+    lat = (payload or {}).get("lat")
+    lng = (payload or {}).get("lng")
+    if not gym_id or lat is None or lng is None:
+        raise HTTPException(status_code=400, detail="Gym and your location are required")
+    g = await db.gyms.find_one({"id": gym_id})
+    if not g:
+        raise HTTPException(status_code=404, detail="Gym not found")
+    if g.get("lat") is None or g.get("lng") is None:
+        raise HTTPException(status_code=400, detail="This gym has no map location yet")
+    dist = _haversine_km(float(lat), float(lng), float(g["lat"]), float(g["lng"]))
+    if dist > CHECKIN_RADIUS_KM:
+        away = f"{int(dist * 1000)} m" if dist < 1 else f"{dist:.1f} km"
+        raise HTTPException(status_code=400, detail=f"You're {away} from {g['name']} — get closer to check in")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if await db.gym_checkins.find_one({"user_id": uid, "gym_id": gym_id, "day": today}):
+        total = await db.gym_checkins.count_documents({"user_id": uid})
+        return {"ok": True, "already": True, "xp_awarded": 0, "total": total, "gym": g["name"]}
+    await db.gym_checkins.insert_one({
+        "user_id": uid, "gym_id": gym_id, "gym_name": g["name"], "day": today,
+        "at": datetime.now(timezone.utc), "lat": float(lat), "lng": float(lng),
+    })
+    await award_xp(uid, CHECKIN_XP)
+    await award_group_xp(uid, CHECKIN_XP)
+    total = await db.gym_checkins.count_documents({"user_id": uid})
+    return {"ok": True, "xp_awarded": CHECKIN_XP, "total": total, "gym": g["name"]}
+
 
 
 @api_router.get("/profile/frames")

@@ -25,13 +25,33 @@ export default function GymsMapScreen() {
   const [gyms, setGyms] = useState<any[] | null>(null);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [checkedToday, setCheckedToday] = useState<Set<string>>(new Set());
+  const [total, setTotal] = useState(0);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       try { const d = await apiFetch(token, "/api/gyms/map"); setGyms(d.gyms || []); }
       catch { setGyms([]); }
+      try { const s = await apiFetch(token, "/api/gyms/checkins"); setCheckedToday(new Set(s.today_gym_ids || [])); setTotal(s.total || 0); }
+      catch {}
     })();
   }, [token]);
+
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2400); };
+
+  const checkIn = async (g: any) => {
+    if (!userLoc) return;
+    setBusyId(g.id);
+    try {
+      const r = await apiFetch(token, "/api/gyms/check-in", { method: "POST", body: JSON.stringify({ gym_id: g.id, lat: userLoc.lat, lng: userLoc.lng }) });
+      setCheckedToday((prev) => new Set(prev).add(g.id));
+      if (r.already) flash(`Already checked in at ${g.name} today ✓`);
+      else { setTotal(r.total || total + 1); flash(`Checked in at ${g.name} · +${r.xp_awarded} XP 💪`); }
+    } catch (e: any) { flash(e?.message || "Couldn't check in"); }
+    setBusyId(null);
+  };
 
   const applyLocation = async () => {
     setLocating(true);
@@ -89,6 +109,10 @@ export default function GymsMapScreen() {
       .sort((a, b) => a._dist - b._dist);
   })();
 
+  const nearest = userLoc && display && display.length ? display[0] : null;
+  const inRange = !!nearest && nearest._dist != null && nearest._dist <= 0.5;
+  const distLabel = (km?: number) => (km == null ? "" : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`);
+
   return (
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -107,6 +131,26 @@ export default function GymsMapScreen() {
         ) : (
           <GymsMap gyms={display} userLoc={userLoc} />
         )}
+
+        {/* Check-in bar (appears once we know where you are) */}
+        {userLoc && nearest && (
+          <View style={[styles.checkinBar, { paddingBottom: insets.bottom + spacing.md }]}>
+            {total > 0 && <Text style={styles.checkinTotal}>{total} total check-in{total === 1 ? "" : "s"}</Text>}
+            {inRange ? (
+              checkedToday.has(nearest.id) ? (
+                <View style={styles.checkinDoneBox}><Text style={styles.checkinDone}>✓ Checked in at {nearest.name} today</Text></View>
+              ) : (
+                <Pressable testID={`gym-checkin-${nearest.id}`} onPress={() => checkIn(nearest)} disabled={busyId === nearest.id} style={styles.checkinBtn}>
+                  {busyId === nearest.id ? <ActivityIndicator color="#001122" /> : <Text style={styles.checkinBtnText}>💪 CHECK IN · {nearest.name} · +150 XP</Text>}
+                </Pressable>
+              )
+            ) : (
+              <Text style={styles.checkinHint}>Get within 500 m of a gym to check in{nearest._dist != null ? ` · nearest is ${distLabel(nearest._dist)} away` : ""}</Text>
+            )}
+          </View>
+        )}
+
+        {toast && <View style={[styles.toast, { bottom: insets.bottom + 90 }]}><Text style={styles.toastText}>{toast}</Text></View>}
       </View>
     </View>
   );
@@ -123,4 +167,13 @@ const styles = StyleSheet.create({
   body: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   empty: { color: colors.textDim, textAlign: "center", lineHeight: 20 },
+  checkinBar: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: "rgba(5,5,8,0.92)", borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: spacing.lg, paddingTop: spacing.md, alignItems: "center", gap: spacing.sm },
+  checkinTotal: { color: colors.textDim, fontSize: 11, fontWeight: "700", letterSpacing: 1 },
+  checkinBtn: { width: "100%", backgroundColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 14, alignItems: "center" },
+  checkinBtnText: { color: "#001122", fontWeight: "900", letterSpacing: 1, fontSize: 13 },
+  checkinDoneBox: { width: "100%", borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 13, alignItems: "center", backgroundColor: colors.surface2 },
+  checkinDone: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1, fontSize: 13 },
+  checkinHint: { color: colors.textMid, fontSize: 12, textAlign: "center", lineHeight: 18 },
+  toast: { position: "absolute", alignSelf: "center", backgroundColor: "rgba(0,0,0,0.92)", paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border },
+  toastText: { color: colors.text, fontWeight: "700" },
 });
