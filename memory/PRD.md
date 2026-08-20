@@ -526,3 +526,6 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 
 ## Iteration 41 — Composer alignment/slimming fix
 - ChatRoom/coach/inperson composers: alignItems flex-end -> center so camera/photo/mic icons + send button vertically center with the text (were dropped to bottom). Reduced paddingVertical (5->4), input padding (8->6) + minHeight 30, icons 34->30, send 38->36. Bubble padding trimmed (9/13 -> 7/12) to feel less bulky.
+
+## Iteration 42 — Composer glyph centering
+- Emoji/arrow glyphs sat low due to font metrics. Added lineHeight + textAlign/textAlignVertical:"center" + includeFontPadding:false to inputIconTxt/iconText, input, and sendArrow across ChatRoom, coach, inperson. Composer stays alignItems center; icons/send now optically centered with the text line.

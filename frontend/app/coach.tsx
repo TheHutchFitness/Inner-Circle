@@ -180,8 +180,8 @@ const styles = StyleSheet.create({
   inputWrap: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.surface },
   composer: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.surface2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 6, paddingVertical: 4 },
   sendCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
-  sendArrow: { color: "#001122", fontSize: 15, fontWeight: "900" },
-  input: { flex: 1, color: colors.text, fontSize: 15, paddingHorizontal: 6, paddingTop: 6, paddingBottom: 6, minHeight: 30, maxHeight: 100 },
+  sendArrow: { color: "#001122", fontSize: 15, lineHeight: 18, fontWeight: "900", textAlign: "center", textAlignVertical: "center", includeFontPadding: false },
+  input: { flex: 1, color: colors.text, fontSize: 15, lineHeight: 20, paddingHorizontal: 6, paddingTop: 5, paddingBottom: 5, minHeight: 30, maxHeight: 100, textAlignVertical: "center", includeFontPadding: false },
   sendBtn: { backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.lg, height: 48, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   sendText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },
 });
