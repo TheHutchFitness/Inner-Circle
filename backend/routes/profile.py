@@ -1,5 +1,8 @@
 # ruff: noqa: F403, F405
 from shared import *  # noqa: F401,F403
+from datetime import timedelta
+
+from auth_throttle import consume_bucket
 
 
 # ---------- Profile ----------
@@ -132,6 +135,8 @@ async def update_profile(inp: ProfileUpdate, user=Depends(get_current_user)):
 
 @api_router.post("/profile/skool-verify")
 async def skool_verify(inp: SkoolVerifyIn, user=Depends(get_current_user)):
+    # Throttle guessing: the shared code is short, so cap attempts per member.
+    await consume_bucket(kind="skool_verify", raw_key=user["user_id"], limit=10, window=timedelta(hours=1))
     if inp.code.strip().upper() != SKOOL_CODE.upper():
         raise HTTPException(status_code=400, detail="Invalid Skool verification code")
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"skool_verified": True}})
@@ -181,6 +186,14 @@ async def gyms_nearby(lat: float, lng: float, radius: int = 5000, user=Depends(g
     if not GOOGLE_PLACES_API_KEY:
         return {"gyms": [], "error": "places_unconfigured"}
     radius = max(200, min(int(radius or 5000), 50000))
+    # Serve repeated/nearby lookups from a short-lived cache (rounded ~110m grid)
+    # to keep billable Places calls down.
+    cache_key = f"{round(lat, 3)}:{round(lng, 3)}:{radius}"
+    cached = await db.gym_places_cache.find_one({"_id": cache_key}, {"_id": 0, "gyms": 1})
+    if cached:
+        return {"gyms": cached.get("gyms", []), "cached": True}
+    # Per-user quota so a single account can't loop and drain Google billing.
+    await consume_bucket(kind="gyms_nearby", raw_key=user["user_id"], limit=40, window=timedelta(hours=1))
     body = {
         "includedTypes": ["gym"],
         "maxResultCount": 20,
@@ -216,6 +229,14 @@ async def gyms_nearby(lat: float, lng: float, radius: int = 5000, user=Depends(g
             "rating": p.get("rating"),
             "source": "google",
         })
+    try:
+        await db.gym_places_cache.update_one(
+            {"_id": cache_key},
+            {"$set": {"gyms": out, "expires_at": datetime.now(timezone.utc) + timedelta(hours=6)}},
+            upsert=True,
+        )
+    except Exception:
+        pass
     return {"gyms": out}
 
 

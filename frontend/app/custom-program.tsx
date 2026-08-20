@@ -77,6 +77,14 @@ export default function CustomProgram() {
     apiFetch(token, "/api/custom-program/downloaded", { method: "POST", body: JSON.stringify({ media_id: mediaId }) }).catch(() => {});
   };
 
+  const openProgram = async (mediaId: string) => {
+    markDownloaded(mediaId);
+    try {
+      const res = await apiFetch(token, "/api/chat/media-ticket", { method: "POST", body: JSON.stringify({ media_id: mediaId }) });
+      Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${mediaId}?t=${encodeURIComponent(res.ticket)}`);
+    } catch {}
+  };
+
   const loadStatus = async () => {
     try {
       const s = await apiFetch(token, "/api/custom-program");
@@ -308,7 +316,7 @@ export default function CustomProgram() {
                 )}
                 <Pressable
                   testID="cp-download"
-                  onPress={() => { markDownloaded(savedIntake.program_media_id); Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${savedIntake.program_media_id}?token=${token}`); }}
+                  onPress={() => openProgram(savedIntake.program_media_id)}
                   style={styles.primary}
                 >
                   <Text style={styles.primaryText}>⬇ DOWNLOAD YOUR PROGRAM{savedIntake?.program_label ? ` · ${savedIntake.program_label}` : ""}</Text>
@@ -327,7 +335,7 @@ export default function CustomProgram() {
                   <Pressable
                     key={d.media_id || i}
                     testID={`cp-history-${i}`}
-                    onPress={() => { markDownloaded(d.media_id); Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/chat/media/${d.media_id}?token=${token}`); }}
+                    onPress={() => openProgram(d.media_id)}
                     style={styles.historyRow}
                   >
                     <Text style={styles.historyIcon}>⬇</Text>

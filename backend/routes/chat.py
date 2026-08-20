@@ -1,4 +1,8 @@
 # ruff: noqa: F403, F405
+import hashlib
+import hmac
+import time
+
 from shared import *  # noqa: F401,F403
 
 
@@ -238,26 +242,118 @@ async def chat_upload(file: UploadFile = File(...), user=Depends(get_current_use
     return {"media_id": media_id, "media_type": media_type}
 
 
+# Media stored under these path segments is shown broadly across the app
+# (profile photos, gym logos, exercise demos, legal docs) and is safe for any
+# authenticated member to fetch. Everything else is access-controlled.
+PUBLIC_MEDIA_SEGMENTS = ("/pfp/", "/gym-logo/", "/exercise_demos/", "/legal/")
+
+
+def _store_room_ok(store_room: str, u: dict) -> bool:
+    """Whether user u may read messages (and thus media) in a stored room key."""
+    if not store_room:
+        return False
+    if store_room == "main":
+        return True
+    if store_room == "the_room":
+        return rank_from_xp(u.get("xp", 0)) in ("Elite", "Freak") or bool(u.get("all_rooms_access"))
+    if store_room.startswith("gym:"):
+        return (u.get("inperson_gym") or "").strip().lower() == store_room.split(":", 1)[1]
+    return False  # group:* handled separately (needs a DB lookup)
+
+
+async def _authorize_media(rec: dict, u: dict) -> bool:
+    path = rec.get("storage_path", "") or ""
+    if any(seg in path for seg in PUBLIC_MEDIA_SEGMENTS):
+        return True
+    if rec.get("user_id") == u["user_id"]:  # uploader / owner (incl. own program & check-ins)
+        return True
+    if u.get("is_admin"):  # coach/admin delivers & reviews private files
+        return True
+    media_id = rec["media_id"]
+    # Referenced in a chat message in a room this user can access?
+    msg = await db.chat_messages.find_one({"media_id": media_id}, {"_id": 0, "room": 1})
+    if msg:
+        room = msg.get("room", "")
+        if room.startswith("group:"):
+            g = await db.groups.find_one({"id": room.split(":", 1)[1]}, {"_id": 0, "members": 1})
+            if g and u["user_id"] in g.get("members", []):
+                return True
+        elif _store_room_ok(room, u):
+            return True
+    # Referenced in a 1-on-1 in-person thread this user owns?
+    im = await db.inperson_messages.find_one({"media_id": media_id}, {"_id": 0, "client_id": 1})
+    if im and im.get("client_id") == u["user_id"]:
+        return True
+    return False
+
+
 @api_router.get("/chat/media/{media_id}")
-async def chat_media_get(media_id: str, token: Optional[str] = None,
+async def chat_media_get(media_id: str, token: Optional[str] = None, t: Optional[str] = None,
                          authorization: Optional[str] = Header(None)):
-    # Auth via Bearer header (native) or ?token= query (web <img>/<video> tags)
-    tok = None
-    if authorization and authorization.startswith("Bearer "):
-        tok = authorization.split(" ", 1)[1]
-    elif token:
-        tok = token
-    if not tok:
-        raise HTTPException(status_code=401, detail="Missing token")
-    session = await db.user_sessions.find_one({"session_token": tok}, {"_id": 0})
-    if not session:
-        raise HTTPException(status_code=401, detail="Invalid session")
     rec = await db.chat_media.find_one({"media_id": media_id}, {"_id": 0})
     if not rec:
         raise HTTPException(status_code=404, detail="Media not found")
+    # Preferred path: short-lived signed ticket (keeps long-lived session tokens out of URLs).
+    if t:
+        if not _verify_media_ticket(media_id, t):
+            raise HTTPException(status_code=401, detail="Invalid or expired link")
+    else:
+        # Fallback: Bearer header (native) or ?token= query, then per-request authorization.
+        tok = None
+        if authorization and authorization.startswith("Bearer "):
+            tok = authorization.split(" ", 1)[1]
+        elif token:
+            tok = token
+        if not tok:
+            raise HTTPException(status_code=401, detail="Missing token")
+        session = await db.user_sessions.find_one({"session_token": tok}, {"_id": 0})
+        if not session:
+            raise HTTPException(status_code=401, detail="Invalid session")
+        u = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0, "password_hash": 0})
+        if not u:
+            raise HTTPException(status_code=401, detail="Invalid session")
+        if not await _authorize_media(rec, u):
+            raise HTTPException(status_code=403, detail="Not authorized to view this file")
     try:
         content = await storage_get(rec["storage_path"])
     except httpx.HTTPStatusError:
         raise HTTPException(status_code=502, detail="Media unavailable")
     return Response(content=content, media_type=rec["content_type"],
                     headers={"Cache-Control": "private, max-age=86400"})
+
+
+# ---- Short-lived signed media tickets (for browser <a>/download links) ----
+_MEDIA_TICKET_SECRET = os.environ.get("MEDIA_TICKET_SECRET", os.environ.get("AUTH_THROTTLE_SECRET", "hutch-media-ticket-v1")).encode()
+
+
+def _sign_media_ticket(media_id: str, exp: int) -> str:
+    mac = hmac.new(_MEDIA_TICKET_SECRET, f"{media_id}:{exp}".encode(), hashlib.sha256).hexdigest()
+    return f"{exp}.{mac}"
+
+
+def _verify_media_ticket(media_id: str, ticket: str) -> bool:
+    try:
+        exp_str, mac = ticket.split(".", 1)
+        exp = int(exp_str)
+    except (ValueError, AttributeError):
+        return False
+    if exp < int(time.time()):
+        return False
+    expected = hmac.new(_MEDIA_TICKET_SECRET, f"{media_id}:{exp}".encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, mac)
+
+
+@api_router.post("/chat/media-ticket")
+async def chat_media_ticket(inp: ChatMessageIn, user=Depends(get_current_user)):
+    """Issue a ~2-minute signed URL for a media file the caller is authorized to view.
+    Used for browser download links so the long-lived session token never enters a URL."""
+    media_id = (inp.media_id or "").strip()
+    if not media_id:
+        raise HTTPException(status_code=400, detail="media_id required")
+    rec = await db.chat_media.find_one({"media_id": media_id}, {"_id": 0})
+    if not rec:
+        raise HTTPException(status_code=404, detail="Media not found")
+    if not await _authorize_media(rec, user):
+        raise HTTPException(status_code=403, detail="Not authorized to view this file")
+    exp = int(time.time()) + 120
+    return {"media_id": media_id, "ticket": _sign_media_ticket(media_id, exp), "expires_in": 120}
