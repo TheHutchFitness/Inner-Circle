@@ -100,6 +100,7 @@ class ProfileUpdate(BaseModel):
     lite_mode: Optional[bool] = None
     inperson_request: Optional[bool] = None
     tour_seen: Optional[bool] = None
+    founder_welcomed: Optional[bool] = None
 
 
 def social_handle(raw: str) -> str:

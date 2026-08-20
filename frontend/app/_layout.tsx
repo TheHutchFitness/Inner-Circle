@@ -14,6 +14,7 @@ import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
 import { HeroIntro } from "@/src/components/HeroIntro";
 import { AppModeIntro } from "@/src/components/AppModeIntro";
 import { OnboardingTour } from "@/src/components/OnboardingTour";
+import { FounderWelcome } from "@/src/components/FounderWelcome";
 import { ClanInviteGate } from "@/src/components/ClanInviteGate";
 import { PushManager } from "@/src/lib/push";
 import { isEnhancedPalette, applyEnhancedPalette, colors } from "@/src/lib/theme";
@@ -59,6 +60,15 @@ function TourGate() {
   if (user.mode_selected !== true) return null;
   if (user.tour_seen === true) return null;
   return <OnboardingTour />;
+}
+
+// One-time Founding Beta congrats (shown after the tour, once tour is done).
+function FounderGate() {
+  const { user, intro, loading } = useAuth();
+  if (loading || !user || intro) return null;
+  if (user.mode_selected !== true || user.tour_seen !== true) return null;
+  if (!user.is_founder || user.founder_welcomed === true) return null;
+  return <FounderWelcome />;
 }
 
 // Keeps the red palette in sync with the logged-in athlete's Enhanced status.
@@ -113,6 +123,7 @@ export default function RootLayout() {
               <IntroGate />
               <ModeGate />
               <TourGate />
+              <FounderGate />
               <ClanInviteGate />
               <PushManager />
               </UnitsProvider>
