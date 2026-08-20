@@ -154,10 +154,15 @@ export function GroupsPanel() {
               <View key={m.user_id} style={styles.memRow}>
                 <PlayerAvatar person={m} token={token} size={32} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.memName}>{m.display_name}{m.user_id === sel.creator_id ? " 👑" : ""}</Text>
-                  <Text style={styles.memRank}>{m.rank}</Text>
+                  <Text style={styles.memName}>{m.display_name}{m.is_creator ? " 👑" : m.is_officer ? " ⭐" : ""}</Text>
+                  <Text style={styles.memRank}>{m.is_creator ? "LEADER" : m.is_officer ? "OFFICER" : m.rank}</Text>
                 </View>
-                {canEdit && m.user_id !== sel.creator_id && (
+                {canEdit && !m.is_creator && (
+                  <Pressable testID={`officer-${m.user_id}`} onPress={() => act(`/api/groups/${sel.id}/officer`, { user_id: m.user_id, on: !m.is_officer })} style={[styles.officerBtn, m.is_officer && styles.officerBtnOn]}>
+                    <Text style={[styles.officerBtnT, m.is_officer && styles.officerBtnTOn]}>{m.is_officer ? "★ OFFICER" : "MAKE OFFICER"}</Text>
+                  </Pressable>
+                )}
+                {canEdit && !m.is_creator && (
                   <Pressable testID={`remove-${m.user_id}`} onPress={() => act(`/api/groups/${sel.id}/remove`, { user_id: m.user_id })} style={styles.xBtn}><Text style={styles.xT}>✕</Text></Pressable>
                 )}
               </View>
@@ -298,6 +303,10 @@ const styles = StyleSheet.create({
   annText: { color: colors.text, fontSize: 13, lineHeight: 19 },
   annMeta: { color: colors.textDim, fontSize: 10, marginTop: 4 },
   memRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+  officerBtn: { borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm, paddingVertical: 6, paddingHorizontal: 9 },
+  officerBtnOn: { borderColor: colors.warning, backgroundColor: "rgba(251,191,36,0.12)" },
+  officerBtnT: { color: colors.textDim, fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  officerBtnTOn: { color: colors.warning },
   memName: { color: colors.text, fontWeight: "800", fontSize: 13 },
   memRank: { color: colors.textDim, fontSize: 10, marginTop: 1 },
   groupCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, marginBottom: spacing.sm },

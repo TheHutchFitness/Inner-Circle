@@ -47,11 +47,13 @@ async def get_messages(room: str, user=Depends(get_current_user)):
     # In a clan (group) room, tag each sender with their role + the clan's colour.
     clan_creator = None
     clan_color = None
+    clan_officers = set()
     if room.startswith("group:"):
-        gc = await db.groups.find_one({"id": room.split(":", 1)[1]}, {"_id": 0, "creator_id": 1, "color": 1})
+        gc = await db.groups.find_one({"id": room.split(":", 1)[1]}, {"_id": 0, "creator_id": 1, "color": 1, "officers": 1})
         if gc:
             clan_creator = gc.get("creator_id")
             clan_color = gc.get("color")
+            clan_officers = set(gc.get("officers", []) or [])
     for r in rows:
         r["founder_backer"] = r.get("user_id") in backers
         p = profiles.get(r.get("user_id"))
@@ -69,7 +71,7 @@ async def get_messages(room: str, user=Depends(get_current_user)):
             if p.get("avatar_id"):
                 r["avatar_id"] = p["avatar_id"]
         if clan_creator is not None:
-            r["clan_role"] = "leader" if r.get("user_id") == clan_creator else "member"
+            r["clan_role"] = "leader" if r.get("user_id") == clan_creator else ("officer" if r.get("user_id") in clan_officers else "member")
             r["clan_color"] = clan_color
         if isinstance(r.get("created_at"), datetime):
             r["created_at"] = r["created_at"].isoformat()
@@ -125,9 +127,11 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         "created_at": datetime.now(timezone.utc),
     }
     if room.startswith("group:"):
-        gc = await db.groups.find_one({"id": room.split(":", 1)[1]}, {"_id": 0, "creator_id": 1, "color": 1})
+        gc = await db.groups.find_one({"id": room.split(":", 1)[1]}, {"_id": 0, "creator_id": 1, "color": 1, "officers": 1})
         if gc:
-            msg["clan_role"] = "leader" if user["user_id"] == gc.get("creator_id") else "member"
+            msg["clan_role"] = ("leader" if user["user_id"] == gc.get("creator_id")
+                                else "officer" if user["user_id"] in (gc.get("officers", []) or [])
+                                else "member")
             msg["clan_color"] = gc.get("color")
     await db.chat_messages.insert_one(msg)
     msg.pop("_id", None)

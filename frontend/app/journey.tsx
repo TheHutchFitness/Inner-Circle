@@ -614,6 +614,25 @@ export default function Journey() {
         </View>
       </ScrollView>
 
+      {isDesktop && nodes.length > 0 && (
+        <View style={styles.minimap}>
+          <Text style={styles.minimapLabel}>SEASON</Text>
+          <View style={styles.minimapTrack}>
+            {nodes.map((n, i) => (
+              <View key={i} style={styles.minimapDotWrap}>
+                <View style={[
+                  styles.minimapDot,
+                  { backgroundColor: n.claimed ? accent : n.complete ? primary : colors.border },
+                  n.boss && styles.minimapBoss,
+                  i === heroIndex && { borderColor: "#fff", borderWidth: 2, transform: [{ scale: 1.5 }] },
+                ]} />
+              </View>
+            ))}
+          </View>
+          <Text style={styles.minimapPct}>{Math.round((nodes.filter((n) => n.claimed).length / nodes.length) * 100)}%</Text>
+        </View>
+      )}
+
       <View style={styles.legend}>
         <Text style={styles.legendText}>{data?.me?.class_title} · {data?.me?.class_tier}-CLASS</Text>
         <Text style={styles.legendDim}>Tap a ⚔ node to battle · beat quests to advance & pass rivals</Text>
@@ -670,6 +689,13 @@ const styles = StyleSheet.create({
   heroTag: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: "rgba(0,0,0,0.6)", marginTop: 2 },
   heroTagText: { color: colors.text, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   legend: { alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+  minimap: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface2 },
+  minimapLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 2, width: 56 },
+  minimapTrack: { flex: 1, flexDirection: "row", alignItems: "center", height: 18 },
+  minimapDotWrap: { flex: 1, alignItems: "center", justifyContent: "center" },
+  minimapDot: { width: 7, height: 7, borderRadius: 4 },
+  minimapBoss: { width: 10, height: 10, borderRadius: 5 },
+  minimapPct: { color: colors.brandPrimary, fontSize: 12, fontWeight: "900", width: 44, textAlign: "right", fontVariant: ["tabular-nums"] },
   legendText: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
   legendDim: { color: colors.textDim, fontSize: 10, marginTop: 4, textAlign: "center" },
   toast: { position: "absolute", bottom: 90, alignSelf: "center", backgroundColor: "rgba(0,0,0,0.9)", paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border },

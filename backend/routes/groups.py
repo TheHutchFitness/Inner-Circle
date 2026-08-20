@@ -70,7 +70,12 @@ class GroupTarget(BaseModel):
 
 async def _brief(g: dict, uid: str) -> dict:
     members = g.get("members", [])
-    role = "creator" if g.get("creator_id") == uid else ("member" if uid in members else ("pending" if uid in g.get("pending", []) else "none"))
+    officers = g.get("officers", [])
+    role = ("creator" if g.get("creator_id") == uid
+            else "officer" if uid in officers
+            else "member" if uid in members
+            else "pending" if uid in g.get("pending", [])
+            else "none")
     meta = _group_meta(g.get("xp", 0))
     return {
         "id": g["id"], "name": g["name"], "description": g.get("description", ""),
@@ -121,12 +126,15 @@ async def create_group(inp: GroupCreate, user=Depends(get_current_user)):
     return await _brief(doc, user["user_id"])
 
 
-async def _members_public(ids: list) -> list:
+async def _members_public(ids: list, officers=None, creator_id=None) -> list:
+    officers = set(officers or [])
     out = []
     for uid in ids:
         u = await db.users.find_one({"user_id": uid}, {"_id": 0, "user_id": 1, "display_name": 1, "avatar_id": 1, "xp": 1, "loadout": 1, "sex": 1})
         if u:
             u["rank"] = rank_from_xp(u.get("xp", 0))
+            u["is_creator"] = uid == creator_id
+            u["is_officer"] = uid in officers
             out.append(u)
     return out
 
@@ -140,7 +148,7 @@ async def group_detail(gid: str, user=Depends(get_current_user)):
     is_admin = bool(user.get("is_admin"))
     can_edit = is_admin or g.get("creator_id") == uid
     b = await _brief(g, uid)
-    b["members"] = await _members_public(g.get("members", []))
+    b["members"] = await _members_public(g.get("members", []), g.get("officers", []), g.get("creator_id"))
     b["announcements"] = sorted(g.get("announcements", []), key=lambda a: a.get("created_at", ""), reverse=True)[:20]
     b["can_edit"] = can_edit
     b["pending"] = await _members_public(g.get("pending", [])) if can_edit else []
@@ -224,7 +232,27 @@ async def remove_member(gid: str, inp: GroupTarget, user=Depends(get_current_use
     if inp.user_id == g.get("creator_id"):
         raise HTTPException(status_code=400, detail="The creator can't be removed")
     await db.groups.update_one({"id": gid}, {"$pull": {"members": inp.user_id}})
+    # a removed member is no longer an officer either
+    await db.groups.update_one({"id": gid}, {"$pull": {"officers": inp.user_id}})
     return {"ok": True}
+
+
+@api_router.post("/groups/{gid}/officer")
+async def set_officer(gid: str, inp: dict = Body(default={}), user=Depends(get_current_user)):
+    """Creator/admin: promote or demote a member to clan officer (own chat badge)."""
+    g = await db.groups.find_one({"id": gid})
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+    _require_edit(g, user)
+    tid = str((inp or {}).get("user_id", "") or "").strip()
+    on = bool((inp or {}).get("on"))
+    if not tid or tid not in g.get("members", []):
+        raise HTTPException(status_code=400, detail="That person isn't a member of this clan")
+    if tid == g.get("creator_id"):
+        raise HTTPException(status_code=400, detail="The leader is already the top rank")
+    op = "$addToSet" if on else "$pull"
+    await db.groups.update_one({"id": gid}, {op: {"officers": tid}})
+    return {"ok": True, "user_id": tid, "is_officer": on}
 
 
 @api_router.post("/groups/{gid}/leave")

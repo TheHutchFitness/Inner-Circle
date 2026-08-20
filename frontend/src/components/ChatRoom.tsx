@@ -159,6 +159,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
                   </View>
                 )}
                 {m.clan_role === "leader" && <Text style={st.crown}>👑</Text>}
+                {m.clan_role === "officer" && <Text style={st.crown}>⭐</Text>}
                 <Text style={[st.msgRank, { color: RANK_COLORS[m.rank] || accent }]}>{m.rank?.toUpperCase()}</Text>
                 {m.founder_backer && (
                   <View style={st.backerPill}>
