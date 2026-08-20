@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TextInput, Pressable } from "react-native";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { HudSectionHeader } from "@/src/components/Hud";
+import { MacroRing } from "@/src/components/MacroRing";
 
 const FIELDS: { key: string; label: string; unit: string; kb: "number-pad" }[] = [
   { key: "calories", label: "CALORIES", unit: "kcal", kb: "number-pad" },
@@ -95,6 +96,14 @@ export function NutritionCard() {
   const [meals, setMeals] = useState<any[]>([]);
   const [mealNameOpen, setMealNameOpen] = useState(false);
   const [mealName, setMealName] = useState("");
+  const [mealMult, setMealMult] = useState<Record<string, number>>({});
+  const [customFoods, setCustomFoods] = useState<any[]>([]);
+  const [goals, setGoals] = useState<{ calories: number; protein: number }>({ calories: 0, protein: 0 });
+  const [goalsOpen, setGoalsOpen] = useState(false);
+  const [goalCal, setGoalCal] = useState("");
+  const [goalPro, setGoalPro] = useState("");
+  const [cfOpen, setCfOpen] = useState(false);
+  const [cf, setCf] = useState({ name: "", grams: "", calories: "", protein: "", carbs: "", fats: "" });
 
   useEffect(() => {
     (async () => {
@@ -104,6 +113,8 @@ export function NutritionCard() {
       } catch {}
       try { const s = await apiFetch(token, "/api/supplements"); setSupps(s.supplements || []); } catch {}
       try { const m = await apiFetch(token, "/api/nutrition/meals"); setMeals(m.meals || []); } catch {}
+      try { const cfd = await apiFetch(token, "/api/nutrition/foods"); setCustomFoods(cfd.foods || []); } catch {}
+      try { const g = await apiFetch(token, "/api/nutrition/goals"); setGoals({ calories: g.calories || 0, protein: g.protein || 0 }); setGoalCal(g.calories ? String(g.calories) : ""); setGoalPro(g.protein ? String(g.protein) : ""); } catch {}
     })();
   }, [token]);
 
@@ -126,14 +137,50 @@ export function NutritionCard() {
     setFoodQty((q) => ({ ...q, [f.name]: Math.max(5, (q[f.name] ?? f.grams) + delta) }));
 
   const addMeal = (m: any) => {
+    const mult = mealMult[m.id] ?? 1;
     setVals((v) => ({
-      calories: String((parseInt(v.calories || "0", 10) || 0) + (m.calories || 0)),
-      protein: String((parseInt(v.protein || "0", 10) || 0) + (m.protein || 0)),
-      carbs: String((parseInt(v.carbs || "0", 10) || 0) + (m.carbs || 0)),
-      fats: String((parseInt(v.fats || "0", 10) || 0) + (m.fats || 0)),
+      calories: String((parseInt(v.calories || "0", 10) || 0) + Math.round((m.calories || 0) * mult)),
+      protein: String((parseInt(v.protein || "0", 10) || 0) + Math.round((m.protein || 0) * mult)),
+      carbs: String((parseInt(v.carbs || "0", 10) || 0) + Math.round((m.carbs || 0) * mult)),
+      fats: String((parseInt(v.fats || "0", 10) || 0) + Math.round((m.fats || 0) * mult)),
     }));
-    setLastFood(m.name);
+    setLastFood(`${mult}× ${m.name}`);
     setSaved(false);
+  };
+
+  const bumpMult = (id: string, delta: number) =>
+    setMealMult((mm) => ({ ...mm, [id]: Math.max(0.5, Math.round(((mm[id] ?? 1) + delta) * 2) / 2) }));
+
+  const saveGoals = async () => {
+    const g = { calories: parseInt(goalCal || "0", 10) || 0, protein: parseInt(goalPro || "0", 10) || 0 };
+    setGoals(g);
+    setGoalsOpen(false);
+    try { await apiFetch(token, "/api/nutrition/goals", { method: "POST", body: JSON.stringify(g) }); } catch {}
+  };
+
+  const addCustomFood = async () => {
+    if (!cf.name.trim()) return;
+    try {
+      const created = await apiFetch(token, "/api/nutrition/foods", {
+        method: "POST",
+        body: JSON.stringify({
+          name: cf.name.trim(),
+          grams: parseInt(cf.grams || "100", 10) || 100,
+          calories: parseInt(cf.calories || "0", 10) || 0,
+          protein: parseInt(cf.protein || "0", 10) || 0,
+          carbs: parseInt(cf.carbs || "0", 10) || 0,
+          fats: parseInt(cf.fats || "0", 10) || 0,
+        }),
+      });
+      setCustomFoods((cs) => [created, ...cs]);
+      setCf({ name: "", grams: "", calories: "", protein: "", carbs: "", fats: "" });
+      setCfOpen(false);
+    } catch {}
+  };
+
+  const deleteCustomFood = async (id: string) => {
+    setCustomFoods((cs) => cs.filter((c) => c.id !== id));
+    try { await apiFetch(token, `/api/nutrition/foods/${id}`, { method: "DELETE" }); } catch {}
   };
 
   const saveMeal = async () => {
@@ -200,6 +247,23 @@ export function NutritionCard() {
 
         {tab === "macros" ? (
           <>
+            <View style={styles.goalsBox}>
+              <View style={styles.ringsRow}>
+                <MacroRing label="CALORIES" value={parseInt(vals.calories || "0", 10) || 0} goal={goals.calories} unit="kcal" color={colors.success} />
+                <MacroRing label="PROTEIN" value={parseInt(vals.protein || "0", 10) || 0} goal={goals.protein} unit="g" color={colors.brandPrimary} />
+              </View>
+              {goalsOpen ? (
+                <View style={styles.goalEditRow}>
+                  <TextInput testID="goal-calories" value={goalCal} onChangeText={(t) => setGoalCal(t.replace(/[^0-9]/g, ""))} keyboardType="number-pad" placeholder="cal goal" placeholderTextColor={colors.textDim} style={styles.goalInput} maxLength={5} />
+                  <TextInput testID="goal-protein" value={goalPro} onChangeText={(t) => setGoalPro(t.replace(/[^0-9]/g, ""))} keyboardType="number-pad" placeholder="protein g" placeholderTextColor={colors.textDim} style={styles.goalInput} maxLength={4} />
+                  <Pressable testID="goal-save" onPress={saveGoals} style={styles.goalSaveBtn}><Text style={styles.goalSaveText}>SET</Text></Pressable>
+                </View>
+              ) : (
+                <Pressable testID="goal-edit" onPress={() => setGoalsOpen(true)} style={styles.goalEditToggle}>
+                  <Text style={styles.goalEditText}>🎯 {goals.calories || goals.protein ? "EDIT DAILY GOALS" : "SET DAILY GOALS"}</Text>
+                </Pressable>
+              )}
+            </View>
             <View style={styles.grid}>
               {FIELDS.map((f) => (
                 <View key={f.key} style={styles.cell}>
@@ -222,18 +286,27 @@ export function NutritionCard() {
             </View>
             {meals.length > 0 && (
               <View style={styles.mealsWrap}>
-                <Text style={styles.mealsLabel}>MY MEALS · tap to log</Text>
-                <View style={styles.chipWrap}>
-                  {meals.map((m) => (
-                    <View key={m.id} style={styles.mealChip}>
-                      <Pressable testID={`meal-add-${m.id}`} onPress={() => addMeal(m)} hitSlop={4}>
-                        <Text style={styles.mealChipText}>{m.name} · {m.calories}kcal</Text>
-                      </Pressable>
-                      <Pressable testID={`meal-del-${m.id}`} onPress={() => deleteMeal(m.id)} hitSlop={8}>
-                        <Text style={styles.mealChipX}>  ✕</Text>
-                      </Pressable>
-                    </View>
-                  ))}
+                <Text style={styles.mealsLabel}>MY MEALS · set portion & tap to log</Text>
+                <View style={{ gap: spacing.sm }}>
+                  {meals.map((m) => {
+                    const mult = mealMult[m.id] ?? 1;
+                    return (
+                      <View key={m.id} style={styles.mealRow}>
+                        <Pressable testID={`meal-add-${m.id}`} onPress={() => addMeal(m)} hitSlop={4} style={{ flex: 1 }}>
+                          <Text style={styles.mealRowName} numberOfLines={1}>{m.name}</Text>
+                          <Text style={styles.mealRowMeta}>{Math.round(m.calories * mult)} kcal · {Math.round(m.protein * mult)}p · tap to log</Text>
+                        </Pressable>
+                        <View style={styles.qtyRow}>
+                          <Pressable testID={`meal-minus-${m.id}`} onPress={() => bumpMult(m.id, -0.5)} hitSlop={6} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>−</Text></Pressable>
+                          <Text style={styles.qtyVal}>×{mult}</Text>
+                          <Pressable testID={`meal-plus-${m.id}`} onPress={() => bumpMult(m.id, 0.5)} hitSlop={6} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>＋</Text></Pressable>
+                        </View>
+                        <Pressable testID={`meal-del-${m.id}`} onPress={() => deleteMeal(m.id)} hitSlop={8}>
+                          <Text style={styles.mealChipX}>✕</Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
                 </View>
               </View>
             )}
@@ -272,13 +345,26 @@ export function NutritionCard() {
                   style={styles.foodSearch}
                   autoCapitalize="none"
                 />
-                {FOODS.filter((f) => !foodQuery.trim() || f.name.toLowerCase().includes(foodQuery.trim().toLowerCase())).map((f) => {
+                {cfOpen ? (
+                  <View style={styles.cfForm}>
+                    <TextInput testID="cf-name" value={cf.name} onChangeText={(t) => setCf((s) => ({ ...s, name: t }))} placeholder="Food name" placeholderTextColor={colors.textDim} style={styles.cfName} maxLength={40} />
+                    <View style={styles.cfGrid}>
+                      {(["grams", "calories", "protein", "carbs", "fats"] as const).map((k) => (
+                        <TextInput key={k} testID={`cf-${k}`} value={(cf as any)[k]} onChangeText={(t) => setCf((s) => ({ ...s, [k]: t.replace(/[^0-9]/g, "") }))} keyboardType="number-pad" placeholder={k === "grams" ? "grams" : k.slice(0, 4)} placeholderTextColor={colors.textDim} style={styles.cfInput} maxLength={5} />
+                      ))}
+                    </View>
+                    <Pressable testID="cf-save" onPress={addCustomFood} style={styles.cfSaveBtn}><Text style={styles.cfSaveText}>SAVE FOOD</Text></Pressable>
+                  </View>
+                ) : (
+                  <Pressable testID="cf-add" onPress={() => setCfOpen(true)} style={styles.cfToggle}><Text style={styles.cfToggleText}>＋ ADD CUSTOM FOOD</Text></Pressable>
+                )}
+                {[...customFoods.map((c) => ({ ...c, custom: true, serving: "custom" })), ...FOODS].filter((f) => !foodQuery.trim() || f.name.toLowerCase().includes(foodQuery.trim().toLowerCase())).map((f) => {
                   const g = foodQty[f.name] ?? f.grams;
                   const fac = g / f.grams;
                   return (
-                    <View key={f.name} style={styles.foodRow}>
+                    <View key={(f.custom ? "c_" : "") + f.name} style={styles.foodRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.foodName}>{f.name}</Text>
+                        <Text style={styles.foodName}>{f.custom ? "★ " : ""}{f.name}</Text>
                         <Text style={styles.foodMeta}>{f.serving} · {Math.round(f.calories * fac)} kcal · {Math.round(f.protein * fac)}p / {Math.round(f.carbs * fac)}c / {Math.round(f.fats * fac)}f</Text>
                       </View>
                       <View style={styles.qtyRow}>
@@ -289,6 +375,11 @@ export function NutritionCard() {
                       <Pressable testID={`food-opt-${f.name}`} onPress={() => addFood(f)} hitSlop={6} style={styles.foodAddBtn}>
                         <Text style={styles.foodAdd}>ADD</Text>
                       </Pressable>
+                      {f.custom && (
+                        <Pressable testID={`cf-del-${f.id}`} onPress={() => deleteCustomFood(f.id)} hitSlop={8} style={{ paddingLeft: 6 }}>
+                          <Text style={styles.mealChipX}>✕</Text>
+                        </Pressable>
+                      )}
                     </View>
                   );
                 })}
@@ -351,6 +442,25 @@ const styles = StyleSheet.create({
   foodDropdown: { marginTop: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, overflow: "hidden" },
   foodSearch: { color: colors.text, fontSize: 13, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface2 },
   mealsWrap: { marginTop: spacing.md },
+  goalsBox: { marginBottom: spacing.md, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
+  ringsRow: { flexDirection: "row", justifyContent: "space-around", paddingVertical: spacing.sm },
+  goalEditToggle: { paddingVertical: 8, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  goalEditText: { color: colors.text, fontWeight: "800", fontSize: 11, letterSpacing: 1 },
+  goalEditRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  goalInput: { flex: 1, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, color: colors.text, paddingHorizontal: 10, paddingVertical: 9, fontSize: 13 },
+  goalSaveBtn: { paddingHorizontal: spacing.md, paddingVertical: 9, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success, backgroundColor: "rgba(52,211,153,0.1)" },
+  goalSaveText: { color: colors.success, fontWeight: "900", fontSize: 12, letterSpacing: 1 },
+  mealRow: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, paddingVertical: 8, paddingHorizontal: 10 },
+  mealRowName: { color: colors.warning, fontWeight: "800", fontSize: 13 },
+  mealRowMeta: { color: colors.textDim, fontSize: 10, marginTop: 1 },
+  cfToggle: { paddingVertical: 9, alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface2 },
+  cfToggleText: { color: colors.success, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
+  cfForm: { padding: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface2, gap: spacing.sm },
+  cfName: { backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, color: colors.text, paddingHorizontal: 10, paddingVertical: 9, fontSize: 13 },
+  cfGrid: { flexDirection: "row", gap: 6 },
+  cfInput: { flex: 1, backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, color: colors.text, paddingHorizontal: 6, paddingVertical: 8, fontSize: 12, textAlign: "center" },
+  cfSaveBtn: { paddingVertical: 9, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success, backgroundColor: "rgba(52,211,153,0.1)" },
+  cfSaveText: { color: colors.success, fontWeight: "900", fontSize: 12, letterSpacing: 1 },
   mealsLabel: { color: colors.textDim, fontSize: 9, letterSpacing: 1.5, fontWeight: "800", marginBottom: 6 },
   mealChip: { flexDirection: "row", alignItems: "center", paddingVertical: 7, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.08)" },
   mealChipText: { color: colors.warning, fontWeight: "800", fontSize: 12 },

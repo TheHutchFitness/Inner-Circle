@@ -65,3 +65,54 @@ async def save_meal(payload: dict = Body(default={}), user=Depends(get_current_u
 async def delete_meal(meal_id: str, user=Depends(get_current_user)):
     await db.saved_meals.delete_one({"id": meal_id, "user_id": user["user_id"]})
     return {"ok": True}
+
+
+@api_router.get("/nutrition/foods")
+async def list_custom_foods(user=Depends(get_current_user)):
+    rows = await db.custom_foods.find({"user_id": user["user_id"]}, {"_id": 0, "user_id": 0}).sort("created_at", 1).to_list(300)
+    return {"foods": rows}
+
+
+@api_router.post("/nutrition/foods")
+async def add_custom_food(payload: dict = Body(default={}), user=Depends(get_current_user)):
+    name = str((payload or {}).get("name", "")).strip()[:40]
+    if not name:
+        raise HTTPException(status_code=400, detail="Food name required")
+    doc = {
+        "id": new_id("food"), "user_id": user["user_id"], "name": name,
+        "grams": max(1, int((payload or {}).get("grams", 100) or 100)),
+        "calories": max(0, int((payload or {}).get("calories", 0) or 0)),
+        "protein": max(0, int((payload or {}).get("protein", 0) or 0)),
+        "carbs": max(0, int((payload or {}).get("carbs", 0) or 0)),
+        "fats": max(0, int((payload or {}).get("fats", 0) or 0)),
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.custom_foods.insert_one(dict(doc))
+    doc.pop("created_at", None)
+    doc.pop("user_id", None)
+    return doc
+
+
+@api_router.delete("/nutrition/foods/{food_id}")
+async def delete_custom_food(food_id: str, user=Depends(get_current_user)):
+    await db.custom_foods.delete_one({"id": food_id, "user_id": user["user_id"]})
+    return {"ok": True}
+
+
+@api_router.get("/nutrition/goals")
+async def get_goals(user=Depends(get_current_user)):
+    g = user.get("macro_goals") or {}
+    return {"calories": int(g.get("calories", 0) or 0), "protein": int(g.get("protein", 0) or 0),
+            "carbs": int(g.get("carbs", 0) or 0), "fats": int(g.get("fats", 0) or 0)}
+
+
+@api_router.post("/nutrition/goals")
+async def set_goals(payload: dict = Body(default={}), user=Depends(get_current_user)):
+    goals = {
+        "calories": max(0, int((payload or {}).get("calories", 0) or 0)),
+        "protein": max(0, int((payload or {}).get("protein", 0) or 0)),
+        "carbs": max(0, int((payload or {}).get("carbs", 0) or 0)),
+        "fats": max(0, int((payload or {}).get("fats", 0) or 0)),
+    }
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"macro_goals": goals}})
+    return goals

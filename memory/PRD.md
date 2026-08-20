@@ -487,3 +487,9 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - NutritionCard FOODS now standardized to GRAMS: each food has grams (default serving) + household hint (serving e.g. "≈6 oz"); macros scale linearly.
 - Each food row has a −/＋ gram stepper (25g steps, min 5g) + ADD button; displayed macros update live and ADD logs the scaled macros. testIDs: food-minus-<name>, food-plus-<name>, food-opt-<name> (ADD).
 - Self-verified: 220g Chicken -> 362 kcal / 67p / 8f added correctly.
+
+## Iteration 33 — Meal Portions + Custom Foods + Daily Macro Goals
+- Backend nutrition.py: GET/POST /api/nutrition/goals (macro_goals on user), GET/POST/DELETE /api/nutrition/foods (db.custom_foods, per-user, empty name -> 400).
+- MacroRing.tsx: SVG progress ring (calories/protein vs goal; warning color when over).
+- NutritionCard Macros tab: two goal rings + 'goal-edit'/goal-calories/goal-protein/goal-save. Meal rows have a ×portion multiplier (meal-minus-/meal-plus-, 0.5 steps) scaling logged macros. Custom Foods form (cf-add -> cf-name/cf-grams/cf-calories/cf-protein/cf-carbs/cf-fats -> cf-save), ★-tagged rows merged into food list with cf-del-<id>.
+### Tests: iteration_33.json — backend 11/11 + frontend flows all pass.
