@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, Request
@@ -18,7 +19,10 @@ from pymongo.errors import DuplicateKeyError, PyMongoError
 
 from shared import db
 
-_KEY_SECRET = os.environ.get("AUTH_THROTTLE_SECRET", "hutch-inner-circle-throttle-v1").encode()
+# Keys are HMAC-hashed with this secret so raw IPs/emails are never stored. A
+# stable value should come from the environment; if unset we use a per-process
+# random secret (never a source-code literal).
+_KEY_SECRET = (os.environ.get("AUTH_THROTTLE_SECRET") or secrets.token_urlsafe(48)).encode()
 
 # Policy
 IP_LOGIN_LIMIT = 20

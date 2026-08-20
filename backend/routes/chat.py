@@ -1,6 +1,7 @@
 # ruff: noqa: F403, F405
 import hashlib
 import hmac
+import secrets
 import time
 
 from shared import *  # noqa: F401,F403
@@ -323,7 +324,15 @@ async def chat_media_get(media_id: str, token: Optional[str] = None, t: Optional
 
 
 # ---- Short-lived signed media tickets (for browser <a>/download links) ----
-_MEDIA_TICKET_SECRET = os.environ.get("MEDIA_TICKET_SECRET", os.environ.get("AUTH_THROTTLE_SECRET", "hutch-media-ticket-v1")).encode()
+# A stable secret must come from the environment. If it is somehow unset we fall
+# back to a per-process random key (never a source-code literal), so tickets can
+# never be forged with a known constant — worst case they simply stop validating
+# after a restart, which is safe for 120s tickets.
+_MEDIA_TICKET_SECRET = (
+    os.environ.get("MEDIA_TICKET_SECRET")
+    or os.environ.get("AUTH_THROTTLE_SECRET")
+    or secrets.token_urlsafe(48)
+).encode()
 
 
 def _sign_media_ticket(media_id: str, exp: int) -> str:
