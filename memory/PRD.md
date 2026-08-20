@@ -550,3 +550,9 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Security re-audit (2026-08) — SEC-001..004 verified RESOLVED; SEC-005 fixed
 - Re-audit confirmed SEC-001 (skool throttle), SEC-002 (media BOLA authz), SEC-003 (Places cache+throttle), SEC-004 (media tickets) all RESOLVED.
 - SEC-005 (MEDIUM, new): media-ticket HMAC fell back to a source-code literal key when MEDIA_TICKET_SECRET/AUTH_THROTTLE_SECRET were unset. Fix: (1) appended strong random MEDIA_TICKET_SECRET + AUTH_THROTTLE_SECRET to backend/.env; (2) hardened chat.py _MEDIA_TICKET_SECRET and auth_throttle.py _KEY_SECRET to fall back to a per-process secrets.token_urlsafe(48) instead of any hard-coded literal. Verified: a ticket forged with the OLD default key now returns 401; freshly-issued tickets still validate.
+
+## Bug fix (2026-08) — Founders list empty in production ("No founders yet")
+- Symptom: production APK showed "No founders yet" despite 3 real signups; preview worked.
+- Root cause: GET /api/founders calls rank_from_xp on each candidate; level_from_xp did `1 + xp // 250` which throws TypeError if a founder-eligible user's xp is None/non-int → 500. founders.tsx load() swallows fetch errors (try/catch {}) so data stays null and the screen renders the "No founders yet" empty state — masking the 500. Reproduced in preview by inserting a real (non-bot/non-admin/non-test-email) user with xp=None → /api/founders returned 500.
+- Fix: hardened level_from_xp (shared.py) to coerce None/invalid/negative xp to 0. This fixes rank_from_xp app-wide (leaderboard/chat/profile/founders). Verified: /api/founders now 200 and lists founders even with a null-xp user present. Sim user cleaned up.
+- NOTE: fix is in preview; user must REDEPLOY to push to production.

@@ -227,6 +227,12 @@ RANK_ORDER = ["Beginner", "Intermediate", "Advanced", "Vanguard", "Warrior", "Bo
 LEVELS_PER_RANK = 10
 
 def level_from_xp(xp: int) -> int:
+    try:
+        xp = int(xp or 0)
+    except (TypeError, ValueError):
+        xp = 0
+    if xp < 0:
+        xp = 0
     return 1 + xp // 250
 
 def rank_from_xp(xp: int) -> str:
