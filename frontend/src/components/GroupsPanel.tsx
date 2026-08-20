@@ -67,6 +67,7 @@ export function GroupsPanel() {
 
   // ---------- Group detail (home page) ----------
   const canEdit = sel?.can_edit;
+  const canManage = sel?.can_manage;
   const detailView = sel ? (
       <View style={{ flex: 1 }}>
         <View style={styles.detailHead}>
@@ -108,7 +109,7 @@ export function GroupsPanel() {
 
             {/* Announcements */}
             <Text style={styles.section}>📣 ANNOUNCEMENTS</Text>
-            {canEdit && (
+            {canManage && (
               <View style={styles.annBox}>
                 <TextInput testID="ann-input" value={ann} onChangeText={setAnn} placeholder="Post an announcement…" placeholderTextColor={colors.textDim} style={styles.input} multiline />
                 <Pressable testID="ann-post" onPress={async () => { if (ann.trim()) { await act(`/api/groups/${sel.id}/announce`, { text: ann.trim() }); setAnn(""); } }} style={styles.smallBtn}><Text style={styles.smallBtnT}>POST</Text></Pressable>
@@ -119,8 +120,8 @@ export function GroupsPanel() {
                 <View key={a.id} style={styles.annRow}><Text style={styles.annText}>{a.text}</Text><Text style={styles.annMeta}>{a.author} · {new Date(a.created_at).toLocaleDateString()}</Text></View>
               ))}
 
-            {/* Pending requests (editors) */}
-            {canEdit && (sel.pending || []).length > 0 && (
+            {/* Pending requests (leader & officers) */}
+            {canManage && (sel.pending || []).length > 0 && (
               <>
                 <Text style={styles.section}>⏳ JOIN REQUESTS</Text>
                 {sel.pending.map((p: any) => (
@@ -134,8 +135,8 @@ export function GroupsPanel() {
               </>
             )}
 
-            {/* Invite (editors) */}
-            {canEdit && (
+            {/* Invite (leader & officers) */}
+            {canManage && (
               <>
                 <Pressable testID="share-invite" onPress={shareInvite} style={[styles.primaryBtn, { marginTop: spacing.md }]}>
                   <Text style={styles.primaryBtnT}>🔗 SHARE INVITE LINK</Text>

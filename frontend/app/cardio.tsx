@@ -207,6 +207,13 @@ export default function Cardio() {
           </View>
           <Text style={styles.sprintHint}>Tap START, run your sprint, tap STOP at the line. Best times boost your SPEED stat & earn +40 XP on a new record.</Text>
         </View>
+      ) : Platform.OS === "web" ? (
+        <View style={styles.webLock}>
+          <Text style={styles.webLockIcon}>📱</Text>
+          <Text style={styles.webLockTitle}>GPS TRACKING IS MOBILE-ONLY</Text>
+          <Text style={styles.webLockText}>Live run & bike GPS tracking uses your phone&apos;s location and sensors, so it&apos;s only available in the mobile app. Open PowerUp Arena on your phone to record a route.</Text>
+          <Text style={styles.webLockHint}>Tip: the Sprint Timer above works right here on the web.</Text>
+        </View>
       ) : (
       <>
       <View style={styles.mapWrap}>
@@ -299,6 +306,11 @@ const styles = StyleSheet.create({
   sprintHint: { color: colors.textDim, fontSize: 11, lineHeight: 17, marginTop: spacing.lg, textAlign: "center", paddingHorizontal: spacing.md },
   mapWrap: { flex: 1, backgroundColor: colors.surface2, overflow: "hidden" },
   mapPlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  webLock: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.md },
+  webLockIcon: { fontSize: 60 },
+  webLockTitle: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 1, textAlign: "center" },
+  webLockText: { color: colors.textMid, fontSize: 14, lineHeight: 21, textAlign: "center", maxWidth: 420 },
+  webLockHint: { color: colors.brandPrimary, fontSize: 12, fontWeight: "700", textAlign: "center", marginTop: spacing.sm },
   mapIcon: { fontSize: 48, marginBottom: spacing.md },
   permText: { color: colors.textDim, textAlign: "center", lineHeight: 20 },
   permBtn: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.sm },

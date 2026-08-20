@@ -147,11 +147,13 @@ async def group_detail(gid: str, user=Depends(get_current_user)):
     uid = user["user_id"]
     is_admin = bool(user.get("is_admin"))
     can_edit = is_admin or g.get("creator_id") == uid
+    can_manage = _can_manage(g, user)
     b = await _brief(g, uid)
     b["members"] = await _members_public(g.get("members", []), g.get("officers", []), g.get("creator_id"))
     b["announcements"] = sorted(g.get("announcements", []), key=lambda a: a.get("created_at", ""), reverse=True)[:20]
     b["can_edit"] = can_edit
-    b["pending"] = await _members_public(g.get("pending", [])) if can_edit else []
+    b["can_manage"] = can_manage
+    b["pending"] = await _members_public(g.get("pending", [])) if can_manage else []
     creator = await db.users.find_one({"user_id": g.get("creator_id")}, {"_id": 0, "display_name": 1})
     b["creator_name"] = (creator or {}).get("display_name", "—")
     return b
@@ -176,12 +178,21 @@ def _require_edit(g: dict, user):
         raise HTTPException(status_code=403, detail="Only the group creator or admin can do that")
 
 
+def _can_manage(g: dict, user) -> bool:
+    return bool(user.get("is_admin") or g.get("creator_id") == user["user_id"] or user["user_id"] in g.get("officers", []))
+
+
+def _require_manage(g: dict, user):
+    if not _can_manage(g, user):
+        raise HTTPException(status_code=403, detail="Only the leader or officers can do that")
+
+
 @api_router.post("/groups/{gid}/approve")
 async def approve_member(gid: str, inp: GroupTarget, user=Depends(get_current_user)):
     g = await db.groups.find_one({"id": gid})
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
-    _require_edit(g, user)
+    _require_manage(g, user)
     tid = inp.user_id
     if not tid:
         raise HTTPException(status_code=400, detail="user_id required")
@@ -196,7 +207,7 @@ async def deny_member(gid: str, inp: GroupTarget, user=Depends(get_current_user)
     g = await db.groups.find_one({"id": gid})
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
-    _require_edit(g, user)
+    _require_manage(g, user)
     await db.groups.update_one({"id": gid}, {"$pull": {"pending": inp.user_id}})
     return {"ok": True}
 
@@ -206,7 +217,7 @@ async def invite_member(gid: str, inp: GroupTarget, user=Depends(get_current_use
     g = await db.groups.find_one({"id": gid})
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
-    _require_edit(g, user)
+    _require_manage(g, user)
     name = (inp.display_name or "").strip()
     target = None
     if inp.user_id:
@@ -263,7 +274,7 @@ async def leave_group(gid: str, user=Depends(get_current_user)):
     uid = user["user_id"]
     if g.get("creator_id") == uid:
         raise HTTPException(status_code=400, detail="Creators can't leave their own group")
-    await db.groups.update_one({"id": gid}, {"$pull": {"members": uid, "pending": uid}})
+    await db.groups.update_one({"id": gid}, {"$pull": {"members": uid, "pending": uid, "officers": uid}})
     return {"ok": True}
 
 
@@ -272,11 +283,11 @@ async def announce(gid: str, inp: GroupText, user=Depends(get_current_user)):
     g = await db.groups.find_one({"id": gid})
     if not g:
         raise HTTPException(status_code=404, detail="Group not found")
-    _require_edit(g, user)
+    _require_manage(g, user)
     text = (inp.text or "").strip()[:500]
     if not text:
         raise HTTPException(status_code=400, detail="Announcement text required")
-    ann = {"id": new_id("ann"), "text": text, "author": user.get("display_name", "Creator"),
+    ann = {"id": new_id("ann"), "text": text, "author": user.get("display_name", "Officer"),
            "created_at": datetime.now(timezone.utc).isoformat()}
     await db.groups.update_one({"id": gid}, {"$push": {"announcements": ann}})
     return ann
