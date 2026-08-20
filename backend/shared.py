@@ -100,6 +100,7 @@ class ProfileUpdate(BaseModel):
     lite_mode: Optional[bool] = None
     inperson_request: Optional[bool] = None
     tour_seen: Optional[bool] = None
+    tour_version: Optional[int] = None
     founder_welcomed: Optional[bool] = None
 
 

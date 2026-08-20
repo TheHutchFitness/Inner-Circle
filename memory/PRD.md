@@ -510,3 +510,8 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 
 ## Iteration 37 — Tour Highlights (point at real tabs)
 - OnboardingTour: each Step has a `target` (home/train/rank/quests/social/me/topright). A faux 6-tab strip renders above the footer mirroring the real bottom bar; the target tab glows (cyan) with a ▼ arrow. For the LITE/FULL switch step (target topright) an "UP HERE ↗" pill points to the top-right. TABS constant added. Verified via screenshots (Home highlighted; mode step top-right pointer).
+
+## Iteration 38 — Replay updated tour for existing members
+- Added tour versioning. OnboardingTour exports TOUR_VERSION=2; done() PATCHes {tour_seen:true, tour_version:2}. ProfileUpdate model gained tour_version:int.
+- _layout gates use tourComplete(user) = tour_seen && tour_version>=TOUR_VERSION. Existing members (tour_version unset/old) are re-shown the tour once on next login; FounderGate waits for tourComplete.
+- Returning members (tour_seen already true) get a leading "✨ WHAT'S NEW — THE APP GOT AN UPGRADE" step + eyebrow "THINGS HAVE CHANGED · UPDATED TOUR" so they know why it reappeared. Brand-new members skip that step. Verified via screenshot (owner, tour_seen=true/version unset -> 11-step updated tour).

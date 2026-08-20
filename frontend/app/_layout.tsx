@@ -13,7 +13,7 @@ import { initializeRevenueCat, SubscriptionProvider, useRCIdentityBinder } from 
 import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
 import { HeroIntro } from "@/src/components/HeroIntro";
 import { AppModeIntro } from "@/src/components/AppModeIntro";
-import { OnboardingTour } from "@/src/components/OnboardingTour";
+import { OnboardingTour, TOUR_VERSION } from "@/src/components/OnboardingTour";
 import { FounderWelcome } from "@/src/components/FounderWelcome";
 import { ClanInviteGate } from "@/src/components/ClanInviteGate";
 import { AppModeSwitch } from "@/src/components/AppModeSwitch";
@@ -53,13 +53,17 @@ function ModeGate() {
   return <AppModeIntro />;
 }
 
-// After mode is chosen, brand-new members get a one-time walkthrough of
-// Quests, the Armory and Clans. Dismissing it writes tour_seen so it's shown once.
+// After mode is chosen, members get the walkthrough. Brand-new members see it
+// because tour_seen is false; existing members are re-shown it once whenever the
+// tour content is updated (their saved tour_version is behind TOUR_VERSION).
+function tourComplete(user: any) {
+  return user?.tour_seen === true && (user?.tour_version || 0) >= TOUR_VERSION;
+}
 function TourGate() {
   const { user, intro, loading } = useAuth();
   if (loading || !user || intro) return null;
   if (user.mode_selected !== true) return null;
-  if (user.tour_seen === true) return null;
+  if (tourComplete(user)) return null;
   return <OnboardingTour />;
 }
 
@@ -67,7 +71,7 @@ function TourGate() {
 function FounderGate() {
   const { user, intro, loading } = useAuth();
   if (loading || !user || intro) return null;
-  if (user.mode_selected !== true || user.tour_seen !== true) return null;
+  if (user.mode_selected !== true || !tourComplete(user)) return null;
   if (!user.is_founder || user.founder_welcomed === true) return null;
   return <FounderWelcome />;
 }

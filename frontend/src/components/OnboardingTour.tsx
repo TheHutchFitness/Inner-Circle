@@ -33,6 +33,14 @@ const L_HOME: Step = { icon: "◆", tag: "TAB 1 · HOME", title: "YOUR DASHBOARD
 const L_DIET: Step = { icon: "🥗", tag: "ON THE HOME TAB", title: "DIET & HEALTH", desc: "Log meals and macros from a big food list, save your go-to meals, set daily calorie & protein goals, and track steps and conditioning.", where: "HOME → DIET & HEALTH", target: "home" };
 const L_CARDIO: Step = { icon: "🛰", tag: "ON THE HOME TAB", title: "CARDIO GPS", desc: "Track your runs and rides with live pace, distance and elevation, and log them to your history.", where: "HOME → CARDIO GPS TRACKER", target: "home" };
 
+// Bump when the tour content meaningfully changes so existing members are
+// re-shown the updated walkthrough on their next login.
+export const TOUR_VERSION = 2;
+
+// Shown first only to members who had already completed an older tour, so they
+// know the replay is intentional (the app changed).
+const S_WHATSNEW: Step = { icon: "✨", tag: "WHAT'S NEW", title: "THE APP GOT AN UPGRADE", desc: "We've reorganized the app and added new rooms — Diet & Health, Groups, real-world gym maps and more. Here's a quick refresher so you always know where everything lives.", where: "Tap NEXT for the updated tour", target: "home" };
+
 const TABS: [Step["target"], string, string][] = [
   ["home", "HOME", "◆"],
   ["train", "TRAIN", "🏋"],
@@ -54,9 +62,11 @@ export function OnboardingTour() {
   const [busy, setBusy] = useState(false);
 
   const lite = isLite(user);
-  const steps: Step[] = lite
+  const returning = user?.tour_seen === true; // saw an older tour → this is an update replay
+  const base: Step[] = lite
     ? [L_HOME, S_TRAIN, L_DIET, L_CARDIO, S_MODE, S_CONFIG]
     : [S_HOME, S_TRAIN, S_RANK, S_QUESTS, S_SOCIAL, S_ME, S_ROOMS, S_LOCKS, S_MODE, S_CONFIG];
+  const steps: Step[] = returning ? [S_WHATSNEW, ...base] : base;
   const step = steps[i];
   const last = i === steps.length - 1;
 
@@ -66,7 +76,7 @@ export function OnboardingTour() {
     try {
       await apiFetch(token, "/api/profile/update", {
         method: "PATCH",
-        body: JSON.stringify({ tour_seen: true }),
+        body: JSON.stringify({ tour_seen: true, tour_version: TOUR_VERSION }),
       });
       await refresh();
       if (goStart) router.push(lite ? "/(tabs)" : "/(tabs)/quests");
@@ -88,7 +98,7 @@ export function OnboardingTour() {
       )}
 
       <View style={styles.body}>
-        <Text style={styles.eyebrow}>⌁ WELCOME TO THE INNER CIRCLE</Text>
+        <Text style={styles.eyebrow}>{returning ? "⌁ THINGS HAVE CHANGED · UPDATED TOUR" : "⌁ WELCOME TO THE INNER CIRCLE"}</Text>
 
         <LinearGradient
           colors={[colors.brandTertiary, colors.surface2]}
