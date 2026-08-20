@@ -66,8 +66,8 @@
         {
           "android": {
             "minSdkVersion": 26,
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
           }
         }
       ],
@@ -86,8 +86,7 @@
           "microphonePermission": "Ask your coach a question with your voice"
         }
       ],
-      "expo-notifications",
-      "expo-build-properties"
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
