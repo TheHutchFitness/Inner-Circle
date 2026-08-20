@@ -1,49 +1,73 @@
 {
   "app_name": "Hutch's Inner Circle",
-  "personality": "7 Dark-First Utility (DARK) with Cyberpunk/Anime Fusion",
-  "personality_one_liner": "An intense, gamified powerlifting command center where every PR feels like leveling up in a gritty cyberpunk anime.",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "A high-performance, dark-mode-first tactical interface prioritizing live chat readability with sharp neon cyberpunk accents.",
   "color": {
-    "surface": "#050508",
-    "onSurface": "#FFFFFF",
-    "surfaceSecondary": "#12141A",
-    "onSurfaceSecondary": "#A0A5B5",
-    "surfaceTertiary": "#1A1D26",
-    "onSurfaceTertiary": "#C3C8D8",
-    "surfaceInverse": "#FFFFFF",
-    "onSurfaceInverse": "#050508",
-    "brand": "#0055FF",
-    "brandPrimary": "#00E5FF",
-    "onBrandPrimary": "#001122",
-    "brandSecondary": "#0055FF",
-    "onBrandSecondary": "#FFFFFF",
-    "brandTertiary": "#002A55",
-    "onBrandTertiary": "#00E5FF",
-    "success": "#39FF14",
-    "onSuccess": "#002200",
-    "warning": "#FFEA00",
-    "onWarning": "#332200",
-    "error": "#FF003C",
-    "onError": "#FFFFFF",
-    "info": "#00E5FF",
-    "onInfo": "#001122",
-    "border": "#1A1D26",
-    "borderStrong": "#0055FF",
-    "divider": "#12141A"
+    "surface": "#050914",
+    "onSurface": "#ffffff",
+    "surfaceSecondary": "#0d1424",
+    "onSurfaceSecondary": "#cbd5e1",
+    "surfaceTertiary": "#162032",
+    "onSurfaceTertiary": "#94a3b8",
+    "surfaceInverse": "#ffffff",
+    "onSurfaceInverse": "#050914",
+    "brand": "#00e5ff",
+    "brandPrimary": "#00e5ff",
+    "onBrandPrimary": "#000000",
+    "brandSecondary": "#ffbb00",
+    "onBrandSecondary": "#000000",
+    "brandTertiary": "#00e5ff1a",
+    "onBrandTertiary": "#00e5ff",
+    "success": "#10b981",
+    "onSuccess": "#000000",
+    "warning": "#ffbb00",
+    "onWarning": "#000000",
+    "error": "#ef4444",
+    "onError": "#ffffff",
+    "info": "#3b82f6",
+    "onInfo": "#ffffff",
+    "border": "#1e293b",
+    "borderStrong": "#334155",
+    "divider": "#1e293b"
   },
   "typography": {
     "displayFontFamily": "Rajdhani",
     "textFontFamily": "IBM Plex Sans",
-    "scale": { "sm": 12, "base": 14, "lg": 16, "xl": 20, "2xl": 24 }
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
   },
-  "spacing": { "rule": "Dense, athletic spacing to keep live stats visible without scrolling. Tight internal padding for list rows, generous padding for hero sections.", "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24, "2xl": 32, "3xl": 48 },
-  "radius_tokens": { "sm": 4, "md": 8, "lg": 12, "pill": 999 },
+  "spacing": {
+    "rule": "Tight, tactical spacing for high data density; comfortable hit targets without visual bloat.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
   "shadow_tier": "0",
-  "navigation": "bottom_tabs",
+  "navigation": "stack_only",
   "icon_set": "Phosphor",
   "glassmorphism": {
-    "enabled": false,
-    "do's": ["Use subtle glowing borders (borderStrong with drop shadow) instead of glass for elevated elements."],
-    "dont's": ["Do not use blur or frosted glass; it softens the UI too much for a hardcore cyberpunk aesthetic."]
+    "enabled": "true",
+    "do's": [
+      "Glass background for the sticky header containing the segmented room tabs to maintain chat context while scrolling."
+    ],
+    "dont's": [
+      "Never blur message bubbles, input composer, or badges."
+    ]
   },
   "platform_libraries": {
     "glass": {
@@ -58,25 +82,29 @@
     "gesture": "react-native-gesture-handler"
   },
   "screens": [
-    { "name": "Onboarding & Auth", "purpose": "Immerse the user immediately into the dark, tech-heavy aesthetic while verifying Skool/Premium status.", "states": { "loading": "Glitch-effect loading spinner", "empty": "", "error": "Red neon toast" }, "layout": "Full-bleed background image of a dark powerlifting gym. Sharp, angled auth inputs. 'Enter the Circle' primary CTA at the bottom." },
-    { "name": "Dashboard", "purpose": "Act as the 'Mission Briefing' screen displaying the athlete's next workout, current rank, and progress.", "states": { "loading": "Skeleton grids with a sweeping blue highlight.", "empty": "No active program - 'Select a Protocol' CTA.", "error": "Data sync failed message with a mechanical retry button." }, "layout": "Hero section featuring user's anime avatar and rank badge. Quick-start workout card. Modular grid for weekly XP and Consistency tracking." },
-    { "name": "Workout Logger", "purpose": "Frictionless, live operational surface to track heavy lifts with extreme precision.", "states": { "loading": "Loading sets...", "empty": "Add first exercise.", "error": "Unable to save set." }, "layout": "Bottom-sheet overlay for active session. List rows for sets with tabular numbers. Plate-weight steppers for quick increments. Vertical 'voltage meter' progress bar tracking workout completion. Sticky 'Finish Workout' CTA." },
-    { "name": "Leaderboards", "purpose": "High-stakes gamified ranking across Consistency, Strength, and BW Ratio.", "states": { "loading": "Loading ranks...", "empty": "No data yet.", "error": "Failed to fetch leaderboard." }, "layout": "Three-tier podium display for top 3 athletes with gold/silver/bronze glowing borders. Below, ranked tables using flexbox rows, monospaced rank numbers, and right-aligned performance metrics. Tabs to switch between the 3 leaderboards." },
-    { "name": "Profile", "purpose": "A digital dossier showcasing the athlete's achievements, PRs, and anime persona.", "states": { "loading": "Loading profile...", "empty": "No PRs logged.", "error": "Failed to load stats." }, "layout": "Header with glowing anime avatar and Skool/Premium status badge. Grid of earned milestone badges (e.g., 135, 225, 315 plates). Embedded progress charts with neon cyan lines on dark backgrounds." },
-    { "name": "Athlete's Center & The Room", "purpose": "Premium AI workout builder and elite-only chat.", "states": { "loading": "Connecting...", "empty": "Start a conversation.", "error": "Connection lost." }, "layout": "Chat interface with stark tech typography. AI center features terminal-like text inputs and glowing generated program cards." }
+    {
+      "name": "Social Hub",
+      "purpose": "A high-performance community chat room avoiding feed-like clunkiness.",
+      "states": {
+        "loading": "Centered neon cyan spinner.",
+        "empty": "Lone barbell misty graphic + 'No messages yet in this sector.' + 'Start Transmission' button.",
+        "error": "Readable network error + 'Reconnect' cyan button."
+      },
+      "layout": "1. Header: Glass surface. Pill-based segmented control for 'ALL | MY-GYM | GROUPS' (active state is a surfaceTertiary pill, no borders). 2. Chat Feed: Group consecutive messages (within 5 mins). 'Theirs': Left-aligned, surfaceSecondary bubble. 'Mine': Right-aligned, brandTertiary (15% cyan tint) bubble with 1px border. Bubbles use md radius, with squared inner corners for stacked messages. 3. Identity Declutter: First message of a group gets a 28px left avatar. Above bubble: Inline flex-row with Name (colored by Rank), minimal 12pt Lv text, and max two icon badges (👑, ★) without background chips. 4. Composer: Sticky at bottom above safe area. A single pill (radius: pill) background surfaceSecondary. Inside the pill: minimalist '+' icon on the left, flex text input in middle, cyan arrow button on right."
+    }
   ],
   "images": {
-    "auth_bg": { "url": "https://images.pexels.com/photos/19132573/pexels-photo-19132573.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940", "alt": "A man prepares to lift a barbell in a dimly lit gym environment" },
-    "avatar_default": { "url": "https://images.pexels.com/photos/38950561/pexels-photo-38950561.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940", "alt": "Cyberpunk anime style character avatar" },
-    "badge_315": { "url": "https://images.unsplash.com/photo-1709315969349-1a43dea3efdc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3ltJTIwaGVhdnklMjBiYXJiZWxsJTIwbmVvbnxlbnwwfHx8fDE3ODcwMDEyOTZ8MA&ixlib=rb-4.1.0&q=85", "alt": "Heavy barbell in dark gym" }
+    "empty_state": {
+      "url": "https://images.pexels.com/photos/6389516/pexels-photo-6389516.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Lone barbell on the gym floor with a misty background"
+    }
   },
   "instructions_to_main_agent": [
-    "Execute the UI using a 'Dark-First Utility' aesthetic fused with Cyberpunk. Avoid soft, rounded corners; use strict, angular radius tokens (sm/md max) for a faceted, tech-heavy feel.",
-    "The color palette relies on Deep Black (#050508) as the root canvas, with Neon Cyan (#00E5FF) and Royal Blue (#0055FF) used exclusively for glowing accents, CTAs, and active states. Do NOT use default Material indigo.",
-    "Typography must drive the gaming aesthetic: Use Rajdhani for all headers, numbers, and stats to give an HUD/terminal feel. Use IBM Plex Sans for readability in body text and workout logs.",
-    "Implement the Workout Logger for speed: use plate-weight steppers instead of standard text inputs to make rack-side logging frictionless. Use tabular numbers (font-variant-numeric: tabular-nums) in all set/rep/weight rows to prevent shifting.",
-    "Leaderboards should use a podium structural pattern for the top 3 (Gold/Silver/Bronze highlights) and a dense, monospaced tabular list for ranks below.",
-    "Instead of traditional glassmorphism (which softens the UI), use stark borders and drop shadows mimicking 'neon glow' for elevated elements and active states.",
-    "Ensure the 'Premium' and 'Skool Member' visual states are highly distinct, using exclusive neon badges or avatar borders."
+    "Discard the old 'full-width bordered CARD' approach entirely. Chat messages must be Flex rows with max-width ~80% bubbles.",
+    "Implement message grouping: If the previous message is from the same user within 5 minutes, hide the avatar, hide the name/badge header, and adjust the border-radius (inner corners are square, outer corners rounded).",
+    "Mine vs Theirs styling: 'Mine' is right-aligned, uses a translucent cyan background (`brandTertiary`) with white text and a faint 1px cyan border. 'Theirs' is left-aligned, uses `surfaceSecondary` with `onSurfaceSecondary` text and no border.",
+    "Condense the identity row: Do not use separate boxed chips for Lv, Rank, Founder, and Backer. Instead, color the Display Name based on their Rank. Show 'Lv.X' as raw text. Show Founder/Backer/Role as simple SVG icons next to the name. This should fit on one line.",
+    "Segmented Control: Remove the clunky full-width boxes. Use a single pill-shaped container for the three tabs. The active tab gets a subtle background pill; inactive tabs just get textDim text. Place this inside a glass header.",
+    "Composer: Refactor to a single `borderRadius: 999` (pill) text input bar. Move the media (+) and send arrow icons *inside* the pill container, eliminating the separate outlined square buttons."
   ]
 }

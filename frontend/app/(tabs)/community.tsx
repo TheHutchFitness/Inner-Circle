@@ -22,21 +22,25 @@ export default function Community() {
   const canChat = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder || user?.inperson_client;
 
   const Tab = ({ id, label }: { id: "main" | "gym" | "groups"; label: string }) => (
-    <Pressable testID={`chat-room-${id}`} onPress={() => setRoom(id)} style={[styles.roomTab, room === id && styles.roomTabOn]}>
-      <Text style={[styles.roomTabText, room === id && styles.roomTabTextOn]} numberOfLines={1}>{label}</Text>
+    <Pressable testID={`chat-room-${id}`} onPress={() => setRoom(id)} style={[styles.seg, room === id && styles.segOn]}>
+      <Text style={[styles.segText, room === id && styles.segTextOn]} numberOfLines={1}>{label}</Text>
     </Pressable>
   );
 
   return (
     <SwipeTabs current="community">
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.surface }} keyboardVerticalOffset={0}>
-      <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.lg }}>
-        <Text style={styles.eyebrow}>▚ THE CIRCLE //</Text>
-        <Text style={styles.h1}>{room === "groups" ? "GROUPS" : "SOCIAL HUB"}</Text>
-        <View style={styles.roomTabs}>
-          {!lite && <Tab id="main" label="◍ ALL" />}
-          {!lite && !!gym && <Tab id="gym" label={`🏋 ${gym.toUpperCase()}`} />}
-          <Tab id="groups" label="🛡 GROUPS" />
+      <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.eyebrow}>▚ THE CIRCLE</Text>
+            <Text style={styles.h1}>{room === "groups" ? "GROUPS" : "SOCIAL HUB"}</Text>
+          </View>
+        </View>
+        <View style={styles.segment}>
+          {!lite && <Tab id="main" label="ALL" />}
+          {!lite && !!gym && <Tab id="gym" label={gym.toUpperCase()} />}
+          <Tab id="groups" label="GROUPS" />
         </View>
       </View>
 
@@ -67,15 +71,17 @@ export default function Community() {
 }
 
 const styles = StyleSheet.create({
-  eyebrow: { color: colors.brandPrimary, letterSpacing: 4, fontSize: 11, fontWeight: "700" },
+  eyebrow: { color: colors.brandPrimary, letterSpacing: 4, fontSize: 10, fontWeight: "700" },
+  header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerRow: { flexDirection: "row", alignItems: "center" },
   enhancedBtn: { marginTop: spacing.sm, marginBottom: spacing.sm, borderWidth: 1, borderColor: "#FF2A3C", borderRadius: radius.sm, paddingVertical: 8, alignItems: "center", backgroundColor: "rgba(255,42,60,0.08)" },
   enhancedBtnText: { color: "#FF2A3C", fontWeight: "900", letterSpacing: 1, fontSize: 12 },
-  h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 4, marginBottom: spacing.md },
-  roomTabs: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  roomTab: { flex: 1, paddingVertical: 9, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
-  roomTabOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
-  roomTabText: { color: colors.textDim, fontWeight: "900", letterSpacing: 1, fontSize: 11 },
-  roomTabTextOn: { color: colors.brandPrimary },
+  h1: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: 2, marginBottom: spacing.md },
+  segment: { flexDirection: "row", gap: 3, backgroundColor: colors.surface2, borderRadius: radius.pill, padding: 4 },
+  seg: { flex: 1, paddingVertical: 9, alignItems: "center", borderRadius: radius.pill },
+  segOn: { backgroundColor: colors.surface3 },
+  segText: { color: colors.textDim, fontWeight: "800", letterSpacing: 1, fontSize: 12 },
+  segTextOn: { color: colors.brandPrimary },
   gate: { flex: 1, backgroundColor: colors.surface, padding: spacing.xl, alignItems: "center", justifyContent: "flex-start" },
   gateTitle: { color: colors.error, fontSize: 28, fontWeight: "900", letterSpacing: 3, marginTop: spacing.sm },
   gateSub: { color: colors.textDim, textAlign: "center", marginTop: spacing.md, lineHeight: 20 },

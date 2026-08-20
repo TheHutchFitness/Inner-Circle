@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius, avatarFor, RANK_COLORS } from "@/src/lib/theme";
+import { colors, spacing, radius, RANK_COLORS } from "@/src/lib/theme";
 import { VerifyPanel } from "./VerifyPanel";
 import { MemberSheet } from "./MemberSheet";
 import { PlayerAvatar } from "./PlayerAvatar";
@@ -194,41 +194,51 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
       )}
       <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.sm }}>
         {messages.length === 0 && !!emptyText && <Text style={st.empty}>{emptyText}</Text>}
-        {messages.map((m) => {
-          const av = avatarFor(m.avatar_id);
+        {messages.map((m, idx) => {
           const mine = m.user_id === user?.user_id;
+          const prev = messages[idx - 1];
+          const grouped = !!prev && prev.user_id === m.user_id && !prev.founder_backer === !m.founder_backer;
+          const nameColor = (m.clan_role === "leader" && m.clan_color) ? m.clan_color : (RANK_COLORS[m.rank] || accent);
+          const mineTint = accent + "1f";
           return (
-            <View key={m.message_id} style={[st.msg, { borderLeftColor: m.founder_backer ? colors.warning : accent }, m.founder_backer && st.msgBackerGlow, highlightMine && mine && st.msgMine]}>
-              <View style={st.msgHead}>
-                <Pressable onPress={() => m.user_id && setMemberId(m.user_id)}>
-                  <PlayerAvatar person={m} token={token} size={26} showEmblem={false} />
-                </Pressable>
-                <Pressable onPress={() => m.user_id && setMemberId(m.user_id)} hitSlop={6}>
-                  <Text style={[st.msgName, m.founder_backer && st.msgNameBacker, m.clan_role === "leader" && m.clan_color ? { color: m.clan_color } : null]}>{m.display_name}</Text>
-                </Pressable>
-                {typeof m.level === "number" && (
-                  <View style={[st.lvlChip, m.clan_color ? { borderColor: m.clan_color } : null]}>
-                    <Text style={[st.lvlChipText, m.clan_color ? { color: m.clan_color } : null]}>Lv{m.level}</Text>
-                  </View>
-                )}
-                {m.clan_role === "leader" && <Text style={st.crown}>👑</Text>}
-                {m.clan_role === "officer" && <Text style={st.crown}>⭐</Text>}
-                {typeof m.founder_number === "number" && (
-                  <View style={st.founderChip}><Text style={st.founderChipText}>F#{m.founder_number}</Text></View>
-                )}
-                <Text style={[st.msgRank, { color: RANK_COLORS[m.rank] || accent }]}>{m.rank?.toUpperCase()}</Text>
-                {m.founder_backer && (
-                  <View style={st.backerPill}>
-                    <Text style={st.backerPillText}>★ BACKER</Text>
-                  </View>
-                )}
-                {m.skool_verified && <Text style={st.msgSkool}>✓</Text>}
-              </View>
-              {m.media_id && m.media_type === "image" && (
-                <Image source={{ uri: mediaUrl(m.media_id) }} style={st.image} contentFit="cover" transition={150} />
+            <View key={m.message_id} style={[st.row, mine ? st.rowMine : st.rowTheirs, grouped && st.rowGrouped]}>
+              {!mine && (
+                <View style={st.avatarCol}>
+                  {!grouped ? (
+                    <Pressable onPress={() => m.user_id && setMemberId(m.user_id)}>
+                      <PlayerAvatar person={m} token={token} size={30} showEmblem={false} />
+                    </Pressable>
+                  ) : null}
+                </View>
               )}
-              {m.media_id && m.media_type === "video" && <ChatVideo uri={mediaUrl(m.media_id)} />}
-              {!!m.text && <Text style={st.msgText}>{m.text}</Text>}
+              <View style={{ maxWidth: "82%" }}>
+                {!grouped && (
+                  <View style={[st.identity, mine && st.identityMine]}>
+                    <Pressable onPress={() => m.user_id && setMemberId(m.user_id)} hitSlop={6}>
+                      <Text style={[st.name, { color: nameColor }]} numberOfLines={1}>{m.display_name}</Text>
+                    </Pressable>
+                    {typeof m.level === "number" && <Text style={st.lvl}>Lv.{m.level}</Text>}
+                    {m.clan_role === "leader" && <Text style={st.badgeIcon}>👑</Text>}
+                    {m.clan_role === "officer" && <Text style={st.badgeIcon}>⭐</Text>}
+                    {m.founder_backer && <Text style={st.badgeIcon}>★</Text>}
+                    {typeof m.founder_number === "number" && <Text style={st.founderTxt}>F#{m.founder_number}</Text>}
+                    {m.skool_verified && <Text style={st.verified}>✓</Text>}
+                  </View>
+                )}
+                <View style={[
+                  st.bubble,
+                  mine ? { backgroundColor: mineTint, borderColor: accent + "66", borderWidth: 1 } : st.bubbleTheirs,
+                  mine ? st.bubbleMineTail : st.bubbleTheirsTail,
+                  grouped && st.bubbleGrouped,
+                  m.founder_backer && { borderColor: colors.warning, borderWidth: 1 },
+                ]}>
+                  {m.media_id && m.media_type === "image" && (
+                    <Image source={{ uri: mediaUrl(m.media_id) }} style={st.image} contentFit="cover" transition={150} />
+                  )}
+                  {m.media_id && m.media_type === "video" && <ChatVideo uri={mediaUrl(m.media_id)} />}
+                  {!!m.text && <Text style={[st.msgText, mine && st.msgTextMine]}>{m.text}</Text>}
+                </View>
+              </View>
             </View>
           );
         })}
@@ -249,26 +259,29 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
       )}
       {err && <Text testID="chat-error" style={st.err}>{err}</Text>}
 
-      <View style={[st.inputRow, { borderTopColor: accent, paddingBottom: spacing.md + bottomInset }]}>
-        <Pressable testID="chat-camera" onPress={() => pick("camera")} style={[st.mediaBtn, { borderColor: accent }]}>
-          <Text style={st.mediaBtnText}>📷</Text>
-        </Pressable>
-        <Pressable testID="chat-gallery" onPress={() => pick("gallery")} style={[st.mediaBtn, { borderColor: accent }]}>
-          <Text style={st.mediaBtnText}>🖼️</Text>
-        </Pressable>
-        <TextInput
-          testID="chat-input"
-          style={st.input}
-          value={text}
-          onChangeText={setText}
-          placeholder={placeholder}
-          placeholderTextColor={colors.textDim}
-        />
-        <Pressable testID="chat-send" onPress={send} disabled={sending} style={[st.sendBtn, { backgroundColor: accent }]}>
-          {sending
-            ? <ActivityIndicator size="small" color={sendTextColor} />
-            : <Text style={[st.sendText, { color: sendTextColor }]}>SEND</Text>}
-        </Pressable>
+      <View style={[st.composerWrap, { paddingBottom: spacing.sm + bottomInset }]}>
+        <View style={st.composer}>
+          <Pressable testID="chat-camera" onPress={() => pick("camera")} hitSlop={8} style={st.inputIcon}>
+            <Text style={st.inputIconTxt}>📷</Text>
+          </Pressable>
+          <Pressable testID="chat-gallery" onPress={() => pick("gallery")} hitSlop={8} style={st.inputIcon}>
+            <Text style={st.inputIconTxt}>🖼️</Text>
+          </Pressable>
+          <TextInput
+            testID="chat-input"
+            style={st.input}
+            value={text}
+            onChangeText={setText}
+            placeholder={placeholder}
+            placeholderTextColor={colors.textDim}
+            multiline
+          />
+          <Pressable testID="chat-send" onPress={send} disabled={sending} style={[st.sendCircle, { backgroundColor: accent }]}>
+            {sending
+              ? <ActivityIndicator size="small" color={sendTextColor} />
+              : <Text style={[st.sendArrow, { color: sendTextColor }]}>➤</Text>}
+          </Pressable>
+        </View>
       </View>
 
       <Modal visible={verifyOpen} transparent animationType="slide" onRequestClose={() => setVerifyOpen(false)}>
@@ -337,36 +350,41 @@ const st = StyleSheet.create({
   adminBtnTextDanger: { color: colors.error },
   pinInput: { backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, color: colors.text, padding: spacing.md, minHeight: 80, textAlignVertical: "top", marginTop: spacing.md },
   msg: { padding: spacing.md, backgroundColor: colors.surface2, marginBottom: spacing.sm, borderRadius: radius.sm, borderLeftWidth: 3 },
-  msgMine: { borderLeftColor: colors.warning, backgroundColor: colors.surface3 },
-  msgHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
-  msgEmoji: { fontSize: 16 },
-  msgName: { color: colors.text, fontWeight: "800", fontSize: 13 },
-  lvlChip: { borderWidth: 1, borderColor: colors.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
-  lvlChipText: { color: colors.textMid, fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
-  crown: { fontSize: 12 },
-  founderChip: { borderWidth: 1, borderColor: "#FBBF24", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, backgroundColor: "rgba(251,191,36,0.12)" },
-  founderChipText: { color: "#FBBF24", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
-  msgRank: { fontSize: 9, letterSpacing: 2, fontWeight: "800" },
-  msgSkool: { color: colors.success, fontWeight: "900" },
-  msgBacker: { color: colors.warning, fontWeight: "900" },
-  msgBackerGlow: { borderLeftWidth: 3, shadowColor: colors.warning, shadowOpacity: 0.35, shadowRadius: 8, shadowOffset: { width: 0, height: 0 } },
-  msgNameBacker: { color: colors.warning },
-  backerPill: { backgroundColor: "rgba(255,234,0,0.14)", borderWidth: 1, borderColor: colors.warning, borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 1 },
-  backerPillText: { color: colors.warning, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
-  msgText: { color: colors.textMid, lineHeight: 19 },
-  image: { width: "100%", height: 220, borderRadius: radius.sm, marginBottom: 6, backgroundColor: colors.surface3 },
-  video: { width: "100%", height: 220, borderRadius: radius.sm, marginBottom: 6, backgroundColor: "#000" },
+  row: { flexDirection: "row", alignItems: "flex-end", gap: 8, marginBottom: 10 },
+  rowMine: { justifyContent: "flex-end" },
+  rowTheirs: { justifyContent: "flex-start" },
+  rowGrouped: { marginBottom: 3 },
+  avatarCol: { width: 30 },
+  identity: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 3, marginLeft: 4 },
+  identityMine: { justifyContent: "flex-end", marginRight: 4, marginLeft: 0 },
+  name: { fontWeight: "800", fontSize: 13 },
+  lvl: { color: colors.textDim, fontSize: 11, fontWeight: "700" },
+  badgeIcon: { fontSize: 12 },
+  founderTxt: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  verified: { color: colors.success, fontWeight: "900", fontSize: 12 },
+  bubble: { paddingVertical: 9, paddingHorizontal: 13, borderRadius: radius.md },
+  bubbleTheirs: { backgroundColor: colors.surface2 },
+  bubbleTheirsTail: { borderTopLeftRadius: 5 },
+  bubbleMineTail: { borderTopRightRadius: 5 },
+  bubbleGrouped: { borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md },
+  msgText: { color: colors.textMid, lineHeight: 20, fontSize: 14.5 },
+  msgTextMine: { color: colors.text },
+  image: { width: 240, maxWidth: "100%", height: 200, borderRadius: radius.sm, marginBottom: 6, backgroundColor: colors.surface3 },
+  video: { width: 240, maxWidth: "100%", height: 200, borderRadius: radius.sm, marginBottom: 6, backgroundColor: "#000" },
   pendingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: spacing.md, paddingVertical: 8, backgroundColor: colors.surface3, borderTopWidth: 1, borderTopColor: colors.border },
   pendingThumb: { width: 40, height: 40, borderRadius: 6 },
   pendingThumbVid: { width: 40, height: 40, borderRadius: 6, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center" },
   pendingText: { color: colors.textMid, flex: 1, fontSize: 12 },
   pendingX: { color: colors.error, fontSize: 18, fontWeight: "900", padding: 4 },
   err: { color: colors.error, paddingHorizontal: spacing.md, paddingVertical: 6, fontSize: 12, backgroundColor: colors.surface3 },
-  inputRow: { flexDirection: "row", padding: spacing.md, gap: 8, backgroundColor: colors.surface2, borderTopWidth: 1, alignItems: "center" },
-  mediaBtn: { width: 44, height: 44, borderRadius: radius.sm, borderWidth: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3 },
-  mediaBtnText: { fontSize: 18 },
-  input: { flex: 1, backgroundColor: colors.surface3, borderRadius: radius.sm, paddingHorizontal: spacing.md, color: colors.text, borderWidth: 1, borderColor: colors.border, minHeight: 44 },
-  sendBtn: { paddingHorizontal: spacing.lg, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", minHeight: 44 },
+  composerWrap: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.surface },
+  composer: { flexDirection: "row", alignItems: "flex-end", backgroundColor: colors.surface2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 6, paddingVertical: 5, gap: 2 },
+  inputIcon: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  inputIconTxt: { fontSize: 17 },
+  input: { flex: 1, color: colors.text, fontSize: 15, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, maxHeight: 110 },
+  sendCircle: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
+  sendArrow: { fontSize: 15, fontWeight: "900" },
+  sendBtn: { paddingHorizontal: spacing.lg, paddingVertical: 12, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", minHeight: 44 },
   sendText: { fontWeight: "900", letterSpacing: 2 },
   modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", padding: spacing.lg },
   modalCard: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.lg },
