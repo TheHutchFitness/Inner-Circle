@@ -4,8 +4,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { useAuth, apiFetch } from "@/src/lib/auth";
+import QRCode from "react-native-qrcode-svg";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { CardioMap } from "@/src/components/CardioMap";
+
+// On web, points the QR at this same app so scanning opens it on the phone.
+const webAppUrl = (Platform.OS === "web" && typeof window !== "undefined" && window.location)
+  ? `${window.location.origin}/cardio`
+  : "https://powerup-arena.preview.emergentagent.com/cardio";
 
 function haversine(a: any, b: any) {
   const R = 6371;
@@ -212,6 +218,10 @@ export default function Cardio() {
           <Text style={styles.webLockIcon}>📱</Text>
           <Text style={styles.webLockTitle}>GPS TRACKING IS MOBILE-ONLY</Text>
           <Text style={styles.webLockText}>Live run & bike GPS tracking uses your phone&apos;s location and sensors, so it&apos;s only available in the mobile app. Open PowerUp Arena on your phone to record a route.</Text>
+          <View style={styles.qrCard}>
+            <QRCode value={webAppUrl} size={148} backgroundColor="#ffffff" color="#05060A" />
+            <Text style={styles.qrCaption}>Scan to open on your phone</Text>
+          </View>
           <Text style={styles.webLockHint}>Tip: the Sprint Timer above works right here on the web.</Text>
         </View>
       ) : (
@@ -311,6 +321,8 @@ const styles = StyleSheet.create({
   webLockTitle: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 1, textAlign: "center" },
   webLockText: { color: colors.textMid, fontSize: 14, lineHeight: 21, textAlign: "center", maxWidth: 420 },
   webLockHint: { color: colors.brandPrimary, fontSize: 12, fontWeight: "700", textAlign: "center", marginTop: spacing.sm },
+  qrCard: { backgroundColor: "#ffffff", borderRadius: radius.md, padding: spacing.md, alignItems: "center", gap: 8, marginTop: spacing.sm },
+  qrCaption: { color: "#05060A", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
   mapIcon: { fontSize: 48, marginBottom: spacing.md },
   permText: { color: colors.textDim, textAlign: "center", lineHeight: 20 },
   permBtn: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.sm },
