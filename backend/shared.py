@@ -1871,24 +1871,7 @@ async def seed():
                     "route": [], "logged_at": datetime.now(timezone.utc),
                 })
 
-    # Seed a couple of welcome chat messages
-    existing_msg = await db.chat_messages.count_documents({"room": "main"})
-    if existing_msg == 0:
-        for msg in [
-            {"text": "Welcome to the Inner Circle. Post your PRs, ask questions, get after it.", "name": "Coach Hutch", "avatar": "avatar_white"},
-            {"text": "Just hit 315 bench for the first time. Feeling like a freak.", "name": "Kaido", "avatar": "avatar_black"},
-        ]:
-            await db.chat_messages.insert_one({
-                "message_id": new_id("msg"),
-                "room": "main",
-                "user_id": "system",
-                "display_name": msg["name"],
-                "avatar_id": msg["avatar"],
-                "rank": "Freak",
-                "skool_verified": True,
-                "text": msg["text"],
-                "created_at": datetime.now(timezone.utc),
-            })
+    # (Welcome chat messages seed removed — Social Hub starts empty per owner request.)
     # ---- House store cosmetics: paid badges + titles for the current month ----
     _house_month = datetime.now(timezone.utc).strftime("%Y-%m")
     HOUSE_STORE = [

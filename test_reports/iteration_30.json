@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 30 — BACKEND ONLY. Verified the clan-invite reward-farming fix on POST /api/groups/join-by-code. Wrote /app/backend/tests/test_clan_invite_reward_farming.py (6 tests, all PASS). Bug is FIXED: on a member's FIRST join of a clan via invite code, joiner gets +100 XP, inviter (ref) gets +200 XP, clan gets +150 XP; on any subsequent leave→rejoin (verified 3 rejoin cycles) the response returns status='joined' but joiner_xp=0, inviter_rewarded=false, inviter_xp=0, and the clan xp is UNCHANGED. Regressions all pass: (a) a genuinely NEW member (bot2) joining the same clan for the first time still gets the full +100/+150 reward; (b) join-by-code still enforces the 2-group cap — bot3 already in 2 groups gets HTTP 400 'You can be in at most 2 groups'; (c) officer powers — creator promotes bot2 to officer, officer can approve a pending join (200) and post an announcement (200), but officer CANNOT remove a member (403) or promote another officer (403).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_clan_invite_reward_farming.py",
+    "/app/test_reports/pytest/iter30_invite_farming.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/groups.py:335-364 — join_by_code correctly gates reward payment on `uid not in g.get('reward_claimed', [])` BEFORE adding uid to reward_claimed via $addToSet. Because reward_claimed persists across leave/rejoin (leave_group only $pulls from members/pending/officers, not from reward_claimed), farming is impossible. Verified 3 leave→rejoin cycles pay 0 across all three ledgers (member xp, inviter xp, clan xp).",
+    "routes/groups.py:353-361 — inviter reward requires `ref in g.get('members', [])` AT THE TIME OF THE FIRST JOIN. Note: if the ref is not yet a member of that clan at the moment of the first join, the joiner still gets their +100 and reward_claimed still records the join, so a later attempt by the same joiner with a valid ref will NOT pay the inviter. This is intentional (single-shot claim) but means share links where the sender is not the inviter's clan get no reward. Not a bug per spec — just worth noting.",
+    "routes/groups.py:269-278 — leave_group intentionally does NOT touch reward_claimed. Correct — this is the whole point of the fix.",
+    "Officer authorization is layered: _require_manage covers approve/deny/invite/announce (creator|admin|officer), _require_edit covers remove/officer/invite-code (creator|admin only). Officer 403s on remove + officer promote confirmed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_clan_invite_reward_farming.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6 tests passed)",
+    "frontend": "N/A (backend-only per request)"
+  },
+  "seed_data_creation": "Test fixture created throwaway clans named TEST_farm_* and TEST_cap_* (the cap-test clans were seeded directly in Mongo since the owner was at his 2-group cap and bots lack creator privileges). All TEST_* clans were deleted from db.groups after the run (verified only 'test' remains). Bot XP deltas from the run: bot1 +100 (one-time joiner reward, expected), bot2 +100 (new-member first-join reward, expected), owner +200 (one-time ref/inviter reward, expected). No permanent inflation — the fix ensures repeated joins pay 0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login returns 'session_token' (NOT 'token'). Auth header format is `Authorization: Bearer <session_token>`. Owner (the9hutch@gmail.com) is the only account allowed to create clans in this env (bots don't have is_founder/is_premium/all_rooms_access/is_admin flags — _can_create returns false for them). Owner is permanently the creator of the private 'test' clan (grp_40e7cb88f5d3) so at any moment they can be in AT MOST 1 additional throwaway clan before hitting MAX_GROUPS_PER_USER=2 — plan fixtures accordingly. To simulate a user being 'in 2 groups' when no creator privilege exists for the test user, insert clans directly via pymongo (as this test's TestTwoGroupCap does). No delete-group API exists — always clean up TEST_* clans via Mongo (`db.groups.delete_many({'name':{'$regex':'^TEST_'}})`). reward_claimed is the dedup key for invite rewards; leave() intentionally does NOT clear it. Test file: /app/backend/tests/test_clan_invite_reward_farming.py, JUnit: /app/test_reports/pytest/iter30_invite_farming.xml.",
+  "rca_of_issue": "BUG (pre-fix): join-by-code always paid INVITE_JOIN_XP to joiner, INVITE_CLAN_XP to clan, and (if ref valid) INVITE_INVITER_XP to inviter — with no persistent record of prior claims. Leaving the clan via /leave only pulled the uid from members/pending/officers, so a leave→rejoin loop paid the full 100/150/(200) triple every cycle, letting a single account farm unlimited XP. FIX (verified): join-by-code now checks `first_join = uid not in g.reward_claimed`; only when first_join does it $addToSet uid into reward_claimed AND increment clan xp AND award joiner xp AND (conditionally) award inviter xp. reward_claimed is never cleared by /leave, so subsequent rejoins return joiner_xp=0/inviter_rewarded=false/no clan xp increment. Verified end-to-end across 3 leave/rejoin cycles for the same user, plus regression that a DIFFERENT new user still receives full rewards on their first join."
+}

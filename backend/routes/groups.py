@@ -349,16 +349,19 @@ async def join_by_code(payload: dict = Body(default={}), user=Depends(get_curren
     if await _count_membership(uid) >= MAX_GROUPS_PER_USER:
         raise HTTPException(status_code=400, detail="You can be in at most 2 groups")
     await db.groups.update_one({"id": g["id"]}, {"$pull": {"pending": uid}, "$addToSet": {"members": uid}})
-    # Invite rewards (new join only)
-    await award_xp(uid, INVITE_JOIN_XP)
-    await db.groups.update_one({"id": g["id"]}, {"$inc": {"xp": INVITE_CLAN_XP}})
+    # Invite rewards: only ever paid on a user's FIRST join of this clan (prevents leave/rejoin farming).
+    first_join = uid not in g.get("reward_claimed", [])
     inviter_rewarded = False
-    if ref and ref != uid and ref in g.get("members", []):
-        if await db.users.find_one({"user_id": ref}, {"_id": 0, "user_id": 1}):
-            await award_xp(ref, INVITE_INVITER_XP)
-            inviter_rewarded = True
+    if first_join:
+        await db.groups.update_one({"id": g["id"]}, {"$addToSet": {"reward_claimed": uid}, "$inc": {"xp": INVITE_CLAN_XP}})
+        await award_xp(uid, INVITE_JOIN_XP)
+        if ref and ref != uid and ref in g.get("members", []):
+            if await db.users.find_one({"user_id": ref}, {"_id": 0, "user_id": 1}):
+                await award_xp(ref, INVITE_INVITER_XP)
+                inviter_rewarded = True
     return {"ok": True, "group_id": g["id"], "name": g.get("name"), "status": "joined",
-            "joiner_xp": INVITE_JOIN_XP, "inviter_rewarded": inviter_rewarded, "inviter_xp": INVITE_INVITER_XP if inviter_rewarded else 0}
+            "joiner_xp": INVITE_JOIN_XP if first_join else 0,
+            "inviter_rewarded": inviter_rewarded, "inviter_xp": INVITE_INVITER_XP if inviter_rewarded else 0}
 
 
 
