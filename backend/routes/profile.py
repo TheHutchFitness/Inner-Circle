@@ -195,8 +195,10 @@ async def gyms_map():
     return {"gyms": out}
 
 
-CHECKIN_XP = 150            # XP for checking in at a gym you're physically at
+CHECKIN_XP = 150            # base XP for checking in at a gym you're physically at
 CHECKIN_RADIUS_KM = 0.5     # must be within 500 m of the gym's pin
+STREAK_STEP_XP = 25         # bonus XP per consecutive day, capped
+STREAK_CAP_DAYS = 7         # streak bonus stops growing after 7 days
 
 
 def _haversine_km(lat1, lng1, lat2, lng2):
@@ -210,17 +212,22 @@ def _haversine_km(lat1, lng1, lat2, lng2):
 
 @api_router.get("/gyms/checkins")
 async def gym_checkins_status(user=Depends(get_current_user)):
-    """The caller's gym check-in status: which gyms they've hit today + lifetime total."""
+    """The caller's gym check-in status: today's gyms, lifetime total, and current streak."""
     uid = user["user_id"]
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     todays = await db.gym_checkins.find({"user_id": uid, "day": today}, {"_id": 0, "gym_id": 1}).to_list(50)
     total = await db.gym_checkins.count_documents({"user_id": uid})
-    return {"today_gym_ids": [t["gym_id"] for t in todays], "total": total}
+    # A streak only counts if it's current (checked in today or yesterday).
+    yday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    streak = int(user.get("checkin_streak", 0) or 0) if user.get("checkin_last_day") in (today, yday) else 0
+    return {"today_gym_ids": [t["gym_id"] for t in todays], "total": total,
+            "streak": streak, "best_streak": int(user.get("checkin_best_streak", 0) or 0)}
 
 
 @api_router.post("/gyms/check-in")
 async def gym_check_in(payload: dict = Body(default={}), user=Depends(get_current_user)):
-    """Check in at a nearby gym (must be within range) to earn XP. Once per gym per day."""
+    """Check in at a nearby gym (must be within range) to earn XP. Once per gym per day.
+    First check-in of each day extends a consecutive-day streak for bonus XP."""
     uid = user["user_id"]
     gym_id = str((payload or {}).get("gym_id", "") or "").strip()
     lat = (payload or {}).get("lat")
@@ -236,18 +243,61 @@ async def gym_check_in(payload: dict = Body(default={}), user=Depends(get_curren
     if dist > CHECKIN_RADIUS_KM:
         away = f"{int(dist * 1000)} m" if dist < 1 else f"{dist:.1f} km"
         raise HTTPException(status_code=400, detail=f"You're {away} from {g['name']} — get closer to check in")
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    yday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     if await db.gym_checkins.find_one({"user_id": uid, "gym_id": gym_id, "day": today}):
         total = await db.gym_checkins.count_documents({"user_id": uid})
-        return {"ok": True, "already": True, "xp_awarded": 0, "total": total, "gym": g["name"]}
+        return {"ok": True, "already": True, "xp_awarded": 0, "total": total, "gym": g["name"],
+                "streak": int(user.get("checkin_streak", 0) or 0)}
     await db.gym_checkins.insert_one({
         "user_id": uid, "gym_id": gym_id, "gym_name": g["name"], "day": today,
-        "at": datetime.now(timezone.utc), "lat": float(lat), "lng": float(lng),
+        "at": now, "lat": float(lat), "lng": float(lng),
     })
-    await award_xp(uid, CHECKIN_XP)
+    # Streak: only the first check-in of a NEW day extends it (and earns the bonus).
+    last_day = user.get("checkin_last_day")
+    is_new_day = last_day != today
+    streak_bonus = 0
+    if is_new_day:
+        prev = int(user.get("checkin_streak", 0) or 0)
+        streak = prev + 1 if last_day == yday else 1
+        best = max(int(user.get("checkin_best_streak", 0) or 0), streak)
+        await db.users.update_one({"user_id": uid}, {"$set": {"checkin_streak": streak, "checkin_last_day": today, "checkin_best_streak": best}})
+        streak_bonus = min(streak, STREAK_CAP_DAYS) * STREAK_STEP_XP
+    else:
+        streak = int(user.get("checkin_streak", 0) or 0)
+    xp = CHECKIN_XP + streak_bonus
+    await award_xp(uid, xp)
     await award_group_xp(uid, CHECKIN_XP)
     total = await db.gym_checkins.count_documents({"user_id": uid})
-    return {"ok": True, "xp_awarded": CHECKIN_XP, "total": total, "gym": g["name"]}
+    return {"ok": True, "xp_awarded": xp, "base_xp": CHECKIN_XP, "streak_bonus": streak_bonus,
+            "streak": streak, "total": total, "gym": g["name"]}
+
+
+@api_router.get("/gyms/leaderboard")
+async def gyms_leaderboard():
+    """Public: gyms ranked by total member check-ins logged this calendar month."""
+    month = datetime.now(timezone.utc).strftime("%Y-%m")
+    pipeline = [
+        {"$match": {"day": {"$regex": f"^{month}"}}},
+        {"$group": {"_id": "$gym_id", "checkins": {"$sum": 1}, "members": {"$addToSet": "$user_id"}, "name": {"$last": "$gym_name"}}},
+        {"$sort": {"checkins": -1}},
+        {"$limit": 100},
+    ]
+    rows = await db.gym_checkins.aggregate(pipeline).to_list(100)
+    out = []
+    for r in rows:
+        name = (r.get("name") or "").strip()
+        if name.lower() == "test":
+            continue
+        g = await db.gyms.find_one({"id": r["_id"]}, {"_id": 0, "verified": 1, "logo_media_id": 1, "name": 1})
+        out.append({
+            "gym_id": r["_id"], "name": (g or {}).get("name", name) or name,
+            "checkins": r["checkins"], "members": len(r.get("members", [])),
+            "verified": bool((g or {}).get("verified")), "logo_media_id": (g or {}).get("logo_media_id"),
+        })
+    return {"month": month, "gyms": out}
+
 
 
 

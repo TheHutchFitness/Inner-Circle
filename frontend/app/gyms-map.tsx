@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Linking } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Linking, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
@@ -29,17 +29,28 @@ export default function GymsMapScreen() {
   const [total, setTotal] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [streak, setStreak] = useState(0);
+  const [view, setView] = useState<"map" | "ranks">("map");
+  const [board, setBoard] = useState<any[] | null>(null);
 
   useEffect(() => {
     (async () => {
       try { const d = await apiFetch(token, "/api/gyms/map"); setGyms(d.gyms || []); }
       catch { setGyms([]); }
-      try { const s = await apiFetch(token, "/api/gyms/checkins"); setCheckedToday(new Set(s.today_gym_ids || [])); setTotal(s.total || 0); }
+      try { const s = await apiFetch(token, "/api/gyms/checkins"); setCheckedToday(new Set(s.today_gym_ids || [])); setTotal(s.total || 0); setStreak(s.streak || 0); }
       catch {}
     })();
   }, [token]);
 
-  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2400); };
+  useEffect(() => {
+    if (view !== "ranks" || board !== null) return;
+    (async () => {
+      try { const d = await apiFetch(token, "/api/gyms/leaderboard"); setBoard(d.gyms || []); }
+      catch { setBoard([]); }
+    })();
+  }, [view]);
+
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 2600); };
 
   const checkIn = async (g: any) => {
     if (!userLoc) return;
@@ -47,8 +58,13 @@ export default function GymsMapScreen() {
     try {
       const r = await apiFetch(token, "/api/gyms/check-in", { method: "POST", body: JSON.stringify({ gym_id: g.id, lat: userLoc.lat, lng: userLoc.lng }) });
       setCheckedToday((prev) => new Set(prev).add(g.id));
+      if (typeof r.streak === "number") setStreak(r.streak);
       if (r.already) flash(`Already checked in at ${g.name} today ✓`);
-      else { setTotal(r.total || total + 1); flash(`Checked in at ${g.name} · +${r.xp_awarded} XP 💪`); }
+      else {
+        setTotal(r.total || total + 1);
+        const bonus = r.streak_bonus ? ` (🔥 ${r.streak}-day streak, +${r.streak_bonus})` : "";
+        flash(`Checked in at ${g.name} · +${r.xp_awarded} XP 💪${bonus}`);
+      }
     } catch (e: any) { flash(e?.message || "Couldn't check in"); }
     setBusyId(null);
   };
@@ -122,7 +138,37 @@ export default function GymsMapScreen() {
           {locating ? <ActivityIndicator color={colors.brandPrimary} /> : <Text style={[styles.nearText, userLoc && { color: colors.brandPrimary }]}>📍 NEAR ME</Text>}
         </Pressable>
       </View>
-      {userLoc && <Text style={styles.sortedNote}>Sorted by distance from you</Text>}
+      {/* segmented view toggle */}
+      <View style={styles.segRow}>
+        <Pressable testID="gyms-view-map" onPress={() => setView("map")} style={[styles.seg, view === "map" && styles.segOn]}><Text style={[styles.segT, view === "map" && styles.segTOn]}>🗺 MAP</Text></Pressable>
+        <Pressable testID="gyms-view-ranks" onPress={() => setView("ranks")} style={[styles.seg, view === "ranks" && styles.segOn]}><Text style={[styles.segT, view === "ranks" && styles.segTOn]}>🏆 RANKINGS</Text></Pressable>
+      </View>
+      {streak > 0 && <Text style={styles.streakNote}>🔥 {streak}-day check-in streak</Text>}
+      {view === "map" && userLoc && <Text style={styles.sortedNote}>Sorted by distance from you</Text>}
+
+      {view === "ranks" ? (
+        <View style={styles.body}>
+          {board === null ? (
+            <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
+          ) : board.length === 0 ? (
+            <View style={styles.center}><Text style={styles.empty}>No check-ins logged yet this month. Be the first to put your gym on the board!</Text></View>
+          ) : (
+            <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.lg }}>
+              <Text style={styles.boardHead}>MOST CHECK-INS THIS MONTH</Text>
+              {board.map((b, i) => (
+                <View key={b.gym_id} style={[styles.boardRow, i === 0 && styles.boardRowTop]}>
+                  <Text style={[styles.boardRank, i === 0 && { color: "#FBBF24" }]}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.boardName} numberOfLines={1}>{b.verified ? "✓ " : ""}{b.name}</Text>
+                    <Text style={styles.boardMeta}>{b.members} member{b.members === 1 ? "" : "s"} training</Text>
+                  </View>
+                  <Text style={styles.boardCount}>{b.checkins}<Text style={styles.boardCountLbl}> check-ins</Text></Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      ) : (
       <View style={styles.body}>
         {display === null ? (
           <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
@@ -152,6 +198,7 @@ export default function GymsMapScreen() {
 
         {toast && <View style={[styles.toast, { bottom: insets.bottom + 90 }]}><Text style={styles.toastText}>{toast}</Text></View>}
       </View>
+      )}
     </View>
   );
 }
@@ -164,6 +211,20 @@ const styles = StyleSheet.create({
   nearBtn: { width: 90, alignItems: "flex-end" },
   nearText: { color: colors.textMid, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
   sortedNote: { color: colors.textDim, fontSize: 11, textAlign: "center", paddingVertical: 6, backgroundColor: colors.surface2 },
+  segRow: { flexDirection: "row", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, backgroundColor: colors.surface2 },
+  seg: { flex: 1, paddingVertical: 9, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+  segOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  segT: { color: colors.textDim, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
+  segTOn: { color: colors.brandPrimary },
+  streakNote: { color: colors.warning, fontSize: 12, fontWeight: "900", textAlign: "center", paddingBottom: 6, backgroundColor: colors.surface2, letterSpacing: 0.5 },
+  boardHead: { color: colors.textDim, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginBottom: spacing.md },
+  boardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  boardRowTop: { borderColor: "#FBBF24", backgroundColor: "rgba(251,191,36,0.08)" },
+  boardRank: { width: 34, textAlign: "center", color: colors.textMid, fontWeight: "900", fontSize: 15 },
+  boardName: { color: colors.text, fontWeight: "900", fontSize: 15 },
+  boardMeta: { color: colors.textDim, fontSize: 11, marginTop: 2 },
+  boardCount: { color: colors.brandPrimary, fontWeight: "900", fontSize: 18, fontVariant: ["tabular-nums"] },
+  boardCountLbl: { color: colors.textDim, fontSize: 10, fontWeight: "700" },
   body: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   empty: { color: colors.textDim, textAlign: "center", lineHeight: 20 },
