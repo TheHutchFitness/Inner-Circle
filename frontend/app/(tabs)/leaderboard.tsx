@@ -83,6 +83,7 @@ export default function Leaderboards() {
   const [memberId, setMemberId] = useState<string | null>(null);
   const [popFilter, setPopFilter] = useState<"all" | "enhanced" | "natural">("all");
   const [gymScope, setGymScope] = useState(false);
+  const [dropOpen, setDropOpen] = useState(false);
   const [rosterOpen, setRosterOpen] = useState(false);
   const [roster, setRoster] = useState<any[]>([]);
   const [rosterLoading, setRosterLoading] = useState(false);
@@ -201,36 +202,88 @@ export default function Leaderboards() {
       </View>
 
       <View style={styles.modeRow}>
-        <Pressable testID="mode-strength" onPress={() => setMode("strength")} style={[styles.modeBtn, mode === "strength" && styles.modeBtnActive]}>
-          <Text style={[styles.modeText, mode === "strength" && styles.modeTextActive]}>💪 STRENGTH</Text>
+        <Pressable testID="mode-strength" onPress={() => { if (mode === "strength") { setDropOpen((o) => !o); } else { setMode("strength"); setDropOpen(true); } }} style={[styles.modeBtn, mode === "strength" && styles.modeBtnActive]}>
+          <Text style={[styles.modeText, mode === "strength" && styles.modeTextActive]} numberOfLines={1}>💪 STRENGTH · {(BOARDS.find((b) => b.key === board)?.label || "LEVEL").replace("🏋 ", "").replace("🔥 ", "")} ▾</Text>
         </Pressable>
-        <Pressable testID="mode-cardio" onPress={() => setMode("cardio")} style={[styles.modeBtn, mode === "cardio" && styles.modeBtnActive]}>
-          <Text style={[styles.modeText, mode === "cardio" && styles.modeTextActive]}>🏃 CARDIO</Text>
+        <Pressable testID="mode-cardio" onPress={() => { if (mode === "cardio") { setDropOpen((o) => !o); } else { setMode("cardio"); setDropOpen(true); } }} style={[styles.modeBtn, mode === "cardio" && styles.modeBtnActive]}>
+          <Text style={[styles.modeText, mode === "cardio" && styles.modeTextActive]} numberOfLines={1}>🏃 CARDIO · {cardioBoard === "overall" ? "OVERALL" : cardioBoard === "single" ? "LONGEST" : "SPEED"} ▾</Text>
         </Pressable>
       </View>
 
-      {mode === "strength" ? (
-        <>
-        <View style={styles.popRow}>
-          {(["all", "natural", "enhanced"] as const).map((f) => (
-            <Pressable key={f} testID={`pop-${f}`} onPress={() => setPopFilter(f)}
-              style={[styles.popBtn, popFilter === f && (f === "enhanced" ? styles.popEnhanced : styles.popActive)]}>
-              <Text style={[styles.popText, popFilter === f && { color: f === "enhanced" ? "#FF2A3C" : colors.brandPrimary }]}>
-                {f === "all" ? "ALL" : f === "natural" ? "🌿 NATURAL" : "☣ ENHANCED"}
-              </Text>
-            </Pressable>
-          ))}
+      <View style={styles.popRow}>
+        {(["all", "natural", "enhanced"] as const).map((f) => (
+          <Pressable key={f} testID={`pop-${f}`} onPress={() => setPopFilter(f)}
+            style={[styles.popBtn, popFilter === f && (f === "enhanced" ? styles.popEnhanced : styles.popActive)]}>
+            <Text style={[styles.popText, popFilter === f && { color: f === "enhanced" ? "#FF2A3C" : colors.brandPrimary }]}>
+              {f === "all" ? "ALL" : f === "natural" ? "🌿 NATURAL" : "☣ ENHANCED"}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {dropOpen && (
+        <View style={styles.dropdown}>
+          {mode === "strength" ? (
+            <>
+              <Text style={styles.dropLabel}>CHOOSE A BOARD</Text>
+              <View style={styles.dropWrap}>
+                {BOARDS.map((b) => (
+                  <Pressable testID={`board-${b.key}`} key={b.key} onPress={() => { setBoard(b.key); setDropOpen(false); }} style={[styles.chip, board === b.key && styles.chipActive]}>
+                    <Text style={[styles.chipText, board === b.key && styles.chipTextActive]}>{b.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {!!myGym && (
+                <>
+                  <Text style={styles.dropLabel}>SCOPE</Text>
+                  <View style={styles.dropWrap}>
+                    <Pressable testID="scope-global" onPress={() => { setGymScope(false); setDropOpen(false); }} style={[styles.chip, !gymScope && styles.chipActive]}>
+                      <Text style={[styles.chipText, !gymScope && styles.chipTextActive]}>🌐 THE CIRCLE</Text>
+                    </Pressable>
+                    <Pressable testID="scope-gym" onPress={() => { setGymScope(true); setDropOpen(false); }} style={[styles.chip, gymScope && styles.chipActive]}>
+                      <Text style={[styles.chipText, gymScope && styles.chipTextActive]} numberOfLines={1}>🏋 {myGym.toUpperCase()}{gymVerified ? " ✓" : ""}</Text>
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <Text style={styles.dropLabel}>ACTIVITY</Text>
+              <View style={styles.dropWrap}>
+                {[["run", "🏃 RUN"], ["bike", "🚴 BIKE"]].map(([k, l]) => (
+                  <Pressable testID={`activity-${k}`} key={k} onPress={() => setActivity(k as any)} style={[styles.chip, activity === k && styles.chipActive]}>
+                    <Text style={[styles.chipText, activity === k && styles.chipTextActive]}>{l}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.dropLabel}>BOARD</Text>
+              <View style={styles.dropWrap}>
+                {[["overall", "OVERALL"], ["single", "LONGEST"], ["speed", "SPEED"]].map(([k, l]) => (
+                  <Pressable testID={`cboard-${k}`} key={k} onPress={() => { setCardioBoard(k as any); if (k !== "speed") setDropOpen(false); }} style={[styles.chip, cardioBoard === k && styles.chipActive]}>
+                    <Text style={[styles.chipText, cardioBoard === k && styles.chipTextActive]}>{l}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {cardioBoard === "speed" && (
+                <>
+                  <Text style={styles.dropLabel}>MIN DISTANCE</Text>
+                  <View style={styles.dropWrap}>
+                    {[1, 5, 10, 20].map((d) => (
+                      <Pressable testID={`dist-${d}`} key={d} onPress={() => { setDist(d); setDropOpen(false); }} style={[styles.chip, dist === d && styles.chipActive]}>
+                        <Text style={[styles.chipText, dist === d && styles.chipTextActive]}>{d}K+</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
+              )}
+            </>
+          )}
         </View>
-        {!!myGym && (
-          <View style={styles.scopeRow}>
-            <Pressable testID="scope-global" onPress={() => setGymScope(false)} style={[styles.scopeBtn, !gymScope && styles.scopeActive]}>
-              <Text style={[styles.scopeText, !gymScope && styles.scopeTextActive]}>🌐 THE CIRCLE</Text>
-            </Pressable>
-            <Pressable testID="scope-gym" onPress={() => setGymScope(true)} style={[styles.scopeBtn, gymScope && styles.scopeActive]}>
-              <Text style={[styles.scopeText, gymScope && styles.scopeTextActive]} numberOfLines={1}>🏋 {myGym.toUpperCase()}{gymVerified ? " ✓" : ""}{gymCount > 0 ? ` · ${gymCount}` : ""}</Text>
-            </Pressable>
-          </View>
-        )}
+      )}
+
+      {mode === "strength" && (
+        <>
         {!!myGym && gymScope && (
           <View style={styles.gymHeader}>
             {logoUri ? (
@@ -249,13 +302,6 @@ export default function Leaderboards() {
             <Text style={styles.rosterBtnText}>👥 VIEW FULL ROSTER · {gymCount} ATHLETE{gymCount === 1 ? "" : "S"}</Text>
           </Pressable>
         )}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          {BOARDS.map((b) => (
-            <Pressable testID={`board-${b.key}`} key={b.key} onPress={() => setBoard(b.key)} style={[styles.chip, board === b.key && styles.chipActive]}>
-              <Text style={[styles.chipText, board === b.key && styles.chipTextActive]}>{b.label}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
         {board === "season" && (
           <View style={styles.seasonBanner}>
             <Text style={styles.seasonBannerText}>🔥 SEASON ENDS IN {seasonDaysLeft()} DAYS — grind bosses before it vaults</Text>
@@ -271,30 +317,6 @@ export default function Leaderboards() {
             </Pressable>
           </View>
         )}
-        </>
-      ) : (
-        <>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            {[["run", "🏃 RUN"], ["bike", "🚴 BIKE"]].map(([k, l]) => (
-              <Pressable testID={`activity-${k}`} key={k} onPress={() => setActivity(k as any)} style={[styles.chip, activity === k && styles.chipActive]}>
-                <Text style={[styles.chipText, activity === k && styles.chipTextActive]}>{l}</Text>
-              </Pressable>
-            ))}
-            {[["overall", "OVERALL"], ["single", "LONGEST"], ["speed", "SPEED"]].map(([k, l]) => (
-              <Pressable testID={`cboard-${k}`} key={k} onPress={() => setCardioBoard(k as any)} style={[styles.chip, cardioBoard === k && styles.chipActive]}>
-                <Text style={[styles.chipText, cardioBoard === k && styles.chipTextActive]}>{l}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-          {cardioBoard === "speed" && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-              {[1, 5, 10, 20].map((d) => (
-                <Pressable testID={`dist-${d}`} key={d} onPress={() => setDist(d)} style={[styles.chip, dist === d && styles.chipActive]}>
-                  <Text style={[styles.chipText, dist === d && styles.chipTextActive]}>{d}K+</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
         </>
       )}
 
@@ -456,6 +478,9 @@ const styles = StyleSheet.create({
   popEnhanced: { borderColor: "#FF2A3C", backgroundColor: "rgba(255,42,60,0.1)" },
   popText: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   chip: { paddingHorizontal: spacing.md, height: 36, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, justifyContent: "center", backgroundColor: colors.surface2, flexShrink: 0 },
+  dropdown: { marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.surface2 },
+  dropLabel: { color: colors.textDim, fontSize: 9, fontWeight: "900", letterSpacing: 2, marginBottom: spacing.sm, marginTop: spacing.sm },
+  dropWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chipActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
   chipText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2, fontSize: 12 },
   chipTextActive: { color: colors.brandPrimary },

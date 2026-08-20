@@ -749,20 +749,22 @@ export default function InPersonRoom() {
             </View>
           )}
 
-          <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
-            {isAdmin && (
-              <Pressable testID="ip-assign" onPress={openAssign} style={styles.iconBtn}><Text style={styles.iconText}>🏋</Text></Pressable>
-            )}
-            <Pressable testID="ip-attach-img" onPress={pickImage} style={styles.iconBtn}><Text style={styles.iconText}>🖼</Text></Pressable>
-            <Pressable testID="ip-attach-file" onPress={pickDoc} style={styles.iconBtn}><Text style={styles.iconText}>📎</Text></Pressable>
-            <TextInput
-              testID="ip-input" value={text} onChangeText={setText}
-              placeholder="Message…" placeholderTextColor={colors.textDim}
-              style={styles.input} multiline
-            />
-            <Pressable testID="ip-send" onPress={send} disabled={sending} style={styles.sendBtn}>
-              <Text style={styles.sendText}>{sending ? "…" : "SEND"}</Text>
-            </Pressable>
+          <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+            <View style={styles.composer}>
+              {isAdmin && (
+                <Pressable testID="ip-assign" onPress={openAssign} style={styles.iconBtn}><Text style={styles.iconText}>🏋</Text></Pressable>
+              )}
+              <Pressable testID="ip-attach-img" onPress={pickImage} style={styles.iconBtn}><Text style={styles.iconText}>🖼</Text></Pressable>
+              <Pressable testID="ip-attach-file" onPress={pickDoc} style={styles.iconBtn}><Text style={styles.iconText}>📎</Text></Pressable>
+              <TextInput
+                testID="ip-input" value={text} onChangeText={setText}
+                placeholder="Message…" placeholderTextColor={colors.textDim}
+                style={styles.input} multiline
+              />
+              <Pressable testID="ip-send" onPress={send} disabled={sending} style={styles.sendCircle}>
+                <Text style={styles.sendArrow}>{sending ? "…" : "➤"}</Text>
+              </Pressable>
+            </View>
           </View>
         </>
       )}
@@ -1053,10 +1055,13 @@ const styles = StyleSheet.create({
   pendingBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingVertical: 6, backgroundColor: colors.surface2, borderTopWidth: 1, borderTopColor: colors.border },
   pendingText: { color: colors.brandPrimary, fontSize: 12, fontWeight: "700", flex: 1, marginRight: 8 },
   pendingX: { color: colors.error, fontSize: 16, fontWeight: "900" },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: 6, paddingHorizontal: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface },
-  iconBtn: { width: 40, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
-  iconText: { fontSize: 18 },
-  input: { flex: 1, minHeight: 44, maxHeight: 120, color: colors.text, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, paddingTop: 12, fontSize: 14 },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: 2, backgroundColor: colors.surface2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 6, paddingVertical: 5 },
+  composerWrap: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.surface },
+  iconBtn: { width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 17 },
+  iconText: { fontSize: 17 },
+  input: { flex: 1, maxHeight: 110, color: colors.text, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, fontSize: 15 },
+  sendCircle: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  sendArrow: { color: "#04121a", fontSize: 15, fontWeight: "900" },
   sendBtn: { height: 44, paddingHorizontal: spacing.md, borderRadius: radius.sm, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
   sendText: { color: "#04121a", fontWeight: "900", letterSpacing: 1 },
   modalBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },

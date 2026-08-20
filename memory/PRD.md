@@ -515,3 +515,11 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Added tour versioning. OnboardingTour exports TOUR_VERSION=2; done() PATCHes {tour_seen:true, tour_version:2}. ProfileUpdate model gained tour_version:int.
 - _layout gates use tourComplete(user) = tour_seen && tour_version>=TOUR_VERSION. Existing members (tour_version unset/old) are re-shown the tour once on next login; FounderGate waits for tourComplete.
 - Returning members (tour_seen already true) get a leading "✨ WHAT'S NEW — THE APP GOT AN UPGRADE" step + eyebrow "THINGS HAVE CHANGED · UPDATED TOUR" so they know why it reappeared. Brand-new members skip that step. Verified via screenshot (owner, tour_seen=true/version unset -> 11-step updated tour).
+
+## Iteration 39 — Live tour tap + Leaderboard declutter
+- OnboardingTour: highlighted tab in the strip is now tappable (tour-tab-<key>) -> jumpTo() stamps tour done + router.push to that tab. Non-target tabs disabled; "TAP TO GO" hint under the glowing tab.
+- leaderboard.tsx: decluttered. Top row = STRENGTH/CARDIO parents (show current board + ▾); tapping a parent opens a dropdown of that mode's sub-filters (strength: board list + gym scope; cardio: activity/board/distance). ALL/NATURAL/ENHANCED stays as a segmented row underneath. Gym header/roster + season banner render below when relevant. Desktop split view unchanged.
+
+## Iteration 40 — Consistent sleek composers across all chat surfaces
+- coach.tsx (AI Coach) & inperson.tsx: replaced boxed input + rectangular SEND with the unified pill composer (inset ghost icons/mic + circular ➤ send). Softened coach bubble border (border vs borderStrong).
+- The Room (the-room.tsx), Social Hub, and clan chats already use the redesigned ChatRoom (bubbles + pill composer) from iteration 34, so all chat rooms now share one modern look.

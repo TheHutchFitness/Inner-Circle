@@ -129,21 +129,23 @@ export default function Coach() {
         )}
       </ScrollView>
 
-      <View style={[styles.inputRow, { paddingBottom: spacing.md + insets.bottom }]}>
-        <VoiceButton onTranscript={(t: string) => { voiceRef.current = true; setText((prev) => (prev ? prev + " " : "") + t); }} onError={() => {}} />
-        <TextInput
-          testID="coach-input"
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          placeholder="Ask your coach…"
-          placeholderTextColor={colors.textDim}
-          multiline
-          onSubmitEditing={() => send()}
-        />
-        <Pressable testID="coach-send" onPress={() => send()} disabled={sending || !text.trim()} style={[styles.sendBtn, (sending || !text.trim()) && { opacity: 0.5 }]}>
-          <Text style={styles.sendText}>SEND</Text>
-        </Pressable>
+      <View style={[styles.inputWrap, { paddingBottom: spacing.sm + insets.bottom }]}>
+        <View style={styles.composer}>
+          <VoiceButton onTranscript={(t: string) => { voiceRef.current = true; setText((prev) => (prev ? prev + " " : "") + t); }} onError={() => {}} />
+          <TextInput
+            testID="coach-input"
+            style={styles.input}
+            value={text}
+            onChangeText={setText}
+            placeholder="Ask your coach…"
+            placeholderTextColor={colors.textDim}
+            multiline
+            onSubmitEditing={() => send()}
+          />
+          <Pressable testID="coach-send" onPress={() => send()} disabled={sending || !text.trim()} style={[styles.sendCircle, (sending || !text.trim()) && { opacity: 0.4 }]}>
+            <Text style={styles.sendArrow}>➤</Text>
+          </Pressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -166,7 +168,7 @@ const styles = StyleSheet.create({
   rowLeft: { justifyContent: "flex-start" },
   bubble: { maxWidth: "86%", padding: spacing.md, borderRadius: radius.md },
   userBubble: { backgroundColor: colors.brandPrimary, borderBottomRightRadius: 4 },
-  coachBubble: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.borderStrong, borderBottomLeftRadius: 4 },
+  coachBubble: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderBottomLeftRadius: 4 },
   coachTag: { color: colors.brandPrimary, fontSize: 9, letterSpacing: 2, fontWeight: "900", marginBottom: 4 },
   userText: { color: "#001122", fontWeight: "600", lineHeight: 21 },
   coachText: { color: colors.text, lineHeight: 22 },
@@ -175,7 +177,11 @@ const styles = StyleSheet.create({
   typing: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   typingText: { color: colors.textDim, letterSpacing: 1 },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.brandPrimary, backgroundColor: colors.surface2 },
-  input: { flex: 1, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingTop: 12, paddingBottom: 12, maxHeight: 120, borderWidth: 1, borderColor: colors.border },
+  inputWrap: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.surface },
+  composer: { flexDirection: "row", alignItems: "flex-end", gap: 4, backgroundColor: colors.surface2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 6, paddingVertical: 5 },
+  sendCircle: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  sendArrow: { color: "#001122", fontSize: 15, fontWeight: "900" },
+  input: { flex: 1, color: colors.text, fontSize: 15, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, maxHeight: 110 },
   sendBtn: { backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.lg, height: 48, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   sendText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },
 });

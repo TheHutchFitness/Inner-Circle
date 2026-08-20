@@ -85,6 +85,30 @@ export function OnboardingTour() {
     }
   };
 
+  // Tapping the highlighted tab in the strip ends the tour and jumps straight there.
+  const jumpTo = async (target: Step["target"]) => {
+    const routes: Record<string, string> = {
+      home: "/(tabs)",
+      train: "/(tabs)/workout",
+      rank: "/(tabs)/leaderboard",
+      quests: "/(tabs)/quests",
+      social: "/(tabs)/community",
+      me: "/(tabs)/profile",
+    };
+    if (busy) return;
+    setBusy(true);
+    try {
+      await apiFetch(token, "/api/profile/update", {
+        method: "PATCH",
+        body: JSON.stringify({ tour_seen: true, tour_version: TOUR_VERSION }),
+      });
+      await refresh();
+      router.push((routes[target] || "/(tabs)") as any);
+    } catch {
+      setBusy(false);
+    }
+  };
+
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.lg }]}>
       <Pressable testID="tour-skip" disabled={busy} onPress={() => done(false)} style={styles.skip}>
@@ -126,17 +150,24 @@ export function OnboardingTour() {
       </View>
 
       {step.target !== "topright" && (
-        <View style={styles.tabStrip} pointerEvents="none">
+        <View style={styles.tabStrip}>
           {TABS.map(([key, label, glyph]) => {
             const on = step.target === key;
             return (
-              <View key={key} style={styles.tabCell}>
+              <Pressable
+                key={key}
+                testID={`tour-tab-${key}`}
+                disabled={!on || busy}
+                onPress={() => jumpTo(key)}
+                style={styles.tabCell}
+              >
                 <Text style={[styles.tabArrow, !on && { opacity: 0 }]}>▼</Text>
                 <View style={[styles.tabItem, on && styles.tabItemOn]}>
                   <Text style={[styles.tabGlyph, on && styles.tabGlyphOn]}>{glyph}</Text>
                   <Text style={[styles.tabLabel, on && styles.tabLabelOn]}>{label}</Text>
                 </View>
-              </View>
+                {on && <Text style={styles.tabTapHint}>TAP TO GO</Text>}
+              </Pressable>
             );
           })}
         </View>
@@ -191,6 +222,7 @@ const styles = StyleSheet.create({
   tabGlyphOn: { color: colors.brandPrimary },
   tabLabel: { color: colors.textDim, fontSize: 8, fontWeight: "800", letterSpacing: 0.5, marginTop: 3 },
   tabLabelOn: { color: colors.brandPrimary },
+  tabTapHint: { color: colors.brandPrimary, fontSize: 7, fontWeight: "900", letterSpacing: 1, marginTop: 3 },
   footer: { flexDirection: "row", gap: spacing.sm },
   backBtn: { paddingVertical: 15, paddingHorizontal: spacing.lg, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
   backText: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 13 },
