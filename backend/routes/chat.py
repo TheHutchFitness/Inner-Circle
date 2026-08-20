@@ -143,6 +143,61 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
     return msg
 
 
+async def _resolve_store_room(room: str, user):
+    """Map a public room id to its stored room key, enforcing access."""
+    if room not in ("main", "the_room", "gym") and not room.startswith("group:"):
+        raise HTTPException(status_code=400, detail="Invalid room")
+    store_room = room
+    if room == "gym":
+        gym = (user.get("inperson_gym") or "").strip()
+        if not gym:
+            raise HTTPException(status_code=403, detail="Set your gym in Profile to join its chat")
+        store_room = f"gym:{gym.lower()}"
+    if room.startswith("group:"):
+        g = await db.groups.find_one({"id": room.split(":", 1)[1]})
+        if not g or user["user_id"] not in g.get("members", []):
+            raise HTTPException(status_code=403, detail="Members only")
+    return store_room
+
+
+@api_router.get("/chat/{room}/pin")
+async def get_pin(room: str, user=Depends(get_current_user)):
+    """The pinned welcome/rules message for a room (or null)."""
+    store_room = await _resolve_store_room(room, user)
+    p = await db.chat_pins.find_one({"room": store_room}, {"_id": 0})
+    if not p or not (p.get("text") or "").strip():
+        return {"pin": None}
+    return {"pin": {"text": p["text"], "at": p.get("at").isoformat() if isinstance(p.get("at"), datetime) else p.get("at")}}
+
+
+@api_router.post("/chat/{room}/pin")
+async def set_pin(room: str, inp: ChatMessageIn, user=Depends(get_current_user)):
+    """Admin: pin (or, with empty text, unpin) a message to the top of a room."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admins only")
+    store_room = await _resolve_store_room(room, user)
+    text = (inp.text or "").strip()[:500]
+    if not text:
+        await db.chat_pins.delete_one({"room": store_room})
+        return {"pin": None}
+    await db.chat_pins.update_one(
+        {"room": store_room},
+        {"$set": {"room": store_room, "text": text, "at": datetime.now(timezone.utc), "by": user["user_id"]}},
+        upsert=True,
+    )
+    return {"pin": {"text": text}}
+
+
+@api_router.post("/chat/{room}/clear")
+async def clear_room(room: str, user=Depends(get_current_user)):
+    """Admin: wipe every message in a room."""
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admins only")
+    store_room = await _resolve_store_room(room, user)
+    res = await db.chat_messages.delete_many({"room": store_room})
+    return {"deleted": res.deleted_count}
+
+
 @api_router.post("/chat/upload")
 async def chat_upload(file: UploadFile = File(...), user=Depends(get_current_user)):
     if not (user.get("email_verified") or user.get("phone_verified")):

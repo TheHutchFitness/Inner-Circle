@@ -45,6 +45,13 @@ export default function Dashboard() {
   const [suggestion, setSuggestion] = useState<any>(null);
   const [programAlert, setProgramAlert] = useState<any>(null);
   const [nextDose, setNextDose] = useState<any>(null);
+  const [ovr, setOvr] = useState<number | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try { const a = await apiFetch(token, "/api/profile/attributes"); setOvr(a?.overall ?? null); } catch {}
+    })();
+  }, [token, user?.xp]);
 
   useEffect(() => {
     (async () => {
@@ -115,8 +122,8 @@ export default function Dashboard() {
       <GymWatermark />
       <ScrollView style={styles.root} contentContainerStyle={[{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }, webCenter(isDesktop)]}>
       <View style={styles.topBar}>
-        <Pressable testID="open-recap" onPress={() => router.push("/recap")} style={styles.hudBtn}>
-          <Text style={styles.hudBtnText}>▤ RECAP</Text>
+        <Pressable testID="open-clans" onPress={() => router.push("/clans")} style={styles.hudBtn}>
+          <Text style={styles.hudBtnText}>🛡 GROUPS</Text>
         </Pressable>
         <GymBadge />
         <Pressable testID="open-progression" onPress={() => router.push("/progression")} style={styles.hudBtn}>
@@ -160,6 +167,12 @@ export default function Dashboard() {
               <View style={[styles.xpFill, { width: `${progress * 100}%`, backgroundColor: rankColor }]} />
             </View>
             <Text style={styles.xpNext}>NEXT: {next.name} @ {next.xp} XP</Text>
+            <View style={styles.levelStatsRow}>
+              {ovr != null && <Text style={styles.levelStat}>⚔ {ovr}<Text style={styles.levelStatLbl}> OVR</Text></Text>}
+              <Text style={styles.levelStat}>🏋 {user.workouts_logged || 0}<Text style={styles.levelStatLbl}> WK</Text></Text>
+              <Text style={styles.levelStat}>🔥 {user.streak_days || 0}d</Text>
+              <Text style={styles.levelStat}>🏅 {user.badges?.length || 0}</Text>
+            </View>
           </View>
         </View>
         <View style={styles.badgeRow}>
@@ -198,55 +211,6 @@ export default function Dashboard() {
         </>
       )}
 
-      <View style={styles.grid}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>WORKOUTS</Text>
-          <Text style={styles.statValue}>{user.workouts_logged || 0}</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>STREAK</Text>
-          <Text style={styles.statValue}>{user.streak_days || 0}d</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>BADGES</Text>
-          <Text style={styles.statValue}>{user.badges?.length || 0}</Text>
-        </View>
-      </View>
-
-      <HudSectionHeader label="PR VAULT" />
-      <View style={styles.grid}>
-        {[["BENCH","bench"],["SQUAT","squat"],["DEAD","deadlift"],["OHP","ohp"]].map(([label,key]) => (
-          <View key={key} style={styles.prCard}>
-            <Text style={styles.prLabel}>{label}</Text>
-            <Text style={styles.prValue}>{fmtWeight(user.prs?.[key] || 0)}</Text>
-          </View>
-        ))}
-      </View>
-
-      <HudSectionHeader label="NEXT WORKOUT" />
-      {suggestion ? (
-        <Pressable testID="adaptive-suggestion" onPress={() => router.push("/(tabs)/workout")} style={styles.adaptiveCard}>
-          <View style={styles.adaptiveHead}>
-            <Text style={styles.adaptiveTag}>ADAPTIVE · {suggestion.based_on?.toUpperCase()}</Text>
-            <Text style={styles.adaptiveArrow}>▶</Text>
-          </View>
-          <Text style={styles.adaptiveTitle}>{suggestion.workout?.name?.toUpperCase()}</Text>
-          <Text style={styles.adaptiveProg}>{suggestion.program_name}</Text>
-          <View style={styles.focusPill}>
-            <Text style={styles.focusPillText}>FOCUS: {suggestion.focus_lift?.toUpperCase()}</Text>
-          </View>
-          <Text style={styles.adaptiveNote}>{suggestion.focus_note}</Text>
-        </Pressable>
-      ) : (
-        <Pressable testID="quick-start-workout" onPress={() => router.push("/(tabs)/workout")} style={styles.ctaCard}>
-          <View>
-            <Text style={styles.ctaTitle}>QUICK START</Text>
-            <Text style={styles.ctaSub}>Launch training session</Text>
-          </View>
-          <Text style={styles.ctaArrow}>▶</Text>
-        </Pressable>
-      )}
-
       <HudSectionHeader label="ROOMS" />
       <Pressable testID="open-athletes-center" onPress={() => router.push("/athletes-center")} style={[styles.ctaCard, !canAthletesCenter && styles.locked]}>
         <View>
@@ -265,6 +229,22 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
       )}
+
+      <Pressable testID="open-gyms-map" onPress={() => router.push("/gyms-map")} style={styles.ctaCard}>
+        <View>
+          <Text style={styles.ctaTitle}>GYM MAP</Text>
+          <Text style={styles.ctaSub}>Find training spots & real gyms near you · check-ins</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
+
+      <Pressable testID="open-diet-health" onPress={() => router.push("/diet-health")} style={styles.ctaCard}>
+        <View>
+          <Text style={styles.ctaTitle}>DIET & HEALTH</Text>
+          <Text style={styles.ctaSub}>Conditioning, steps & daily fuel · macros</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
 
       <Pressable testID="open-cardio" onPress={() => router.push("/cardio")} style={styles.ctaCard}>
         <View>
@@ -441,6 +421,9 @@ const styles = StyleSheet.create({
   ctaTitle: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 15 },
   ctaSub: { color: colors.textDim, fontSize: 11, marginTop: 4, letterSpacing: 1 },
   ctaArrow: { color: colors.brandPrimary, fontSize: 18 },
+  levelStatsRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
+  levelStat: { color: colors.text, fontSize: 12, fontWeight: "900", letterSpacing: 0.5, fontVariant: ["tabular-nums"] },
+  levelStatLbl: { color: colors.textDim, fontSize: 10, fontWeight: "700" },
   locked: { opacity: 0.55, borderColor: colors.borderStrong },
   customProgCta: { marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.lg, backgroundColor: "rgba(255,234,0,0.06)", borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.warning, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   customProgTitle: { color: colors.warning, fontWeight: "900", letterSpacing: 2, fontSize: 15 },

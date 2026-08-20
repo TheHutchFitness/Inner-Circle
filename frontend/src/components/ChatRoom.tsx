@@ -33,9 +33,41 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [pin, setPin] = useState<string | null>(null);
+  const [adminAction, setAdminAction] = useState<null | "pin" | "clear">(null);
+  const [pinDraft, setPinDraft] = useState("");
+  const [adminBusy, setAdminBusy] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
   const isVerified = !!(user?.email_verified || user?.phone_verified);
+  const isAdmin = !!user?.is_admin;
+
+  const loadPin = async () => {
+    try {
+      const r = await apiFetch(token, `/api/chat/${room}/pin`);
+      setPin(r?.pin?.text || null);
+    } catch {}
+  };
+
+  const savePin = async () => {
+    setAdminBusy(true);
+    try {
+      const r = await apiFetch(token, `/api/chat/${room}/pin`, { method: "POST", body: JSON.stringify({ text: pinDraft.trim() }) });
+      setPin(r?.pin?.text || null);
+      setAdminAction(null);
+    } catch {}
+    setAdminBusy(false);
+  };
+
+  const clearChat = async () => {
+    setAdminBusy(true);
+    try {
+      await apiFetch(token, `/api/chat/${room}/clear`, { method: "POST" });
+      await load();
+      setAdminAction(null);
+    } catch {}
+    setAdminBusy(false);
+  };
 
   const load = async () => {
     try {
@@ -47,6 +79,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
 
   useEffect(() => {
     load();
+    loadPin();
     const iv = setInterval(load, 4000);
     return () => clearInterval(iv);
   }, [token, room]);
@@ -139,6 +172,26 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
 
   return (
     <>
+      {(pin || isAdmin) && (
+        <View style={st.pinWrap}>
+          {pin && (
+            <View style={st.pinBanner}>
+              <Text style={st.pinIcon}>📌</Text>
+              <Text style={st.pinText}>{pin}</Text>
+            </View>
+          )}
+          {isAdmin && (
+            <View style={st.adminBar}>
+              <Pressable testID="chat-pin-btn" onPress={() => { setPinDraft(pin || ""); setAdminAction("pin"); }} style={st.adminBtn}>
+                <Text style={st.adminBtnText}>📌 {pin ? "EDIT PIN" : "PIN A RULE"}</Text>
+              </Pressable>
+              <Pressable testID="chat-clear-btn" onPress={() => setAdminAction("clear")} style={[st.adminBtn, st.adminBtnDanger]}>
+                <Text style={[st.adminBtnText, st.adminBtnTextDanger]}>🗑 CLEAR CHAT</Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
       <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.sm }}>
         {messages.length === 0 && !!emptyText && <Text style={st.empty}>{emptyText}</Text>}
         {messages.map((m) => {
@@ -231,12 +284,58 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
         </View>
       </Modal>
       <MemberSheet userId={memberId} visible={!!memberId} onClose={() => setMemberId(null)} />
+
+      <Modal visible={!!adminAction} transparent animationType="fade" onRequestClose={() => setAdminAction(null)}>
+        <View style={st.modalWrap}>
+          <View style={st.modalCard}>
+            {adminAction === "pin" ? (
+              <>
+                <Text style={st.modalTitle}>PIN A RULE</Text>
+                <Text style={st.modalSub}>This message stays pinned to the top of this room for everyone. Leave empty and save to unpin.</Text>
+                <TextInput
+                  testID="pin-input"
+                  style={st.pinInput}
+                  value={pinDraft}
+                  onChangeText={setPinDraft}
+                  placeholder="Welcome! Read the rules…"
+                  placeholderTextColor={colors.textDim}
+                  multiline
+                />
+                <Pressable testID="pin-save" onPress={savePin} disabled={adminBusy} style={[st.sendBtn, { backgroundColor: accent, marginTop: spacing.md }]}>
+                  {adminBusy ? <ActivityIndicator size="small" color={sendTextColor} /> : <Text style={[st.sendText, { color: sendTextColor }]}>{pinDraft.trim() ? "SAVE PIN" : "UNPIN"}</Text>}
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Text style={st.modalTitle}>CLEAR CHAT</Text>
+                <Text style={st.modalSub}>This permanently deletes every message in this room. This cannot be undone.</Text>
+                <Pressable testID="clear-confirm" onPress={clearChat} disabled={adminBusy} style={[st.sendBtn, { backgroundColor: colors.error, marginTop: spacing.md }]}>
+                  {adminBusy ? <ActivityIndicator size="small" color="#fff" /> : <Text style={[st.sendText, { color: "#fff" }]}>DELETE ALL MESSAGES</Text>}
+                </Pressable>
+              </>
+            )}
+            <Pressable testID="admin-modal-close" onPress={() => setAdminAction(null)} style={st.modalClose}>
+              <Text style={st.modalCloseText}>CANCEL</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
 
 const st = StyleSheet.create({
   empty: { color: colors.textDim, textAlign: "center", marginTop: 40 },
+  pinWrap: { backgroundColor: colors.surface2, borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: spacing.sm, gap: spacing.sm },
+  pinBanner: { flexDirection: "row", gap: 8, alignItems: "flex-start", backgroundColor: "rgba(251,191,36,0.10)", borderWidth: 1, borderColor: "rgba(251,191,36,0.5)", borderRadius: radius.sm, padding: spacing.sm },
+  pinIcon: { fontSize: 14 },
+  pinText: { flex: 1, color: "#FBBF24", fontSize: 13, fontWeight: "700", lineHeight: 18 },
+  adminBar: { flexDirection: "row", gap: spacing.sm },
+  adminBtn: { flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface3 },
+  adminBtnDanger: { borderColor: colors.error },
+  adminBtnText: { color: colors.textMid, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  adminBtnTextDanger: { color: colors.error },
+  pinInput: { backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, color: colors.text, padding: spacing.md, minHeight: 80, textAlignVertical: "top", marginTop: spacing.md },
   msg: { padding: spacing.md, backgroundColor: colors.surface2, marginBottom: spacing.sm, borderRadius: radius.sm, borderLeftWidth: 3 },
   msgMine: { borderLeftColor: colors.warning, backgroundColor: colors.surface3 },
   msgHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },

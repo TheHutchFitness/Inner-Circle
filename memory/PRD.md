@@ -455,3 +455,23 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - /api/leaderboard/{squat|bench|deadlift|ohp} by PR. leaderboard.tsx BOARDS adds SQUAT/BENCH/DEADLIFT chips.
 ### Tests
 - Backend pytest: iter23 (lite/gym 14/14), iter24 (booking 16/16), iter25 (chat/boards/reschedule 17/17) — all pass.
+
+## Iteration 31 (2026-08) — UI reorg batch + 2 backend features
+### Backend
+- Google Places real gyms: GET /api/gyms/nearby?lat=&lng=&radius= -> {gyms:[{place_id,name,address,lat,lng,rating,source:"google"}]}. Server-side GOOGLE_PLACES_API_KEY in backend/.env (billing-enabled). Public.
+- Chat Pin-a-Rule: GET /api/chat/{room}/pin, POST /api/chat/{room}/pin {text} (admin; empty text unpins), stored in db.chat_pins keyed by store_room. _resolve_store_room() helper added.
+- Chat Clear: POST /api/chat/{room}/clear (admin) wipes db.chat_messages for that room.
+### Frontend
+- Home (index.tsx): removed PR Vault, Next Workout, Weekly Recap button + the 3 stat cards. Level display now shows OVR (fetched from /api/profile/attributes) + workouts + streak + badges inline. New CTAs GYM MAP + DIET & HEALTH above Cardio. New "GROUPS" top-bar button -> /clans.
+- /clans.tsx: all clans sorted by member_count (from /api/groups). 
+- /diet-health.tsx: new room holding Conditioning (HealthCard) + Today's Fuel (NutritionCard), moved off profile.
+- Profile (profile.tsx): removed PR Vault, Gender, App Mode, Strength Curve, and the standalone Combat Stats section. Badges now via a "BADGES" chip beside class title (toggles panel). BW/AGE/TOTAL/STREAK + a small (130px) combat radar are built INTO the player card. Social links compacted. Gym Map link removed (now on home).
+- NutritionCard.tsx: MACROS tab has a food picker (~55 foods) that adds cal/protein/carbs/fats to totals (food-add / food-opt-*).
+- settings.tsx: APP MODE (FULL/LITE) toggle added.
+- AppModeSwitch.tsx: global floating LITE/FULL pill top-right (mounted in _layout.tsx), visible once past onboarding. (Minor: slightly overlaps Me-screen CONFIG gear.)
+- ChatRoom.tsx: admin Pin-a-Rule banner + Clear-Chat modal.
+- leaderboard.tsx: desktop web (>=1280) shows STRENGTH + CARDIO side-by-side via LeaderboardColumn.tsx.
+- HeroIntro.tsx: intro avatar uncropped on web (contentFit contain on web, cover on native).
+- ExerciseLibraryModal.tsx: exercise demo images contentFit contain (fully visible).
+### Tests
+- iteration_31.json: backend 8/8 + frontend flows all pass.

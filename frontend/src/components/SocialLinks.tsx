@@ -146,7 +146,6 @@ export function SocialLinksEditor({
         </Pressable>
       )}
       {saved && <Text style={styles.savedMsg}>Links saved ✓</Text>}
-      <SocialLinksBar tiktok={tt} instagram={ig} youtube={yt} />
     </View>
   );
 }
@@ -160,21 +159,21 @@ const styles = StyleSheet.create({
   chipIcon: { fontSize: 13 },
   chipText: { color: colors.brandPrimary, fontWeight: "800", fontSize: 12 },
   editWrap: {
-    marginHorizontal: spacing.lg, marginTop: spacing.md, padding: spacing.md,
+    marginHorizontal: spacing.lg, marginTop: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
     backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
   },
-  editLabel: { color: colors.textDim, fontSize: 10, fontWeight: "800", letterSpacing: 2, marginBottom: spacing.sm },
+  editLabel: { color: colors.textDim, fontSize: 9, fontWeight: "800", letterSpacing: 2, marginBottom: 6 },
   inputRow: {
     flexDirection: "row", alignItems: "center", backgroundColor: colors.surface3, borderRadius: radius.sm,
-    borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, marginBottom: spacing.sm,
+    borderWidth: 1, borderColor: colors.border, paddingHorizontal: 8, marginBottom: 6,
   },
-  inputIcon: { fontSize: 15, marginRight: 6 },
-  at: { color: colors.textDim, fontSize: 15, fontWeight: "800" },
-  input: { flex: 1, color: colors.text, fontSize: 14, paddingVertical: 11, paddingHorizontal: 2 },
+  inputIcon: { fontSize: 13, marginRight: 5 },
+  at: { color: colors.textDim, fontSize: 13, fontWeight: "800" },
+  input: { flex: 1, color: colors.text, fontSize: 13, paddingVertical: 7, paddingHorizontal: 2 },
   saveBtn: {
-    paddingVertical: 11, alignItems: "center", borderRadius: radius.sm,
+    paddingVertical: 8, alignItems: "center", borderRadius: radius.sm,
     borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.08)",
   },
-  saveText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
-  savedMsg: { color: colors.success, fontSize: 12, fontWeight: "700", textAlign: "center", marginTop: 6 },
+  saveText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 11 },
+  savedMsg: { color: colors.success, fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 5 },
 });

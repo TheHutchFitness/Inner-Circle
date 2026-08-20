@@ -9,14 +9,12 @@ import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, HAIR_COLORS, BEARD_OPTIONS, defaultHair, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle, bodyImage } from "@/src/lib/theme";
+import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, HAIR_COLORS, BEARD_OPTIONS, defaultHair, RANK_COLORS, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle, bodyImage } from "@/src/lib/theme";
 import { useResponsive, webCenter } from "@/src/lib/responsive";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { StrengthChart } from "@/src/components/StrengthChart";
 import { RadarChart } from "@/src/components/RadarChart";
 import { HudSectionHeader } from "@/src/components/Hud";
-import { HealthCard } from "@/src/components/HealthCard";
-import { NutritionCard } from "@/src/components/NutritionCard";
 import { SocialLinksEditor } from "@/src/components/SocialLinks";
 import { FoundingRibbon, CreatorBadge, SeasonChampBadge } from "@/src/components/Badges";
 import { PetCompanion } from "@/src/components/PetCompanion";
@@ -41,6 +39,7 @@ export default function Profile() {
   const [attrs, setAttrs] = useState<any>(null);
   const [liftTab, setLiftTab] = useState("bench");
   const [showStats, setShowStats] = useState(true);
+  const [showBadges, setShowBadges] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [gymInput, setGymInput] = useState<string>("");
   const [gyms, setGyms] = useState<string[]>([]);
@@ -135,15 +134,6 @@ export default function Profile() {
     } catch { setMsg("Sharing unavailable here — try on a device."); }
   };
 
-  const setAppMode = async (nextLite: boolean) => {
-    if (!!user.lite_mode === nextLite) return;
-    try {
-      await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ lite_mode: nextLite }) });
-      await refresh();
-      setMsg(nextLite ? "Switched to Lite mode" : "Switched to Full mode");
-    } catch (e: any) { setMsg(e?.message || "Failed to switch"); }
-  };
-
   const saveGym = async () => {
     try {
       await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ gym: gymInput.trim() }) });
@@ -211,6 +201,9 @@ export default function Profile() {
                     <Text style={[styles.tierText, { color: tierColor }]}>{attrs?.class_tier || "—"}</Text>
                   </View>
                   <Text style={[styles.playerClass, { color: rankColor }]}>{attrs?.class_title || `${av.label.toUpperCase()} CLASS`}</Text>
+                  <Pressable testID="badges-tab" onPress={(e: any) => { e?.stopPropagation?.(); setShowBadges((s) => !s); }} style={[styles.badgesTab, showBadges && styles.badgesTabOn]}>
+                    <Text style={[styles.badgesTabText, showBadges && styles.badgesTabTextOn]}>🏅 BADGES{(user.badges || []).length ? ` ${user.badges.length}` : ""}</Text>
+                  </Pressable>
                 </View>
                 <Pressable testID="open-frame-vault" onPress={openFrames}><Text style={styles.frameName}>◈ {frame.name}  ▾</Text></Pressable>
                 {user.equipped_pet && (
@@ -230,11 +223,36 @@ export default function Profile() {
                   <StatBar label="XP" value={user.level ? (user.xp % 250) / 250 : 0} color={colors.brandPrimary} />
                   <StatBar label="LOGS" value={Math.min(1, (user.workouts_logged || 0) / 100)} color={colors.success} />
                 </View>
+                <View style={styles.cardStatsRow}>
+                  <View style={styles.cardStat}><Text style={styles.cardStatV}>{user.bodyweight_lb}</Text><Text style={styles.cardStatL}>BW LB</Text></View>
+                  <View style={styles.cardStat}><Text style={styles.cardStatV}>{user.age}</Text><Text style={styles.cardStatL}>AGE</Text></View>
+                  <View style={styles.cardStat}><Text style={styles.cardStatV}>{totalLift}</Text><Text style={styles.cardStatL}>TOTAL</Text></View>
+                  <View style={styles.cardStat}><Text style={styles.cardStatV}>{user.streak_days}d</Text><Text style={styles.cardStatL}>STREAK</Text></View>
+                </View>
+                {/* COMBAT STATS — compact radar built into the card */}
+                <View style={styles.cardRadarInline}>
+                  <RadarChart stats={attrs?.stats} color={rankColor} size={130} />
+                  <View style={styles.ovrPill}><Text style={styles.ovrPillText}>OVR {attrs?.overall ?? 0}</Text></View>
+                </View>
               </View>
             </LinearGradient>
           </View>
         </Pressable>
         <Text style={styles.tapHint}>TAP THE CARD TO SWITCH YOUR CLASS</Text>
+        {showBadges && (
+          <View style={styles.badgesPanel}>
+            <Text style={styles.badgesPanelLabel}>MILESTONE BADGES</Text>
+            <View style={styles.badgeGrid}>
+              {(user.badges || []).length === 0 ? (
+                <Text style={styles.emptyBadges}>Hit 135, 225, 315+ to earn badges.</Text>
+              ) : (
+                (user.badges || []).map((b: string) => (
+                  <View key={b} style={styles.badgeCard}><Text style={styles.badgeText}>{b.replace("_", " ").toUpperCase()}</Text></View>
+                ))
+              )}
+            </View>
+          </View>
+        )}
         {user.is_founder && <FoundingRibbon number={user.founder_number} />}
         <SeasonChampBadge seasons={user.season_champ_titles} />
         {(user.social_tiktok || user.social_instagram || user.social_youtube) && (
@@ -251,93 +269,13 @@ export default function Profile() {
         onSaved={refresh}
       />
 
-      {/* COMBAT STATS RADAR */}
-      <HudSectionHeader label="COMBAT STATS" />
-      <View style={styles.radarCard}>
-        <View style={styles.radarClassRow}>
-          <Text style={styles.radarClassTitle}>{attrs?.class_title || "—"}</Text>
-          <View style={[styles.tierBadgeLg, { borderColor: tierColor }]}>
-            <Text style={[styles.tierTextLg, { color: tierColor }]}>{attrs?.class_tier || "—"}-CLASS</Text>
-          </View>
-        </View>
-        <RadarChart stats={attrs?.stats} color={rankColor} size={230} />
-        <Text style={styles.radarNote}>Overall {attrs?.overall ?? 0}/100 · Top {100 - (attrs?.app_percentile ?? 50)}% in-app · vs global lift standards</Text>
-      </View>
-
       {/* STATS / SHARE actions */}
       <View style={styles.actionRow}>
-        <Pressable testID="toggle-stats" onPress={() => setShowStats((s) => !s)} style={[styles.actionBtn, showStats && styles.actionBtnActive]}>
-          <Text style={[styles.actionText, showStats && styles.actionTextActive]}>▤ STATS</Text>
-        </Pressable>
         <Pressable testID="share-card" onPress={shareCard} style={styles.actionBtn}>
           <Text style={styles.actionText}>⇪ SHARE</Text>
         </Pressable>
       </View>
       {msg && <Text style={styles.msg}>{msg}</Text>}
-
-      {/* CONDITIONING — steps, heart rate, sprints */}
-      <HudSectionHeader label="CONDITIONING" />
-      <HealthCard token={token} onChange={() => { (async () => { try { setAttrs(await apiFetch(token, "/api/profile/attributes")); } catch {} })(); }} />
-      <NutritionCard />
-
-      {showStats && (
-        <>
-          <View style={styles.infoGrid}>
-            <View style={styles.info}><Text style={styles.infoL}>BODYWEIGHT</Text><Text style={styles.infoV}>{user.bodyweight_lb} lb</Text></View>
-            <View style={styles.info}><Text style={styles.infoL}>AGE</Text><Text style={styles.infoV}>{user.age}</Text></View>
-            <View style={styles.info}><Text style={styles.infoL}>TOTAL</Text><Text style={styles.infoV}>{totalLift}</Text></View>
-            <View style={styles.info}><Text style={styles.infoL}>STREAK</Text><Text style={styles.infoV}>{user.streak_days}d</Text></View>
-          </View>
-
-          <Text style={styles.genderLabel}>GENDER · CHANGES YOUR AVATARS & BACKGROUNDS</Text>
-          <View style={styles.genderRow}>
-            {([["male", "MALE"], ["female", "FEMALE"], ["other", "PREFER NOT"]] as const).map(([v, lbl]) => (
-              <Pressable
-                key={v}
-                testID={`profile-sex-${v}`}
-                onPress={async () => { try { await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ sex: v }) }); await refresh(); } catch {} }}
-                style={[styles.genderBtn, (user.sex || "male") === v && styles.genderBtnActive]}
-              >
-                <Text style={[styles.genderText, (user.sex || "male") === v && styles.genderTextActive]}>{lbl}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <HudSectionHeader label="PR VAULT" />
-          <View style={styles.grid}>
-            {[["BENCH", "bench"], ["SQUAT", "squat"], ["DEADLIFT", "deadlift"], ["OHP", "ohp"]].map(([label, key]) => (
-              <View key={key} style={styles.prCard}>
-                <View style={[styles.prAccent, { backgroundColor: rankColor }]} />
-                <Text style={styles.prLabel}>{label}</Text>
-                <Text style={styles.prValue}>{fmtWeight(user.prs?.[key] || 0)}</Text>
-              </View>
-            ))}
-          </View>
-
-          <HudSectionHeader label="STRENGTH CURVE" />
-          <View style={styles.chartCard}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chartTabs}>
-              {LIFT_TABS.map(([label, key]) => (
-                <Pressable testID={`chart-tab-${key}`} key={key} onPress={() => setLiftTab(key)} style={[styles.chartChip, liftTab === key && styles.chartChipActive]}>
-                  <Text style={[styles.chartChipText, liftTab === key && styles.chartChipTextActive]}>{label}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <StrengthChart data={chart?.[liftTab] || []} color={rankColor} />
-          </View>
-
-          <HudSectionHeader label="MILESTONE BADGES" />
-          <View style={styles.badgeGrid}>
-            {(user.badges || []).length === 0 ? (
-              <Text style={styles.emptyBadges}>Hit 135, 225, 315+ to earn badges.</Text>
-            ) : (
-              (user.badges || []).map((b: string) => (
-                <View key={b} style={styles.badgeCard}><Text style={styles.badgeText}>{b.replace("_", " ").toUpperCase()}</Text></View>
-              ))
-            )}
-          </View>
-        </>
-      )}
 
       {/* PERSONAL RECORDS — big lift bests + recent PR feed */}
       {prs && (
@@ -391,19 +329,6 @@ export default function Profile() {
             </Pressable>
           ))
         )}
-      </View>
-
-      {/* APP MODE — switch between Lite (utility) and Full (game) */}
-      <HudSectionHeader label="APP MODE" />
-      <View style={styles.modeRow}>
-        <Pressable testID="mode-full" onPress={() => setAppMode(false)} style={[styles.modeBtn, !lite && styles.modeBtnOn]}>
-          <Text style={[styles.modeTitle, !lite && styles.modeTitleOn]}>◆ FULL</Text>
-          <Text style={styles.modeSub}>Games, cosmetics, chat & more</Text>
-        </Pressable>
-        <Pressable testID="mode-lite" onPress={() => setAppMode(true)} style={[styles.modeBtn, lite && styles.modeBtnOn]}>
-          <Text style={[styles.modeTitle, lite && styles.modeTitleOn]}>▤ LITE</Text>
-          <Text style={styles.modeSub}>Pure tracking, no distractions</Text>
-        </Pressable>
       </View>
 
       {/* MY GYM — association + in-person coaching request */}
@@ -537,9 +462,6 @@ export default function Profile() {
         <Text style={styles.linkText}>MANAGE PREMIUM</Text>
       </Pressable>
       )}
-      <Pressable testID="open-gyms-map" onPress={() => router.push("/gyms-map")} style={styles.linkBtn}>
-        <Text style={styles.linkText}>🗺 GYM MAP — FIND TRAINING SPOTS</Text>
-      </Pressable>
       <Pressable testID="open-purchases" onPress={() => router.push("/purchases")} style={styles.linkBtn}>
         <Text style={styles.linkText}>MY PURCHASES</Text>
       </Pressable>
@@ -675,6 +597,10 @@ const styles = StyleSheet.create({
   pill: { paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.pill },
   pillText: { color: "#001122", fontWeight: "900", fontSize: 9, letterSpacing: 1 },
   barsRow: { marginTop: spacing.md, gap: 6 },
+  cardStatsRow: { flexDirection: "row", marginTop: spacing.md, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.08)", paddingTop: spacing.sm },
+  cardStat: { flex: 1, alignItems: "center" },
+  cardStatV: { color: colors.text, fontSize: 15, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  cardStatL: { color: colors.textDim, fontSize: 8, letterSpacing: 1, fontWeight: "700", marginTop: 2 },
   bar: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   barLabel: { color: colors.textDim, fontSize: 9, fontWeight: "800", letterSpacing: 2, width: 34 },
   barTrack: { flex: 1, height: 6, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden" },
@@ -684,6 +610,10 @@ const styles = StyleSheet.create({
   petRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   petName: { color: colors.textMid, fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
   radarCard: { marginHorizontal: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, alignItems: "center" },
+  cardRadar: { marginTop: spacing.sm, marginHorizontal: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, alignItems: "center" },
+  cardRadarInline: { alignItems: "center", marginTop: spacing.sm },
+  ovrPill: { borderWidth: 1, borderColor: colors.brandPrimary, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3, backgroundColor: colors.brandTertiary },
+  ovrPillText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 12, letterSpacing: 1 },
   radarClassRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md, marginBottom: spacing.sm },
   radarClassTitle: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 2 },
   tierBadgeLg: { borderWidth: 2, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: radius.sm },
@@ -699,9 +629,6 @@ const styles = StyleSheet.create({
   info: { flex: 1, minWidth: "45%", backgroundColor: colors.surface2, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
   infoL: { color: colors.textDim, fontSize: 10, letterSpacing: 2, fontWeight: "700" },
   infoV: { color: colors.text, fontSize: 18, fontWeight: "900", marginTop: 4 },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, paddingHorizontal: spacing.lg },
-  prCard: { width: "48%", backgroundColor: colors.surface2, borderRadius: radius.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
-  prAccent: { position: "absolute", left: 0, top: 0, bottom: 0, width: 3 },
   prLabel: { color: colors.brandPrimary, fontSize: 11, letterSpacing: 3, fontWeight: "800" },
   prValue: { color: colors.text, fontSize: 20, fontWeight: "900", marginTop: 4 },
   chartCard: { marginHorizontal: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
@@ -712,6 +639,12 @@ const styles = StyleSheet.create({
   chartChipTextActive: { color: colors.brandPrimary },
   badgeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: spacing.lg },
   badgeCard: { backgroundColor: colors.brandTertiary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6, borderWidth: 1, borderColor: colors.borderStrong },
+  badgesTab: { marginLeft: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
+  badgesTabOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  badgesTabText: { color: colors.textDim, fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  badgesTabTextOn: { color: colors.brandPrimary },
+  badgesPanel: { marginTop: spacing.sm, marginHorizontal: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  badgesPanelLabel: { color: colors.textDim, fontSize: 10, fontWeight: "800", letterSpacing: 2, marginBottom: spacing.sm },
   badgeText: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 1, fontWeight: "800" },
   emptyBadges: { color: colors.textDim, paddingHorizontal: spacing.lg },
   linkBtn: { marginTop: spacing.md, marginHorizontal: spacing.lg, padding: spacing.md, alignItems: "center", borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm },
@@ -753,6 +686,7 @@ const styles = StyleSheet.create({
   modeTitle: { color: colors.textDim, fontSize: 15, fontWeight: "900", letterSpacing: 2 },
   modeTitleOn: { color: colors.brandPrimary },
   modeSub: { color: colors.textDim, fontSize: 10, marginTop: 4, lineHeight: 14 },
+
   gymCard: { marginHorizontal: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
   gymViewRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   gymName: { color: colors.text, fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },

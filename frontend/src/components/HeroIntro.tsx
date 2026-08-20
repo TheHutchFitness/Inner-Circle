@@ -77,7 +77,7 @@ export function HeroIntro({ user, mode, onDone }: { user: any; mode: "signup" | 
       <View style={styles.portraitWrap}>
         {portrait ? (
           <Animated.View style={[StyleSheet.absoluteFill, portraitStyle]}>
-            <Image source={portrait} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <Image source={portrait} style={StyleSheet.absoluteFill} contentFit={Platform.OS === "web" ? "contain" : "cover"} />
           </Animated.View>
         ) : (
           <Animated.Text style={[styles.emoji, portraitStyle]}>{av.emoji}</Animated.Text>

@@ -34,6 +34,7 @@ export default function GymsMapScreen() {
   const [streak, setStreak] = useState(0);
   const [view, setView] = useState<"map" | "ranks">("map");
   const [board, setBoard] = useState<any[] | null>(null);
+  const [realGyms, setRealGyms] = useState<any[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -75,7 +76,13 @@ export default function GymsMapScreen() {
     setLocating(true);
     try {
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setUserLoc(loc);
+      // Pull real-world gyms near the athlete from Google Places (server-side).
+      try {
+        const nd = await apiFetch(token, `/api/gyms/nearby?lat=${loc.lat}&lng=${loc.lng}`);
+        setRealGyms((nd.gyms || []).map((g: any) => ({ ...g, external: true, source: "google" })));
+      } catch {}
     } catch {
       Alert.alert("Location unavailable", "We couldn't read your location just now. Please try again.");
     }
@@ -121,13 +128,21 @@ export default function GymsMapScreen() {
   // Annotate with distance + sort by nearest when we have the user's location.
   const display = (() => {
     if (!gyms) return null;
-    if (!userLoc) return gyms;
-    return gyms
+    const all = [...gyms.map((g) => ({ ...g, external: false })), ...realGyms];
+    if (!userLoc) return all;
+    return all
       .map((g) => ({ ...g, _dist: distanceKm(userLoc, { lat: g.lat, lng: g.lng }) }))
       .sort((a, b) => a._dist - b._dist);
   })();
 
-  const nearest = userLoc && display && display.length ? display[0] : null;
+  // Check-ins only apply to our own curated gyms (real-world Google gyms aren't tracked).
+  const nearest = (() => {
+    if (!userLoc || !gyms || !gyms.length) return null;
+    const withD = gyms
+      .map((g) => ({ ...g, _dist: distanceKm(userLoc, { lat: g.lat, lng: g.lng }) }))
+      .sort((a, b) => a._dist - b._dist);
+    return withD[0];
+  })();
   const inRange = !!nearest && nearest._dist != null && nearest._dist <= 0.5;
   const distLabel = (km?: number) => (km == null ? "" : km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`);
 

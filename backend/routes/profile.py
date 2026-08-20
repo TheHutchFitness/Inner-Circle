@@ -171,6 +171,55 @@ async def list_gyms():
     }
 
 
+GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
+
+
+@api_router.get("/gyms/nearby")
+async def gyms_nearby(lat: float, lng: float, radius: int = 5000):
+    """Real-world gyms near a coordinate, via Google Places API (New). Public.
+    Radius is metres (capped 50 km). Returns a small DTO used to drop discovery
+    pins on the Gym Map alongside our own curated gyms."""
+    if not GOOGLE_PLACES_API_KEY:
+        return {"gyms": [], "error": "places_unconfigured"}
+    radius = max(200, min(int(radius or 5000), 50000))
+    body = {
+        "includedTypes": ["gym"],
+        "maxResultCount": 20,
+        "locationRestriction": {
+            "circle": {"center": {"latitude": lat, "longitude": lng}, "radius": radius}
+        },
+        "rankPreference": "DISTANCE",
+    }
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=8) as hc:
+            r = await hc.post("https://places.googleapis.com/v1/places:searchNearby", json=body, headers=headers)
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Gym search unavailable — try again")
+    if r.status_code != 200:
+        logger.error(f"Places nearby failed: {r.status_code} {r.text[:200]}")
+        return {"gyms": [], "error": "places_error"}
+    out = []
+    for p in (r.json().get("places") or []):
+        loc = p.get("location") or {}
+        if "latitude" not in loc or "longitude" not in loc or not p.get("id"):
+            continue
+        out.append({
+            "place_id": p["id"],
+            "name": (p.get("displayName") or {}).get("text", "Gym"),
+            "address": p.get("formattedAddress", ""),
+            "lat": loc["latitude"],
+            "lng": loc["longitude"],
+            "rating": p.get("rating"),
+            "source": "google",
+        })
+    return {"gyms": out}
+
+
 @api_router.get("/gyms/map")
 async def gyms_map():
     """Public: every gym that has a map location set, for the Gyms Map screen."""

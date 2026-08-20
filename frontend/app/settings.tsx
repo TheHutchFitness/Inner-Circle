@@ -68,6 +68,15 @@ export default function Settings() {
     } catch (e: any) { setMsg(e.message); }
   };
 
+  const switchMode = async (nextLite: boolean) => {
+    if (!!user?.lite_mode === nextLite) return;
+    try {
+      await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ lite_mode: nextLite }) });
+      await refresh();
+      setMsg(nextLite ? "Switched to Lite mode." : "Switched to Full mode.");
+    } catch (e: any) { setMsg(e.message); }
+  };
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, padding: spacing.lg, paddingBottom: 40 }}>
@@ -128,6 +137,19 @@ export default function Settings() {
         <Pressable testID="replay-tour" onPress={replayTour} style={styles.linkBtn}>
           <Text style={styles.linkText}>🧭  REPLAY INTRO TOUR</Text>
         </Pressable>
+
+        <Text style={[styles.h1, { marginTop: spacing.xl }]}>APP MODE</Text>
+        <Text style={styles.helper}>Full unlocks games, cosmetics & chat. Lite is pure tracking with no distractions. Switch anytime.</Text>
+        <View style={styles.modeRow}>
+          <Pressable testID="mode-full" onPress={() => switchMode(false)} style={[styles.modeBtn, !user?.lite_mode && styles.modeBtnOn]}>
+            <Text style={[styles.modeTitle, !user?.lite_mode && styles.modeTitleOn]}>◆ FULL</Text>
+            <Text style={styles.modeSub}>Games, cosmetics, chat & more</Text>
+          </Pressable>
+          <Pressable testID="mode-lite" onPress={() => switchMode(true)} style={[styles.modeBtn, user?.lite_mode && styles.modeBtnOn]}>
+            <Text style={[styles.modeTitle, user?.lite_mode && styles.modeTitleOn]}>▤ LITE</Text>
+            <Text style={styles.modeSub}>Pure tracking, no distractions</Text>
+          </Pressable>
+        </View>
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>LEGAL</Text>
         <Pressable
@@ -195,4 +217,10 @@ const styles = StyleSheet.create({
   dangerTextDisabled: { color: colors.textDim },
   linkBtn: { paddingVertical: spacing.md, paddingHorizontal: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
   linkText: { color: colors.brandPrimary, fontWeight: "800", letterSpacing: 1, fontSize: 13 },
+  modeRow: { flexDirection: "row", gap: spacing.sm },
+  modeBtn: { flex: 1, padding: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.surface2 },
+  modeBtnOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  modeTitle: { color: colors.textDim, fontSize: 15, fontWeight: "900", letterSpacing: 2 },
+  modeTitleOn: { color: colors.brandPrimary },
+  modeSub: { color: colors.textDim, fontSize: 10, marginTop: 4, lineHeight: 14 },
 });

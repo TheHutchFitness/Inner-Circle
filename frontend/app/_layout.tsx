@@ -16,6 +16,7 @@ import { AppModeIntro } from "@/src/components/AppModeIntro";
 import { OnboardingTour } from "@/src/components/OnboardingTour";
 import { FounderWelcome } from "@/src/components/FounderWelcome";
 import { ClanInviteGate } from "@/src/components/ClanInviteGate";
+import { AppModeSwitch } from "@/src/components/AppModeSwitch";
 import { PushManager } from "@/src/lib/push";
 import { isEnhancedPalette, applyEnhancedPalette, colors } from "@/src/lib/theme";
 import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
@@ -117,6 +118,7 @@ export default function RootLayout() {
               <UnitsProvider>
               <StatusBar barStyle="light-content" backgroundColor={colors.surface} />
               <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }} />
+              <AppModeSwitch />
               <EnhancedTint />
               <ScanlineOverlay />
               <EnhancedSync />

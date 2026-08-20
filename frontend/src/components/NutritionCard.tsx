@@ -18,6 +18,65 @@ const COMMON_SUPPS = [
   "Melatonin", "Glutamine", "ZMA", "Greens Powder",
 ];
 
+// Common foods with per-serving macros — tapping one adds its macros to today's totals.
+const FOODS: { name: string; serving: string; calories: number; protein: number; carbs: number; fats: number }[] = [
+  { name: "Chicken Breast", serving: "6 oz", calories: 280, protein: 52, carbs: 0, fats: 6 },
+  { name: "Ground Beef 85/15", serving: "6 oz", calories: 340, protein: 46, carbs: 0, fats: 17 },
+  { name: "Salmon", serving: "6 oz", calories: 350, protein: 40, carbs: 0, fats: 20 },
+  { name: "Ribeye Steak", serving: "8 oz", calories: 560, protein: 50, carbs: 0, fats: 40 },
+  { name: "Whole Eggs", serving: "3 large", calories: 210, protein: 18, carbs: 2, fats: 15 },
+  { name: "Egg Whites", serving: "1 cup", calories: 125, protein: 26, carbs: 2, fats: 0 },
+  { name: "Whey Protein", serving: "1 scoop", calories: 120, protein: 25, carbs: 3, fats: 2 },
+  { name: "Greek Yogurt (nonfat)", serving: "1 cup", calories: 130, protein: 22, carbs: 9, fats: 0 },
+  { name: "White Rice (cooked)", serving: "1 cup", calories: 205, protein: 4, carbs: 45, fats: 0 },
+  { name: "Brown Rice (cooked)", serving: "1 cup", calories: 215, protein: 5, carbs: 45, fats: 2 },
+  { name: "Oats (dry)", serving: "1/2 cup", calories: 150, protein: 5, carbs: 27, fats: 3 },
+  { name: "Sweet Potato", serving: "1 medium", calories: 115, protein: 2, carbs: 27, fats: 0 },
+  { name: "White Potato", serving: "1 medium", calories: 160, protein: 4, carbs: 37, fats: 0 },
+  { name: "Banana", serving: "1 medium", calories: 105, protein: 1, carbs: 27, fats: 0 },
+  { name: "Apple", serving: "1 medium", calories: 95, protein: 0, carbs: 25, fats: 0 },
+  { name: "Peanut Butter", serving: "2 tbsp", calories: 190, protein: 8, carbs: 6, fats: 16 },
+  { name: "Almonds", serving: "1 oz", calories: 165, protein: 6, carbs: 6, fats: 14 },
+  { name: "Avocado", serving: "1/2", calories: 120, protein: 1, carbs: 6, fats: 11 },
+  { name: "Olive Oil", serving: "1 tbsp", calories: 120, protein: 0, carbs: 0, fats: 14 },
+  { name: "Whole Wheat Bread", serving: "2 slices", calories: 160, protein: 8, carbs: 28, fats: 2 },
+  { name: "Broccoli", serving: "1 cup", calories: 55, protein: 4, carbs: 11, fats: 0 },
+  { name: "Tuna (canned)", serving: "1 can", calories: 120, protein: 27, carbs: 0, fats: 1 },
+  { name: "Cottage Cheese", serving: "1 cup", calories: 180, protein: 25, carbs: 8, fats: 5 },
+  { name: "Protein Bar", serving: "1 bar", calories: 220, protein: 20, carbs: 22, fats: 8 },
+  { name: "Turkey Breast", serving: "6 oz", calories: 240, protein: 50, carbs: 0, fats: 3 },
+  { name: "Pork Chop", serving: "6 oz", calories: 340, protein: 46, carbs: 0, fats: 16 },
+  { name: "Tilapia", serving: "6 oz", calories: 220, protein: 44, carbs: 0, fats: 4 },
+  { name: "Shrimp", serving: "6 oz", calories: 170, protein: 36, carbs: 2, fats: 2 },
+  { name: "Bacon", serving: "3 slices", calories: 160, protein: 12, carbs: 0, fats: 12 },
+  { name: "Pasta (cooked)", serving: "1 cup", calories: 220, protein: 8, carbs: 43, fats: 1 },
+  { name: "Quinoa (cooked)", serving: "1 cup", calories: 220, protein: 8, carbs: 39, fats: 4 },
+  { name: "Black Beans", serving: "1 cup", calories: 227, protein: 15, carbs: 41, fats: 1 },
+  { name: "Lentils (cooked)", serving: "1 cup", calories: 230, protein: 18, carbs: 40, fats: 1 },
+  { name: "Chickpeas", serving: "1 cup", calories: 270, protein: 15, carbs: 45, fats: 4 },
+  { name: "Bagel", serving: "1 whole", calories: 250, protein: 10, carbs: 49, fats: 2 },
+  { name: "Tortilla (flour)", serving: "1 large", calories: 150, protein: 4, carbs: 26, fats: 4 },
+  { name: "Cheddar Cheese", serving: "1 oz", calories: 115, protein: 7, carbs: 1, fats: 9 },
+  { name: "Whole Milk", serving: "1 cup", calories: 150, protein: 8, carbs: 12, fats: 8 },
+  { name: "Skim Milk", serving: "1 cup", calories: 90, protein: 8, carbs: 12, fats: 0 },
+  { name: "Orange Juice", serving: "1 cup", calories: 110, protein: 2, carbs: 26, fats: 0 },
+  { name: "Blueberries", serving: "1 cup", calories: 85, protein: 1, carbs: 21, fats: 0 },
+  { name: "Strawberries", serving: "1 cup", calories: 50, protein: 1, carbs: 12, fats: 0 },
+  { name: "Spinach", serving: "2 cups", calories: 14, protein: 2, carbs: 2, fats: 0 },
+  { name: "Mixed Nuts", serving: "1 oz", calories: 170, protein: 5, carbs: 6, fats: 15 },
+  { name: "Walnuts", serving: "1 oz", calories: 185, protein: 4, carbs: 4, fats: 18 },
+  { name: "Cashews", serving: "1 oz", calories: 155, protein: 5, carbs: 9, fats: 12 },
+  { name: "Dark Chocolate", serving: "1 oz", calories: 170, protein: 2, carbs: 13, fats: 12 },
+  { name: "Rice Cakes", serving: "2 cakes", calories: 70, protein: 1, carbs: 15, fats: 0 },
+  { name: "Hummus", serving: "2 tbsp", calories: 70, protein: 2, carbs: 6, fats: 5 },
+  { name: "Beef Jerky", serving: "1 oz", calories: 80, protein: 13, carbs: 5, fats: 1 },
+  { name: "Mass Gainer", serving: "1 scoop", calories: 640, protein: 32, carbs: 110, fats: 8 },
+  { name: "Casein Protein", serving: "1 scoop", calories: 120, protein: 24, carbs: 4, fats: 1 },
+  { name: "Honey", serving: "1 tbsp", calories: 64, protein: 0, carbs: 17, fats: 0 },
+  { name: "Pizza (cheese)", serving: "1 slice", calories: 285, protein: 12, carbs: 36, fats: 10 },
+  { name: "Cheeseburger", serving: "1 whole", calories: 300, protein: 15, carbs: 30, fats: 14 },
+];
+
 export function NutritionCard() {
   const { token } = useAuth();
   const [tab, setTab] = useState<"macros" | "supps">("macros");
@@ -26,6 +85,8 @@ export function NutritionCard() {
   const [busy, setBusy] = useState(false);
   const [supps, setSupps] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [foodOpen, setFoodOpen] = useState(false);
+  const [lastFood, setLastFood] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -38,6 +99,17 @@ export function NutritionCard() {
   }, [token]);
 
   const set = (k: string, t: string) => { setVals((v) => ({ ...v, [k]: t.replace(/[^0-9]/g, "") })); setSaved(false); };
+
+  const addFood = (f: typeof FOODS[number]) => {
+    setVals((v) => ({
+      calories: String((parseInt(v.calories || "0", 10) || 0) + f.calories),
+      protein: String((parseInt(v.protein || "0", 10) || 0) + f.protein),
+      carbs: String((parseInt(v.carbs || "0", 10) || 0) + f.carbs),
+      fats: String((parseInt(v.fats || "0", 10) || 0) + f.fats),
+    }));
+    setLastFood(f.name);
+    setSaved(false);
+  };
 
   const toggleSupp = async (name: string) => {
     const on = !supps.includes(name);
@@ -98,6 +170,23 @@ export function NutritionCard() {
                 </View>
               ))}
             </View>
+            <Pressable testID="food-add" onPress={() => setFoodOpen((o) => !o)} style={styles.addFoodBtn}>
+              <Text style={styles.addFoodText}>{foodOpen ? "▲ CLOSE FOOD LIST" : "🍽 ADD A FOOD (AUTO-FILLS MACROS)"}</Text>
+            </Pressable>
+            {lastFood && !foodOpen && <Text style={styles.lastFood}>Added {lastFood} ✓ — totals updated</Text>}
+            {foodOpen && (
+              <View style={styles.foodDropdown}>
+                {FOODS.map((f) => (
+                  <Pressable key={f.name} testID={`food-opt-${f.name}`} onPress={() => addFood(f)} style={styles.foodRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.foodName}>{f.name}</Text>
+                      <Text style={styles.foodMeta}>{f.serving} · {f.calories} kcal · {f.protein}p / {f.carbs}c / {f.fats}f</Text>
+                    </View>
+                    <Text style={styles.foodAdd}>＋</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
             <Pressable testID="nutri-save" onPress={save} disabled={busy} style={[styles.saveBtn, saved && styles.savedBtn]}>
               <Text style={[styles.saveText, saved && { color: "#050508" }]}>{saved ? "SAVED ✓" : busy ? "SAVING..." : "LOG TODAY'S MACROS"}</Text>
             </Pressable>
@@ -149,6 +238,14 @@ const styles = StyleSheet.create({
   input: { flex: 1, color: colors.text, fontSize: 22, fontWeight: "900", fontVariant: ["tabular-nums"], padding: 0 },
   unit: { color: colors.textDim, fontSize: 11, fontWeight: "700", marginLeft: 4 },
   saveBtn: { marginTop: spacing.md, paddingVertical: 13, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success },
+  addFoodBtn: { marginTop: spacing.md, paddingVertical: 11, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success, backgroundColor: "rgba(52,211,153,0.08)" },
+  addFoodText: { color: colors.success, fontWeight: "900", letterSpacing: 1, fontSize: 11 },
+  lastFood: { color: colors.success, fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 6 },
+  foodDropdown: { marginTop: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, overflow: "hidden" },
+  foodRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderBottomColor: colors.border },
+  foodName: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  foodMeta: { color: colors.textDim, fontSize: 10, marginTop: 2 },
+  foodAdd: { color: colors.success, fontSize: 20, fontWeight: "900", paddingLeft: 10 },
   savedBtn: { backgroundColor: colors.success, borderColor: colors.success },
   saveText: { color: colors.success, fontWeight: "900", letterSpacing: 2, fontSize: 12 },
   tabs: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },

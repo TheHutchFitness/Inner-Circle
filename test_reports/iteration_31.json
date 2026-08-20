@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 31 — BACKEND + FRONTEND. All two new backend features (GET /api/gyms/nearby via Google Places, and admin chat pin/clear on /api/chat/{room}/pin & /clear) work as spec'd. Wrote /app/backend/tests/test_iter31_gyms_chatpin.py — 8/8 pass. Frontend UI reorganizations verified via Playwright (mobile 390x844 + desktop 1440x900) logged in as owner (the9hutch@gmail.com). Home tab: open-clans, open-gyms-map, open-diet-health, open-cardio, global-mode-full/-lite present; PR Vault / NEXT WORKOUT / RECAP removed; GYM MAP + DIET & HEALTH cards render ABOVE the CARDIO card (y: 496 < 571 < 646). Clans screen shows clan rows (testID clan-row-*). Profile tab: badges-tab chip present; gender-male/-female + strength-curve + open-gyms-map absent. Diet & Health screen renders CONDITIONING + TODAY'S FUEL, food-add present. Settings has mode-full/mode-lite. Social Hub as admin shows PIN A RULE (chat-pin-btn) + CLEAR CHAT (chat-clear-btn); tapping pin opens pin-input + pin-save modal. Desktop leaderboard (>=1280) DOES render STRENGTH and CARDIO side-by-side (screenshot verified) — but LeaderboardColumn uses testID prefix `col-*` (e.g. col-strength-board-*, col-cardio-act-*), NOT the `leaderboard-column-*` prefix implied by the review request; the split-view feature itself works correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter31_gyms_chatpin.py",
+    "/app/test_reports/pytest/iter31.xml"
+  ],
+  "action_items": [
+    "Optional: if the review contract requires a testID prefix of `leaderboard-column-*` on the desktop STRENGTH/CARDIO panes, add that testID to the outer wrapper in /app/frontend/src/components/LeaderboardColumn.tsx. Today it uses `col-{mode}-board-*` on the inner chips only — the two-pane split renders correctly but there is no `leaderboard-column-strength` / `leaderboard-column-cardio` root testID to select in tests."
+  ],
+  "critical_code_review_comments": [
+    "routes/profile.py gyms_nearby: correctly loads GOOGLE_PLACES_API_KEY from env, uses Places API (New) with X-Goog-FieldMask, clamps radius 200-50000 m, returns {gyms:[], error:'places_unconfigured'} when key missing and {'gyms':[], error:'places_error'} on non-200. Real call to LA returns 20 gyms w/ source='google', name, lat, lng — verified.",
+    "routes/chat.py pin/clear: correctly gates on user.get('is_admin') (403 for non-admin). _resolve_store_room reuses the same access rules as messages endpoints (rank gate on the_room, gym→gym:<name>, group membership check). Empty text on set_pin deletes the pin doc. clear_room returns {deleted:N}.",
+    "routes/chat.py get_pin returns {pin:null} when doc missing OR text empty — matches spec.",
+    "Home tab (index.tsx L233-249): GYM MAP + DIET & HEALTH Pressables are ordered above the CARDIO Pressable in JSX. Verified visually at y=496/571/646.",
+    "ChatRoom.tsx L182-190 gates admin buttons on `user?.is_admin && room==='main'` — pin/clear only appear in the main room for admins (matches spec)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter31_gyms_chatpin.py (new)",
+    "/app/test_reports/iteration_31.json (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "~100% (all reviewed testIDs and flows verified)"},
+  "seed_data_creation": "None. Test wrote one throwaway chat message ('TEST_iter31 message') to db.chat_messages/main and one temp chat_pins doc on main room, then the same test cleared both (admin CLEAR wiped messages, empty-text pin removed the pin). Post-run: chat_messages count on main = 0, chat_pins on main = null. No lingering state.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login is via /api/auth/login → returns 'session_token' (Authorization: Bearer <token>). Admin owner: the9hutch@gmail.com / Hutch-TWVmifIRhU6u8bBl. Non-admin test acct: Test@Test.com / test. Google Places API key lives in backend/.env GOOGLE_PLACES_API_KEY and is currently working (real gyms returned for LA + NYC coords). Chat admin buttons in the UI live inside ChatRoom.tsx and only render when user.is_admin && room==='main' — reach them via the SOCIAL tab (bottom nav) → ALL. LeaderboardColumn's outer wrapper has NO leaderboard-column-* testID (only inner chips `col-*-board-*`); if you need to assert desktop side-by-side layout by testID, add one to the component root first. Global mode switch (global-mode-full/-lite) is a floating pill top-right, only rendered post-onboarding. On web, /(tabs)/social direct URL 404s — must click the SOCIAL tab in-app.",
+  "rca_of_issue": "N/A — feature validation iteration, no bugs found."
+}

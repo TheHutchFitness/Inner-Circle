@@ -268,7 +268,7 @@ export function ExerciseLibraryModal({
             </View>
             {demoUri ? (
               <View style={styles.demoBox}>
-                <Image source={{ uri: demoUri }} style={styles.demoImg} contentFit="cover" transition={200} />
+                <Image source={{ uri: demoUri }} style={styles.demoImg} contentFit="contain" transition={200} />
               </View>
             ) : null}
             <Text style={styles.cuesLabel}>HOW TO PERFORM</Text>

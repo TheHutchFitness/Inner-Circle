@@ -3,7 +3,7 @@ import { StyleSheet, Platform, View, Text } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import { colors, spacing, radius } from "@/src/lib/theme";
 
-type Gym = { name: string; verified: boolean; lat: number; lng: number; address?: string; members?: number; _dist?: number };
+type Gym = { name: string; verified: boolean; lat: number; lng: number; address?: string; members?: number; _dist?: number; external?: boolean; rating?: number };
 type Loc = { lat: number; lng: number } | null;
 
 function fmtDist(km?: number) {
@@ -39,9 +39,11 @@ export function GymsMap({ gyms, userLoc = null }: { gyms: Gym[]; userLoc?: Loc }
           key={i}
           testID={`gym-pin-${i}`}
           coordinate={{ latitude: g.lat, longitude: g.lng }}
-          title={`${g.verified ? "✓ " : ""}${g.name}`}
-          description={`${g._dist != null ? fmtDist(g._dist) + " · " : ""}${g.members || 0} member${g.members === 1 ? "" : "s"}${g.address ? ` · ${g.address}` : ""}`}
-          pinColor={g.verified ? colors.brandPrimary : colors.warning}
+          title={`${g.external ? "📍 " : g.verified ? "✓ " : ""}${g.name}`}
+          description={g.external
+            ? `Google Maps gym${g._dist != null ? " · " + fmtDist(g._dist) : ""}${g.rating ? ` · ★ ${g.rating}` : ""}${g.address ? ` · ${g.address}` : ""}`
+            : `${g._dist != null ? fmtDist(g._dist) + " · " : ""}${g.members || 0} member${g.members === 1 ? "" : "s"}${g.address ? ` · ${g.address}` : ""}`}
+          pinColor={g.external ? "#8B5CF6" : g.verified ? colors.brandPrimary : colors.warning}
         />
       ))}
     </MapView>

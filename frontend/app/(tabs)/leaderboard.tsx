@@ -10,6 +10,7 @@ import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { MemberSheet } from "@/src/components/MemberSheet";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { GymWatermark } from "@/src/components/GymWatermark";
+import { LeaderboardColumn } from "@/src/components/LeaderboardColumn";
 import { useResponsive, webCenter } from "@/src/lib/responsive";
 
 function HeroSweep() {
@@ -153,6 +154,29 @@ export default function Leaderboards() {
 
   const podium = rows.slice(0, 3);
   const rest = rows.slice(3);
+
+  // Desktop web: show STRENGTH and CARDIO boards side-by-side, split down the middle.
+  if (isDesktop) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.surface }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ paddingTop: insets.top + spacing.md, paddingBottom: 60, paddingHorizontal: spacing.lg }, webCenter(isDesktop)]}>
+          <View style={styles.titleRow}>
+            <Text style={styles.h1}>RANKINGS</Text>
+            <View style={styles.activePill}>
+              <View style={styles.activeDot} />
+              <Text style={styles.activeText}>{active ?? "—"} ACTIVE</Text>
+            </View>
+          </View>
+          <View style={styles.splitRow}>
+            <LeaderboardColumn mode="strength" onMember={setMemberId} />
+            <View style={styles.splitDivider} />
+            <LeaderboardColumn mode="cardio" onMember={setMemberId} />
+          </View>
+        </ScrollView>
+        <MemberSheet userId={memberId} visible={!!memberId} onClose={() => setMemberId(null)} />
+      </View>
+    );
+  }
 
   return (
     <SwipeTabs current="leaderboard">
@@ -481,6 +505,8 @@ const styles = StyleSheet.create({
   rosterClose: { color: colors.textDim, fontSize: 20, fontWeight: "900", paddingHorizontal: 8 },
   rosterSearch: { backgroundColor: colors.surface2, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm, fontSize: 14 },
   listWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
+  splitRow: { flexDirection: "row", gap: spacing.lg, marginTop: spacing.md, alignItems: "flex-start" },
+  splitDivider: { width: 1, alignSelf: "stretch", backgroundColor: colors.border },
   gridWrap: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   rowGrid: { width: "48.5%" },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
