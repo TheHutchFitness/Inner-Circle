@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import Svg, { Polyline, Circle } from "react-native-svg";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence, withDelay, withRepeat, Easing, runOnJS } from "react-native-reanimated";
+import Animated, { useSharedValue, useAnimatedStyle, useAnimatedProps, withTiming, withSequence, withDelay, withRepeat, Easing, runOnJS } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
@@ -20,6 +20,65 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const { width: SCREEN_W } = Dimensions.get("window");
 const MILESTONES = [135, 185, 225, 275, 315, 365, 405, 455, 495, 585, 675];
 const LIFT_LABEL: Record<string, string> = { bench: "BENCH", squat: "SQUAT", deadlift: "DEADLIFT", ohp: "OHP" };
+
+const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
+
+// Drifting ember/spark that floats up the map and fades — pure atmosphere.
+function Ember({ x, top, delay, accent, size }: { x: number; top: number; delay: number; accent: string; size: number }) {
+  const y = useSharedValue(0);
+  const op = useSharedValue(0);
+  useEffect(() => {
+    const dur = 5200 + delay;
+    y.value = withDelay(delay, withRepeat(withTiming(-230, { duration: dur, easing: Easing.linear }), -1, false));
+    op.value = withDelay(delay, withRepeat(withSequence(withTiming(0.55, { duration: 1300 }), withTiming(0, { duration: dur - 1300 })), -1, false));
+  }, []);
+  const st = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }], opacity: op.value }));
+  return <Animated.View pointerEvents="none" style={[{ position: "absolute", left: x, top, width: size, height: size, borderRadius: size / 2, backgroundColor: accent }, st]} />;
+}
+
+function EmberField({ accent, width }: { accent: string; width: number }) {
+  const embers = useRef(
+    Array.from({ length: 16 }, (_, i) => ({ x: 40 + Math.random() * Math.max(1, width - 80), top: 150 + Math.random() * 170, delay: i * 360, size: 2 + Math.round(Math.random() * 3) }))
+  ).current;
+  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>{embers.map((e, i) => <Ember key={i} {...e} accent={accent} />)}</View>;
+}
+
+// Expanding ring drawing the eye to a node (the next available quest, or a boss).
+function PulseRing({ x, y, color, size = 46, boss }: { x: number; y: number; color: string; size?: number; boss?: boolean }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withRepeat(withTiming(1, { duration: boss ? 1200 : 1600, easing: Easing.out(Easing.quad) }), -1, false);
+  }, []);
+  const st = useAnimatedStyle(() => ({ opacity: 0.75 * (1 - p.value), transform: [{ scale: 0.55 + p.value * 1.15 }] }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[{ position: "absolute", left: x - size / 2, top: y - size / 2, width: size, height: size, borderRadius: size / 2, borderWidth: 2.5, borderColor: color }, st]}
+    />
+  );
+}
+
+// A glowing spark that runs along the path the player has already cleared — momentum.
+function PathComet({ coords, accent }: { coords: { x: number; y: number }[]; accent: string }) {
+  const n = coords.length;
+  const p = useSharedValue(0);
+  useEffect(() => {
+    if (n < 2) return;
+    p.value = 0;
+    p.value = withRepeat(withTiming(n - 1, { duration: (n - 1) * 850, easing: Easing.inOut(Easing.sin) }), -1, false);
+  }, [n]);
+  const st = useAnimatedStyle(() => {
+    "worklet";
+    if (n < 2) return { opacity: 0 };
+    const i = Math.min(n - 2, Math.floor(p.value));
+    const t = p.value - i;
+    const x = coords[i].x + (coords[i + 1].x - coords[i].x) * t;
+    const y = coords[i].y + (coords[i + 1].y - coords[i].y) * t;
+    return { opacity: 0.95, transform: [{ translateX: x - 5 }, { translateY: y - 5 }] };
+  });
+  if (n < 2) return null;
+  return <Animated.View pointerEvents="none" style={[styles.comet, { backgroundColor: accent, shadowColor: accent }, st]} />;
+}
 
 function DamageNumber({ value, crit }: { value: number; crit?: boolean }) {
   const y = useSharedValue(0);
@@ -352,6 +411,16 @@ export default function Journey() {
 
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(null), 1600); };
 
+  // Map ambience: flowing dashed path + a gentle hero idle bob.
+  const dashOffset = useSharedValue(0);
+  const heroBob = useSharedValue(0);
+  useEffect(() => {
+    dashOffset.value = withRepeat(withTiming(-24, { duration: 900, easing: Easing.linear }), -1, false);
+    heroBob.value = withRepeat(withSequence(withTiming(-5, { duration: 900, easing: Easing.inOut(Easing.sin) }), withTiming(0, { duration: 900, easing: Easing.inOut(Easing.sin) })), -1, false);
+  }, []);
+  const dashProps = useAnimatedProps(() => ({ strokeDashoffset: dashOffset.value }));
+  const heroBobStyle = useAnimatedStyle(() => ({ transform: [{ translateY: heroBob.value }] }));
+
   const accent = data?.zone?.accent || colors.brandPrimary;
   const primary = data?.zone?.primary || colors.brand;
 
@@ -423,6 +492,8 @@ export default function Journey() {
 
   const points = nodes.map((_, i) => `${nodeX(i)},${nodeY(i)}`).join(" ");
   const traveledPoints = nodes.slice(0, heroIndex + 1).map((_, i) => `${nodeX(i)},${nodeY(i)}`).join(" ");
+  const traveledCoords = nodes.slice(0, heroIndex + 1).map((_, i) => ({ x: nodeX(i), y: nodeY(i) }));
+  const activeIndex = nodes.findIndex((n) => n.complete && !n.claimed);
 
   return (
     <View style={styles.root}>
@@ -457,8 +528,9 @@ export default function Journey() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ width: contentW }} style={styles.mapScroll}>
         <View style={{ width: contentW, height: 340 }}>
+          <EmberField accent={accent} width={contentW} />
           <Svg width={contentW} height={340} style={StyleSheet.absoluteFill}>
-            <Polyline points={points} fill="none" stroke={colors.border} strokeWidth={5} strokeDasharray="2 10" strokeLinecap="round" />
+            <AnimatedPolyline points={points} fill="none" stroke={colors.border} strokeWidth={5} strokeDasharray="2 10" strokeLinecap="round" animatedProps={dashProps} />
             {traveledPoints.split(" ").length > 1 && (
               <Polyline points={traveledPoints} fill="none" stroke={accent} strokeWidth={5} strokeLinecap="round" />
             )}
@@ -468,6 +540,13 @@ export default function Journey() {
                 stroke={n.complete && !n.claimed ? accent : colors.border} strokeWidth={n.complete && !n.claimed ? 3 : 2} />
             ))}
           </Svg>
+
+          {/* animated momentum spark along the cleared path */}
+          <PathComet coords={traveledCoords} accent={accent} />
+
+          {/* pulsing rings: next available quest + any unclaimed boss */}
+          {activeIndex >= 0 && <PulseRing x={nodeX(activeIndex)} y={nodeY(activeIndex)} color={accent} size={nodes[activeIndex]?.boss ? 60 : 46} boss={nodes[activeIndex]?.boss} />}
+          {nodes.map((n, i) => (n.boss && !n.claimed && i !== activeIndex ? <PulseRing key={`bp-${i}`} x={nodeX(i)} y={nodeY(i)} color={colors.error} size={60} boss /> : null))}
 
           {/* node touch targets + labels */}
           {nodes.map((n, i) => (
@@ -507,7 +586,7 @@ export default function Journey() {
           ))}
 
           {/* hero */}
-          <View style={[styles.hero, { left: nodeX(heroIndex) - 24, top: nodeY(heroIndex) - 78 }]}>
+          <Animated.View style={[styles.hero, heroBobStyle, { left: nodeX(heroIndex) - 24, top: nodeY(heroIndex) - 78 }]}>
             <View style={{ flexDirection: "row", alignItems: "flex-end" }}>
               {bodyImage(user) ? (
                 <GearedAvatar person={user} style={{ width: 54, height: 78 }} contentFit="contain" />
@@ -517,7 +596,7 @@ export default function Journey() {
               {user?.equipped_pet && <PetCompanion pet={user.equipped_pet} size={26} />}
             </View>
             <View style={[styles.heroTag, { borderColor: accent }]}><Text style={styles.heroTagText}>YOU · Lv{data?.me?.level}</Text></View>
-          </View>
+          </Animated.View>
         </View>
       </ScrollView>
 
@@ -568,6 +647,7 @@ const styles = StyleSheet.create({
   neighborName: { color: colors.textMid, fontSize: 8, marginTop: 2, maxWidth: 52, textAlign: "center" },
   neighborLv: { color: colors.textDim, fontSize: 8 },
   hero: { position: "absolute", alignItems: "center" },
+  comet: { position: "absolute", width: 10, height: 10, borderRadius: 5, shadowOpacity: 0.9, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 6 },
   heroTag: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: "rgba(0,0,0,0.6)", marginTop: 2 },
   heroTagText: { color: colors.text, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   legend: { alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.lg },

@@ -59,6 +59,8 @@ export default function Admin() {
   const [newGym, setNewGym] = useState("");
   const [editGym, setEditGym] = useState<Record<string, string>>({});
   const [mergeFrom, setMergeFrom] = useState<string | null>(null);
+  const [gymAddr, setGymAddr] = useState<Record<string, string>>({});
+  const [locBusy, setLocBusy] = useState<string | null>(null);
   const loadGymDir = async () => {
     try { setGymDir((await apiFetch(token, "/api/admin/gyms")).gyms || []); } catch {}
   };
@@ -79,6 +81,16 @@ export default function Admin() {
       const r = await apiFetch(token, `/api/admin/gyms/${src.id}/merge`, { method: "POST", body: JSON.stringify({ into_id: dst.id }) });
       setMergeFrom(null); await loadGymDir(); flash(`Merged into ${r.into} · ${r.moved} moved ✓`);
     } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const setGymLocation = async (g: any, clear = false) => {
+    const address = clear ? "" : (gymAddr[g.id] ?? g.address ?? "").trim();
+    if (!clear && !address) { flash("Enter an address first"); return; }
+    setLocBusy(g.id);
+    try {
+      await apiFetch(token, `/api/admin/gyms/${g.id}/location`, { method: "POST", body: JSON.stringify({ address }) });
+      await loadGymDir(); flash(clear ? "Location cleared ✓" : "Pinned on map ✓");
+    } catch (e: any) { flash(e?.message || "Failed"); }
+    setLocBusy(null);
   };
   const toggleGymVerified = async (g: any) => {
     try { await apiFetch(token, `/api/admin/gyms/${g.id}/verify`, { method: "POST", body: JSON.stringify({ on: !g.verified }) }); await loadGymDir(); flash(g.verified ? "Unverified" : "Verified ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
@@ -294,6 +306,26 @@ export default function Admin() {
               <Pressable testID={`gym-save-${g.id}`} onPress={() => renameGymDir(g)} style={st.featBtn}><Text style={st.featBtnText}>SAVE</Text></Pressable>
               <Pressable testID={`gym-del-${g.id}`} onPress={() => deleteGymDir(g)} style={st.removeBtn}><Text style={st.removeText}>✕</Text></Pressable>
             </View>
+            {/* Map location (geocoded from an address) */}
+            <View style={st.locRow}>
+              <TextInput
+                testID={`gym-addr-${g.id}`}
+                value={gymAddr[g.id] ?? g.address ?? ""}
+                onChangeText={(t) => setGymAddr((s) => ({ ...s, [g.id]: t }))}
+                placeholder="Address, city, country…"
+                placeholderTextColor={colors.textDim}
+                style={[st.searchInput, { flex: 1 }]}
+              />
+              <Pressable testID={`gym-loc-${g.id}`} onPress={() => setGymLocation(g)} disabled={locBusy === g.id} style={st.featBtn}>
+                {locBusy === g.id ? <ActivityIndicator color="#001122" /> : <Text style={st.featBtnText}>📍 PIN</Text>}
+              </Pressable>
+            </View>
+            {g.lat != null && g.lng != null && (
+              <View style={st.locSet}>
+                <Text style={st.locSetText} numberOfLines={1}>🗺 On map: {g.address || `${g.lat.toFixed(3)}, ${g.lng.toFixed(3)}`}</Text>
+                <Pressable testID={`gym-loc-clear-${g.id}`} onPress={() => setGymLocation(g, true)}><Text style={st.locClear}>clear</Text></Pressable>
+              </View>
+            )}
             {mergeFrom === g.id && (
               <View style={st.mergeBox}>
                 <Text style={st.mergeHint}>Merge “{g.name}” into… (moves all {g.members} members, then deletes it)</Text>
@@ -465,6 +497,10 @@ const st = StyleSheet.create({
   gymMembers: { color: colors.textDim, fontSize: 11, fontWeight: "800", alignSelf: "center", minWidth: 34, textAlign: "center" },
   gymCard: { padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, marginBottom: spacing.sm },
   mergeBox: { marginTop: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.surface3 },
+  locRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center", marginTop: spacing.sm },
+  locSet: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, marginTop: 6 },
+  locSetText: { color: colors.textMid, fontSize: 11, flex: 1 },
+  locClear: { color: colors.error, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   mergeHint: { color: colors.textMid, fontSize: 11, marginBottom: spacing.sm, lineHeight: 16 },
   mergeOpt: { paddingVertical: 8, paddingHorizontal: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2, marginBottom: 6 },
   mergeOptText: { color: colors.text, fontSize: 13, fontWeight: "700" },

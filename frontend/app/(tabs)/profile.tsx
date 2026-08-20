@@ -535,6 +535,9 @@ export default function Profile() {
         <Text style={styles.linkText}>MANAGE PREMIUM</Text>
       </Pressable>
       )}
+      <Pressable testID="open-gyms-map" onPress={() => router.push("/gyms-map")} style={styles.linkBtn}>
+        <Text style={styles.linkText}>🗺 GYM MAP — FIND TRAINING SPOTS</Text>
+      </Pressable>
       <Pressable testID="open-purchases" onPress={() => router.push("/purchases")} style={styles.linkBtn}>
         <Text style={styles.linkText}>MY PURCHASES</Text>
       </Pressable>

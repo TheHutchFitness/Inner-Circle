@@ -14,6 +14,7 @@ import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
 import { HeroIntro } from "@/src/components/HeroIntro";
 import { AppModeIntro } from "@/src/components/AppModeIntro";
 import { OnboardingTour } from "@/src/components/OnboardingTour";
+import { ClanInviteGate } from "@/src/components/ClanInviteGate";
 import { PushManager } from "@/src/lib/push";
 import { isEnhancedPalette, applyEnhancedPalette, colors } from "@/src/lib/theme";
 import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
@@ -112,6 +113,7 @@ export default function RootLayout() {
               <IntroGate />
               <ModeGate />
               <TourGate />
+              <ClanInviteGate />
               <PushManager />
               </UnitsProvider>
             </RCIdentity>

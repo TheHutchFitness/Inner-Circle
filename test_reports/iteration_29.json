@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 29 — Frontend-only verification of four new features. ALL 4 FEATURES PASS. (1) Settings → REPLAY INTRO TOUR (testID replay-tour) reliably re-opens the OnboardingTour overlay: tour-next → tour-next → tour-finish routes to /quests. (2) Fresh signup happy-path: tab-signup + input-name/email/password + submit-auth → HeroIntro auto-dismisses → AppModeIntro (pick-full) → OnboardingTour appears (STEP 1 · THE JOURNEY) → tour-next×2 → tour-finish → routed to /quests. (3) /gyms-map: Profile → open-gyms-map opens the screen without crash, GymsMap.web fallback renders (currently empty-state 'No gyms on the map yet.' because no gyms have a location set yet); gyms-map-back returns to Profile. (4) Admin gym directory (owner /admin): new-gym-input + add-gym create a throwaway gym ('TEST_iter29_*'), and each existing gym card renders gym-addr-{id} (text input accepts input), gym-loc-{id} (📍 PIN), gym-merge-{id} (⇄ MERGE) which opens the inline picker (merge-into-{src}-{dst}, e.g. merge-into-gym_001e02e4905c-gym_6234348c83a6). Throwaway gym cleaned up via gym-del-{id}. (5) Clan Invite: on the owner's 'test' clan detail, share-invite (🔗 SHARE INVITE LINK) is rendered for the creator. Tapping does NOT crash; the /api/groups/{id}/invite-code fetch succeeds (no 'Couldn't create invite link' toast). On desktop web without navigator.share, react-native-web's Share.share surfaces its own generic 'Share is not supported in this browser' notice — that's the web platform limitation called out in the spec, not a bug. (6) /journey renders fully after login (IRON VALLEY / TIER D / RANK #1/14, stats row STR/PWR/SPD/END/GRT, YOU · Lv1001 hero, journey-back + journey-node-0 present) with no fatal errors. Console: only benign RN warnings ('textShadow*' / 'shadow*' style prop deprecations from react-native-web) and one 401 on a background fetch pre-auth — no red screen, no crash on any flow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Clan Invite share on desktop web",
+        "issue": "react-native-web's Share.share throws 'Share is not supported in this browser' on desktop Chrome (no navigator.share). Caught by shareInvite() and shown via setMsg as a small red text under the button. Not a bug per spec (native sheet only works on iOS/Android), but on web users see an error-styled message even though the invite-code fetch succeeded. Optional polish: on web, fall back to copying the invite URL to clipboard + showing 'Link copied — send it to your crew' instead of the RN error string. Reference: /app/frontend/src/components/GroupsPanel.tsx:48-55.",
+        "affected_testIDs": ["share-invite"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_29.json"
+  ],
+  "action_items": [
+    "OPTIONAL polish (not blocking): in GroupsPanel.shareInvite(), on Platform.OS === 'web' skip Share.share and either (a) navigator.clipboard.writeText(url) + setMsg('Invite link copied — paste it anywhere.') or (b) window.prompt('Copy this invite link', url). This removes the 'Share is not supported in this browser' error that surfaces on the desktop web build even though the invite-code call succeeded."
+  ],
+  "critical_code_review_comments": [
+    "frontend/src/components/GroupsPanel.tsx:48-55 — shareInvite catches all errors and shows them via setMsg. On desktop web without navigator.share, this exposes the RN Share polyfill's error string to users. Consider a web-specific branch (clipboard fallback) so the invite-code fetch success remains visible.",
+    "frontend/app/gyms-map.tsx uses ActivityIndicator when gyms === null and empty state text when the list is empty — clean UX. Once at least one gym has lat/lng, the web fallback list in GymsMap.web.tsx will render 'Interactive map available on the mobile app' + gym rows. No changes needed.",
+    "frontend/app/settings.tsx:63-69 replayTour() PATCHes tour_seen:false and then refreshes user — TourGate in _layout.tsx re-mounts <OnboardingTour /> automatically. Verified end-to-end on the9hutch account.",
+    "frontend/app/admin.tsx merge picker (merge-into-{src}-{dst}) correctly excludes the source gym from the destinations. Verified with 2 gyms present (only one destination option offered when merging one into the other).",
+    "frontend/app/_layout.tsx TourGate condition `user.mode_selected === true && user.tour_seen !== true` is correct — after a fresh signup, HeroIntro (IntroGate) → AppModeIntro (ModeGate) → OnboardingTour (TourGate) chain fires exactly in order."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only per request)",
+    "frontend": "100% (6/6 flows PASS: settings replay-tour → tour → /quests, fresh signup → mode → tour → /quests, gyms-map load + empty state + back, admin gym directory testIDs + merge picker + throwaway create/delete, share-invite renders + fires w/o crash + no invite-code error, /journey renders with journey-back + journey-node-0 + full IRON VALLEY layout — no red screen or fatal console error)"
+  },
+  "seed_data_creation": "Created a throwaway admin gym 'TEST_iter29_1787190193' via new-gym-input + add-gym to verify gym-addr / gym-loc / gym-merge / merge-into testIDs, then deleted it via gym-del-{id}. Created a throwaway signup TEST_tour_1787190410@example.com to verify the first-time OnboardingTour path (mode → tour → /quests). The signup account was not deleted — non-admin, does not affect owner or 'test' data; may hold a Founding Beta seat.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "TAB testIDs are tab-index / tab-workout / tab-leaderboard / tab-quests / tab-community / tab-profile (NOT tab-me/tab-social). The Groups panel is inside SOCIAL tab and is toggled by the 'GROUPS' segment testID 'chat-room-groups' (not a stand-alone tab). Group cards use testID 'group-<uuid>' (e.g. group-grp_40e7cb88f5d3); the owner's private 'test' clan is the only one currently. Admin panel gym cards render testIDs gym-addr-{id}, gym-loc-{id}, gym-loc-clear-{id}, gym-merge-{id}, gym-del-{id}, and the merge picker exposes merge-into-{src}-{dst}. Deleting a signup created for testing requires the delete-account confirm ('DELETE') on /settings; TEST_tour_* accounts left after this run consume a Founding Beta seat, so the main agent may want to purge them via a small Mongo cleanup script if seat-count matters. Share.share on desktop Chrome does not open the native sheet — that's expected; invite-code fetch success is the real assertion here.",
+  "rca_of_issue": ""
+}

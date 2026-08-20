@@ -171,6 +171,30 @@ async def list_gyms():
     }
 
 
+@api_router.get("/gyms/map")
+async def gyms_map():
+    """Public: every gym that has a map location set, for the Gyms Map screen."""
+    rows = await db.gyms.find(
+        {"lat": {"$ne": None}, "lng": {"$ne": None}},
+        {"_id": 0, "name": 1, "verified": 1, "logo_media_id": 1, "lat": 1, "lng": 1, "address": 1},
+    ).sort("name", 1).to_list(1000)
+    out = []
+    for r in rows:
+        if (r.get("name", "").strip().lower() == "test"):
+            continue
+        if r.get("lat") is None or r.get("lng") is None:
+            continue
+        members = await db.users.count_documents(
+            {"inperson_gym": {"$regex": f"^{re.escape(r['name'])}$", "$options": "i"}})
+        out.append({
+            "name": r["name"], "verified": bool(r.get("verified")),
+            "logo_media_id": r.get("logo_media_id"),
+            "lat": r["lat"], "lng": r["lng"], "address": r.get("address", ""),
+            "members": members,
+        })
+    return {"gyms": out}
+
+
 @api_router.get("/profile/frames")
 async def profile_frames(user=Depends(get_current_user)):
     return {"unlocked": unlocked_frames_for(user), "active": user.get("active_frame")}

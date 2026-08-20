@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Share, Platform } from "react-native";
+import * as ExpoLinking from "expo-linking";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { ChatRoom } from "@/src/components/ChatRoom";
@@ -42,6 +43,21 @@ export function GroupsPanel() {
     if (!name.trim()) { setMsg("Name required"); return; }
     try { const g = await apiFetch(token, "/api/groups", { method: "POST", body: JSON.stringify({ name: name.trim(), description: desc.trim() }) }); setCreating(false); setName(""); setDesc(""); await loadList(); openGroup(g.id); }
     catch (e: any) { setMsg(e?.message || "Failed"); }
+  };
+
+  const shareInvite = async () => {
+    if (!sel) return;
+    try {
+      const r = await apiFetch(token, `/api/groups/${sel.id}/invite-code`);
+      const url = ExpoLinking.createURL(`/clan/${r.code}`);
+      const message = `Join my clan "${r.name}" on Hutch's Inner Circle:\n${url}`;
+      if (Platform.OS === "web") {
+        try { await (navigator as any).clipboard.writeText(url); setMsg("Invite link copied!"); }
+        catch { setMsg(url); }
+        return;
+      }
+      await Share.share({ message });
+    } catch (e: any) { setMsg(e?.message || "Couldn't create invite link"); }
   };
 
   if (loading) return <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} />;
@@ -118,10 +134,16 @@ export function GroupsPanel() {
 
             {/* Invite (editors) */}
             {canEdit && (
-              <View style={styles.annBox}>
-                <TextInput testID="invite-input" value={invite} onChangeText={setInvite} placeholder="Invite a member by name…" placeholderTextColor={colors.textDim} style={styles.input} autoCapitalize="none" />
-                <Pressable testID="invite-btn" onPress={async () => { if (invite.trim()) { await act(`/api/groups/${sel.id}/invite`, { display_name: invite.trim() }); setInvite(""); } }} style={styles.smallBtn}><Text style={styles.smallBtnT}>INVITE</Text></Pressable>
-              </View>
+              <>
+                <Pressable testID="share-invite" onPress={shareInvite} style={[styles.primaryBtn, { marginTop: spacing.md }]}>
+                  <Text style={styles.primaryBtnT}>🔗 SHARE INVITE LINK</Text>
+                </Pressable>
+                <Text style={styles.inviteHint}>Anyone who opens your link joins {sel.name} instantly — no approval needed.</Text>
+                <View style={styles.annBox}>
+                  <TextInput testID="invite-input" value={invite} onChangeText={setInvite} placeholder="Or invite a member by name…" placeholderTextColor={colors.textDim} style={styles.input} autoCapitalize="none" />
+                  <Pressable testID="invite-btn" onPress={async () => { if (invite.trim()) { await act(`/api/groups/${sel.id}/invite`, { display_name: invite.trim() }); setInvite(""); } }} style={styles.smallBtn}><Text style={styles.smallBtnT}>INVITE</Text></Pressable>
+                </View>
+              </>
             )}
 
             {/* Members */}
@@ -266,5 +288,6 @@ const styles = StyleSheet.create({
   gcMeta: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   gcArrow: { color: colors.brandPrimary, fontSize: 22, fontWeight: "900" },
   dim: { color: colors.textDim, fontSize: 12, marginTop: spacing.sm, lineHeight: 18 },
+  inviteHint: { color: colors.textDim, fontSize: 11, lineHeight: 16, marginTop: 6, marginBottom: spacing.sm },
   err: { color: colors.error, marginTop: spacing.sm, textAlign: "center" },
 });

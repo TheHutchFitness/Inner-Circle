@@ -349,6 +349,45 @@ async def admin_merge_gym(gym_id: str, payload: dict = Body(default={}), user=De
     return {"ok": True, "moved": moved.modified_count, "into": dst["name"]}
 
 
+async def _geocode_address(address: str):
+    """Resolve a free-text address to (lat, lng, formatted) via OpenStreetMap Nominatim (keyless)."""
+    async with httpx.AsyncClient(timeout=12) as client:
+        r = await client.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": address, "format": "json", "limit": 1, "addressdetails": 0},
+            headers={"User-Agent": "HutchInnerCircle/1.0 (gym directory geocoder)"},
+        )
+    r.raise_for_status()
+    hits = r.json()
+    if not hits:
+        return None
+    top = hits[0]
+    return float(top["lat"]), float(top["lon"]), top.get("display_name", address)
+
+
+@api_router.post("/admin/gyms/{gym_id}/location")
+async def admin_set_gym_location(gym_id: str, payload: dict = Body(default={}), user=Depends(get_current_user)):
+    """Set (geocode) or clear a gym's map location from a free-text address."""
+    _require_admin(user)
+    g = await db.gyms.find_one({"id": gym_id})
+    if not g:
+        raise HTTPException(status_code=404, detail="Gym not found")
+    address = str((payload or {}).get("address", "") or "").strip()[:200]
+    if not address:
+        await db.gyms.update_one({"id": gym_id}, {"$unset": {"lat": "", "lng": "", "address": ""}})
+        return {"ok": True, "cleared": True}
+    try:
+        geo = await _geocode_address(address)
+    except Exception:
+        raise HTTPException(status_code=502, detail="Address lookup failed — try again")
+    if not geo:
+        raise HTTPException(status_code=404, detail="Couldn't find that address — try adding city/country")
+    lat, lng, formatted = geo
+    await db.gyms.update_one({"id": gym_id}, {"$set": {"lat": lat, "lng": lng, "address": formatted}})
+    return {"ok": True, "lat": lat, "lng": lng, "address": formatted}
+
+
+
 @api_router.post("/admin/gyms/{gym_id}/verify")
 async def admin_verify_gym(gym_id: str, payload: dict = Body(default={}), user=Depends(get_current_user)):
     """Mark a gym as a verified, real location (or unverify)."""

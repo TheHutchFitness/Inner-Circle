@@ -60,6 +60,14 @@ export default function Settings() {
     } catch (e: any) { setMsg(e.message); }
   };
 
+  const replayTour = async () => {
+    try {
+      await apiFetch(token, "/api/profile/update", { method: "PATCH", body: JSON.stringify({ tour_seen: false }) });
+      await refresh();
+      // The TourGate overlay (root layout) reappears automatically once tour_seen flips.
+    } catch (e: any) { setMsg(e.message); }
+  };
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.md, padding: spacing.lg, paddingBottom: 40 }}>
@@ -114,6 +122,12 @@ export default function Settings() {
             </Pressable>
           </>
         )}
+
+        <Text style={[styles.h1, { marginTop: spacing.xl }]}>APP TOUR</Text>
+        <Text style={styles.helper}>Re-watch the quick intro to Quests, the Armory and Clans.</Text>
+        <Pressable testID="replay-tour" onPress={replayTour} style={styles.linkBtn}>
+          <Text style={styles.linkText}>🧭  REPLAY INTRO TOUR</Text>
+        </Pressable>
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>LEGAL</Text>
         <Pressable

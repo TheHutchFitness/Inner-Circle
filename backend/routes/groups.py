@@ -249,6 +249,64 @@ async def announce(gid: str, inp: GroupText, user=Depends(get_current_user)):
     return ann
 
 
+async def _ensure_invite_code(g: dict) -> str:
+    """Return the group's invite code, generating & persisting one on first use."""
+    code = g.get("invite_code")
+    if code:
+        return code
+    # short, URL/deep-link-safe, collision-checked
+    while True:
+        code = uuid.uuid4().hex[:8].upper()
+        if not await db.groups.find_one({"invite_code": code}):
+            break
+    await db.groups.update_one({"id": g["id"]}, {"$set": {"invite_code": code}})
+    return code
+
+
+@api_router.get("/groups/{gid}/invite-code")
+async def group_invite_code(gid: str, user=Depends(get_current_user)):
+    """Creator/admin: fetch (or lazily create) the shareable invite code for a clan."""
+    g = await db.groups.find_one({"id": gid})
+    if not g:
+        raise HTTPException(status_code=404, detail="Group not found")
+    _require_edit(g, user)
+    code = await _ensure_invite_code(g)
+    return {"code": code, "group_id": gid, "name": g.get("name")}
+
+
+@api_router.get("/groups/by-code/{code}")
+async def group_by_code(code: str, user=Depends(get_current_user)):
+    """Preview a clan from an invite code before joining."""
+    g = await db.groups.find_one({"invite_code": (code or "").strip().upper()}, {"_id": 0})
+    if not g:
+        raise HTTPException(status_code=404, detail="This invite link is invalid or expired")
+    uid = user["user_id"]
+    b = await _brief(g, uid)
+    creator = await db.users.find_one({"user_id": g.get("creator_id")}, {"_id": 0, "display_name": 1})
+    b["creator_name"] = (creator or {}).get("display_name", "—")
+    b["already_member"] = uid in g.get("members", [])
+    return b
+
+
+@api_router.post("/groups/join-by-code")
+async def join_by_code(payload: dict = Body(default={}), user=Depends(get_current_user)):
+    """Instantly join a clan via an invite code — skips the usual approval step."""
+    code = str((payload or {}).get("code", "") or "").strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Invite code required")
+    g = await db.groups.find_one({"invite_code": code})
+    if not g:
+        raise HTTPException(status_code=404, detail="This invite link is invalid or expired")
+    uid = user["user_id"]
+    if uid in g.get("members", []):
+        return {"ok": True, "group_id": g["id"], "name": g.get("name"), "status": "member"}
+    if await _count_membership(uid) >= MAX_GROUPS_PER_USER:
+        raise HTTPException(status_code=400, detail="You can be in at most 2 groups")
+    await db.groups.update_one({"id": g["id"]}, {"$pull": {"pending": uid}, "$addToSet": {"members": uid}})
+    return {"ok": True, "group_id": g["id"], "name": g.get("name"), "status": "joined"}
+
+
+
 @api_router.get("/my-groups")
 async def my_groups(user=Depends(get_current_user)):
     rows = await db.groups.find({"members": user["user_id"]}, {"_id": 0}).to_list(10)
