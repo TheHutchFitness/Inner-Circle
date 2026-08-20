@@ -9,41 +9,44 @@ import { colors, spacing, radius } from "@/src/lib/theme";
 
 const PENDING_KEY = "pending_clan_code";
 
-async function stashCode(code: string) {
-  if (Platform.OS === "web") localStorage.setItem(PENDING_KEY, code);
-  else await SecureStore.setItemAsync(PENDING_KEY, code);
+async function stashCode(value: string) {
+  if (Platform.OS === "web") localStorage.setItem(PENDING_KEY, value);
+  else await SecureStore.setItemAsync(PENDING_KEY, value);
 }
 
-// Deep-link target for clan invite links: frontend://clan/CODE (native) or /clan/CODE (web).
+// Deep-link target for clan invite links: frontend://clan/CODE?ref=USER (native) or /clan/CODE?ref=USER (web).
 export default function ClanInvite() {
-  const { code } = useLocalSearchParams<{ code: string }>();
+  const { code, ref } = useLocalSearchParams<{ code: string; ref?: string }>();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { token, user, loading } = useAuth();
   const [state, setState] = useState<"working" | "done" | "error">("working");
   const [msg, setMsg] = useState("");
   const [clan, setClan] = useState<string>("");
+  const [bonus, setBonus] = useState<number>(0);
 
   useEffect(() => {
     if (loading) return;
     const c = String(code || "").trim().toUpperCase();
+    const r = String(ref || "").trim();
     if (!c) { setState("error"); setMsg("Invalid invite link."); return; }
-    // Not signed in yet → remember the code and send them to log in / sign up first.
+    // Not signed in yet → remember the code (+ref) and send them to log in / sign up first.
     if (!user) {
-      stashCode(c).finally(() => router.replace("/"));
+      stashCode(r ? `${c}::${r}` : c).finally(() => router.replace("/"));
       return;
     }
     (async () => {
       try {
-        const r = await apiFetch(token, "/api/groups/join-by-code", { method: "POST", body: JSON.stringify({ code: c }) });
-        setClan(r.name || "the clan");
+        const res = await apiFetch(token, "/api/groups/join-by-code", { method: "POST", body: JSON.stringify({ code: c, ref: r }) });
+        setClan(res.name || "the clan");
+        setBonus(res.joiner_xp || 0);
         setState("done");
       } catch (e: any) {
         setMsg(e?.message || "Couldn't join this clan.");
         setState("error");
       }
     })();
-  }, [loading, user, code]);
+  }, [loading, user, code, ref]);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -57,7 +60,7 @@ export default function ClanInvite() {
         <>
           <Text style={styles.icon}>🎉</Text>
           <Text style={styles.title}>YOU&apos;RE IN</Text>
-          <Text style={styles.sub}>Welcome to {clan}. Time to climb together.</Text>
+          <Text style={styles.sub}>Welcome to {clan}. Time to climb together.{bonus ? `\n+${bonus} XP welcome bonus!` : ""}</Text>
           <Pressable testID="clan-go" onPress={() => router.replace("/(tabs)/community")} style={styles.btn}>
             <Text style={styles.btnText}>OPEN CLAN →</Text>
           </Pressable>

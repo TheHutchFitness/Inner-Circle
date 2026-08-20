@@ -31,9 +31,10 @@ export function ClanInviteGate() {
       const code = await readCode();
       if (!code) { done.current = false; return; }
       await clearCode();
+      const [c, r] = code.split("::");
       try {
-        const r = await apiFetch(token, "/api/groups/join-by-code", { method: "POST", body: JSON.stringify({ code }) });
-        setClan(r.name || "the clan");
+        const res = await apiFetch(token, "/api/groups/join-by-code", { method: "POST", body: JSON.stringify({ code: c, ref: r || "" }) });
+        setClan(res.name || "the clan");
       } catch {
         done.current = false;
       }

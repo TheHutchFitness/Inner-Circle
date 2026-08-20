@@ -7,7 +7,7 @@ import { ChatRoom } from "@/src/components/ChatRoom";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 
 export function GroupsPanel() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [list, setList] = useState<any[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [myCount, setMyCount] = useState(0);
@@ -49,7 +49,8 @@ export function GroupsPanel() {
     if (!sel) return;
     try {
       const r = await apiFetch(token, `/api/groups/${sel.id}/invite-code`);
-      const url = ExpoLinking.createURL(`/clan/${r.code}`);
+      const ref = user?.user_id ? `?ref=${user.user_id}` : "";
+      const url = ExpoLinking.createURL(`/clan/${r.code}${ref}`);
       const message = `Join my clan "${r.name}" on Hutch's Inner Circle:\n${url}`;
       if (Platform.OS === "web") {
         try { await (navigator as any).clipboard.writeText(url); setMsg("Invite link copied!"); }

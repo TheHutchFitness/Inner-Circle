@@ -5,6 +5,11 @@ from shared import *  # noqa: F401,F403
 
 MAX_GROUPS_PER_USER = 2
 
+# Invite rewards — bonus XP when someone joins a clan via a shared invite link.
+INVITE_INVITER_XP = 200   # to the member whose link was used (ref)
+INVITE_JOIN_XP = 100      # welcome bonus to the new joiner
+INVITE_CLAN_XP = 150      # added to the clan itself (helps leveling & challenges)
+
 
 def _can_create(u: dict) -> bool:
     return bool(u.get("is_founder") or u.get("founder_grant") or u.get("is_premium")
@@ -290,8 +295,10 @@ async def group_by_code(code: str, user=Depends(get_current_user)):
 
 @api_router.post("/groups/join-by-code")
 async def join_by_code(payload: dict = Body(default={}), user=Depends(get_current_user)):
-    """Instantly join a clan via an invite code — skips the usual approval step."""
+    """Instantly join a clan via an invite code — skips the usual approval step.
+    Rewards the inviter (ref), the joiner, and the clan itself with bonus XP on a new join."""
     code = str((payload or {}).get("code", "") or "").strip().upper()
+    ref = str((payload or {}).get("ref", "") or "").strip()
     if not code:
         raise HTTPException(status_code=400, detail="Invite code required")
     g = await db.groups.find_one({"invite_code": code})
@@ -303,7 +310,16 @@ async def join_by_code(payload: dict = Body(default={}), user=Depends(get_curren
     if await _count_membership(uid) >= MAX_GROUPS_PER_USER:
         raise HTTPException(status_code=400, detail="You can be in at most 2 groups")
     await db.groups.update_one({"id": g["id"]}, {"$pull": {"pending": uid}, "$addToSet": {"members": uid}})
-    return {"ok": True, "group_id": g["id"], "name": g.get("name"), "status": "joined"}
+    # Invite rewards (new join only)
+    await award_xp(uid, INVITE_JOIN_XP)
+    await db.groups.update_one({"id": g["id"]}, {"$inc": {"xp": INVITE_CLAN_XP}})
+    inviter_rewarded = False
+    if ref and ref != uid and ref in g.get("members", []):
+        if await db.users.find_one({"user_id": ref}, {"_id": 0, "user_id": 1}):
+            await award_xp(ref, INVITE_INVITER_XP)
+            inviter_rewarded = True
+    return {"ok": True, "group_id": g["id"], "name": g.get("name"), "status": "joined",
+            "joiner_xp": INVITE_JOIN_XP, "inviter_rewarded": inviter_rewarded, "inviter_xp": INVITE_INVITER_XP if inviter_rewarded else 0}
 
 
 
