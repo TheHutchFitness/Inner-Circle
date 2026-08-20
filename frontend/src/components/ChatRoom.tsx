@@ -151,8 +151,14 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
                   <PlayerAvatar person={m} token={token} size={26} showEmblem={false} />
                 </Pressable>
                 <Pressable onPress={() => m.user_id && setMemberId(m.user_id)} hitSlop={6}>
-                  <Text style={[st.msgName, m.founder_backer && st.msgNameBacker]}>{m.display_name}</Text>
+                  <Text style={[st.msgName, m.founder_backer && st.msgNameBacker, m.clan_role === "leader" && m.clan_color ? { color: m.clan_color } : null]}>{m.display_name}</Text>
                 </Pressable>
+                {typeof m.level === "number" && (
+                  <View style={[st.lvlChip, m.clan_color ? { borderColor: m.clan_color } : null]}>
+                    <Text style={[st.lvlChipText, m.clan_color ? { color: m.clan_color } : null]}>Lv{m.level}</Text>
+                  </View>
+                )}
+                {m.clan_role === "leader" && <Text style={st.crown}>👑</Text>}
                 <Text style={[st.msgRank, { color: RANK_COLORS[m.rank] || accent }]}>{m.rank?.toUpperCase()}</Text>
                 {m.founder_backer && (
                   <View style={st.backerPill}>
@@ -232,6 +238,9 @@ const st = StyleSheet.create({
   msgHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   msgEmoji: { fontSize: 16 },
   msgName: { color: colors.text, fontWeight: "800", fontSize: 13 },
+  lvlChip: { borderWidth: 1, borderColor: colors.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  lvlChipText: { color: colors.textMid, fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
+  crown: { fontSize: 12 },
   msgRank: { fontSize: 9, letterSpacing: 2, fontWeight: "800" },
   msgSkool: { color: colors.success, fontWeight: "900" },
   msgBacker: { color: colors.warning, fontWeight: "900" },

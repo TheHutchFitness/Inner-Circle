@@ -25,6 +25,11 @@ export default function Admin() {
   const [redOn, setRedOn] = useState(!!user?.enhanced);
   const [storeItems, setStoreItems] = useState<any[]>([]);
   const [nf, setNf] = useState<any>({ kind: "aura", name: "", description: "", rarity: "legendary", icon: "★", colors: "#7A5CFF,#00E5FF", motion: "pulse" });
+  const [security, setSecurity] = useState<any>(null);
+
+  const loadSecurity = async () => {
+    try { setSecurity(await apiFetch(token, "/api/admin/security/logins")); } catch {}
+  };
 
   const loadMembers = async (query = "") => {
     try {
@@ -36,7 +41,7 @@ export default function Admin() {
   const loadFeatured = async () => {
     try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
   };
-  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); } /* eslint-disable-line */ }, [token]);
+  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); loadSecurity(); } /* eslint-disable-line */ }, [token]);
 
   const loadStore = async () => {
     try { setStoreItems((await apiFetch(token, "/api/admin/store")).items || []); } catch {}
@@ -231,6 +236,42 @@ export default function Admin() {
               {challenge?.last?.winner_name ? <Text style={st.chalStand}>Last winner: 🏆 {challenge.last.winner_name} ({challenge.last.title})</Text> : null}
               <TextInput testID="challenge-title" value={chalTitle} onChangeText={setChalTitle} placeholder="Challenge title (optional)" placeholderTextColor={colors.textDim} style={st.annInput2} />
               <Pressable testID="start-challenge" onPress={startChallenge} style={st.annBtn}><Text style={st.annBtnText}>+ START MONTHLY CHALLENGE</Text></Pressable>
+            </>
+          )}
+        </View>
+
+        {/* Security / login audit */}
+        <View style={st.secHeadRow}>
+          <Text style={st.section}>🛡 SECURITY — LOGIN ATTEMPTS</Text>
+          <Pressable testID="sec-refresh" onPress={loadSecurity} hitSlop={8}><Text style={st.secRefresh}>↻ REFRESH</Text></Pressable>
+        </View>
+        <View style={st.card}>
+          {!security ? (
+            <Text style={st.cardSub}>Loading…</Text>
+          ) : (
+            <>
+              <View style={st.secStatsRow}>
+                <View style={st.secStat}><Text style={[st.secNum, security.total_1h > 30 && { color: colors.error }]}>{security.total_1h}</Text><Text style={st.secLbl}>FAILED · 1H</Text></View>
+                <View style={st.secStat}><Text style={st.secNum}>{security.total_24h}</Text><Text style={st.secLbl}>FAILED · 24H</Text></View>
+                <View style={st.secStat}><Text style={[st.secNum, security.locked_accounts > 0 && { color: colors.warning }]}>{security.locked_accounts}</Text><Text style={st.secLbl}>LOCKED NOW</Text></View>
+              </View>
+              {security.total_1h > 30 && <Text style={st.secWarn}>⚠ Elevated failed-login volume in the last hour — possible attack.</Text>}
+              {security.top_ips?.length > 0 && (
+                <>
+                  <Text style={st.secSub}>TOP SOURCE IPs (24H)</Text>
+                  {security.top_ips.map((t: any, i: number) => (
+                    <View key={i} style={st.secRow}><Text style={st.secIp}>{t.ip}</Text><Text style={st.secCount}>{t.count}</Text></View>
+                  ))}
+                </>
+              )}
+              <Text style={st.secSub}>RECENT ATTEMPTS</Text>
+              {(security.recent || []).length === 0 ? <Text style={st.cardSub}>No failed logins recorded 🎉</Text> :
+                security.recent.slice(0, 12).map((r: any, i: number) => (
+                  <View key={i} style={st.secRow}>
+                    <Text style={st.secWho} numberOfLines={1}>{r.email_masked}</Text>
+                    <Text style={st.secMeta}>{r.ip} · {new Date(r.at).toLocaleTimeString()}</Text>
+                  </View>
+                ))}
             </>
           )}
         </View>
@@ -455,6 +496,19 @@ const st = StyleSheet.create({
   miniChipText: { color: colors.textDim, fontSize: 11, fontWeight: "800" },
   miniChipTextOn: { color: colors.warning },
   section: { color: colors.brandPrimary, letterSpacing: 3, fontWeight: "900", fontSize: 12, marginTop: spacing.md, marginBottom: spacing.sm },
+  secHeadRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  secRefresh: { color: colors.textDim, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  secStatsRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.sm },
+  secStat: { flex: 1, alignItems: "center", backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.sm },
+  secNum: { color: colors.text, fontSize: 22, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  secLbl: { color: colors.textDim, fontSize: 9, fontWeight: "800", letterSpacing: 1, marginTop: 2 },
+  secWarn: { color: colors.error, fontSize: 12, fontWeight: "700", marginBottom: spacing.sm },
+  secSub: { color: colors.textMid, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: spacing.sm, marginBottom: 4 },
+  secRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: colors.border },
+  secIp: { color: colors.text, fontSize: 12, fontFamily: undefined },
+  secCount: { color: colors.brandPrimary, fontSize: 12, fontWeight: "900" },
+  secWho: { color: colors.text, fontSize: 12, flex: 1 },
+  secMeta: { color: colors.textDim, fontSize: 10 },
   dim: { color: colors.textDim, fontSize: 12, marginBottom: spacing.md },
   featRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, backgroundColor: "rgba(255,234,0,0.06)", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, marginBottom: spacing.sm },
   name: { color: colors.text, fontWeight: "800", letterSpacing: 1 },

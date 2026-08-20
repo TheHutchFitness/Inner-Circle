@@ -28,7 +28,7 @@ async def get_messages(room: str, user=Depends(get_current_user)):
     if sender_ids:
         async for u in db.users.find(
             {"user_id": {"$in": sender_ids}},
-            {"user_id": 1, "founder_backer": 1, "photo_media_id": 1, "use_photo": 1, "loadout": 1, "avatar_id": 1, "equipped_skin": 1, "equipped_weapon": 1, "equipped_hair": 1, "equipped_beard": 1, "sex": 1},
+            {"user_id": 1, "founder_backer": 1, "photo_media_id": 1, "use_photo": 1, "loadout": 1, "avatar_id": 1, "equipped_skin": 1, "equipped_weapon": 1, "equipped_hair": 1, "equipped_beard": 1, "sex": 1, "xp": 1},
         ):
             if u.get("founder_backer"):
                 backers.add(u["user_id"])
@@ -42,7 +42,16 @@ async def get_messages(room: str, user=Depends(get_current_user)):
                 "equipped_hair": u.get("equipped_hair"),
                 "equipped_beard": u.get("equipped_beard"),
                 "sex": u.get("sex"),
+                "level": level_from_xp(u.get("xp", 0)),
             }
+    # In a clan (group) room, tag each sender with their role + the clan's colour.
+    clan_creator = None
+    clan_color = None
+    if room.startswith("group:"):
+        gc = await db.groups.find_one({"id": room.split(":", 1)[1]}, {"_id": 0, "creator_id": 1, "color": 1})
+        if gc:
+            clan_creator = gc.get("creator_id")
+            clan_color = gc.get("color")
     for r in rows:
         r["founder_backer"] = r.get("user_id") in backers
         p = profiles.get(r.get("user_id"))
@@ -54,10 +63,14 @@ async def get_messages(room: str, user=Depends(get_current_user)):
             r["equipped_weapon"] = p.get("equipped_weapon")
             r["equipped_hair"] = p.get("equipped_hair")
             r["equipped_beard"] = p.get("equipped_beard")
+            r["level"] = p.get("level", 1)
             if p.get("sex"):
                 r["sex"] = p["sex"]
             if p.get("avatar_id"):
                 r["avatar_id"] = p["avatar_id"]
+        if clan_creator is not None:
+            r["clan_role"] = "leader" if r.get("user_id") == clan_creator else "member"
+            r["clan_color"] = clan_color
         if isinstance(r.get("created_at"), datetime):
             r["created_at"] = r["created_at"].isoformat()
     return rows
@@ -103,6 +116,7 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         "equipped_beard": user.get("equipped_beard"),
         "sex": user.get("sex", "male"),
         "rank": rank_from_xp(user["xp"]),
+        "level": level_from_xp(user.get("xp", 0)),
         "skool_verified": user.get("skool_verified", False),
         "founder_backer": user.get("founder_backer", False),
         "text": text[:500],
@@ -110,6 +124,11 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
         "media_type": media["media_type"] if media else None,
         "created_at": datetime.now(timezone.utc),
     }
+    if room.startswith("group:"):
+        gc = await db.groups.find_one({"id": room.split(":", 1)[1]}, {"_id": 0, "creator_id": 1, "color": 1})
+        if gc:
+            msg["clan_role"] = "leader" if user["user_id"] == gc.get("creator_id") else "member"
+            msg["clan_color"] = gc.get("color")
     await db.chat_messages.insert_one(msg)
     msg.pop("_id", None)
     msg["created_at"] = msg["created_at"].isoformat()

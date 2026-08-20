@@ -66,9 +66,8 @@ export function GroupsPanel() {
   if (loading) return <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: 40 }} />;
 
   // ---------- Group detail (home page) ----------
-  if (sel) {
-    const canEdit = sel.can_edit;
-    return (
+  const canEdit = sel?.can_edit;
+  const detailView = sel ? (
       <View style={{ flex: 1 }}>
         <View style={styles.detailHead}>
           <Pressable testID="group-back" onPress={() => setSel(null)}><Text style={styles.back}>‹ GROUPS</Text></Pressable>
@@ -167,11 +166,10 @@ export function GroupsPanel() {
           </ScrollView>
         )}
       </View>
-    );
-  }
+  ) : null;
 
   // ---------- Group list ----------
-  return (
+  const listView = (
     <ScrollView contentContainerStyle={[{ padding: spacing.lg, paddingBottom: 120 }, webCenter(isDesktop)]}>
       {canCreate ? (
         creating ? (
@@ -220,9 +218,9 @@ export function GroupsPanel() {
 
       <Text style={styles.section}>ALL GROUPS ({list.length})</Text>
       {list.length === 0 ? <Text style={styles.dim}>No groups yet. Be the first to start one!</Text> :
-        <View style={isDesktop ? styles.groupGrid : undefined}>
+        <View>
         {list.map((g) => (
-          <Pressable key={g.id} testID={`group-${g.id}`} onPress={() => openGroup(g.id)} style={[styles.groupCard, { borderColor: g.color || colors.borderStrong }, isDesktop && styles.groupCardGrid]}>
+          <Pressable key={g.id} testID={`group-${g.id}`} onPress={() => openGroup(g.id)} style={[styles.groupCard, { borderColor: g.color || colors.borderStrong }, sel?.id === g.id && styles.groupCardActive]}>
             <View style={[styles.gcBadge, { borderColor: g.color || colors.border }]}>
               <Text style={[styles.gcBadgeT, { color: g.color || colors.brandPrimary }]}>{g.badge ? g.badge : g.level}</Text>
             </View>
@@ -235,6 +233,22 @@ export function GroupsPanel() {
         ))}
         </View>}
     </ScrollView>
+  );
+
+  // Mobile: swap between list and detail (unchanged). Desktop: two-pane side-by-side.
+  if (!isDesktop) return sel ? detailView : listView;
+  return (
+    <View style={{ flex: 1, flexDirection: "row" }}>
+      <View style={styles.listPane}>{listView}</View>
+      <View style={{ flex: 1 }}>
+        {sel ? detailView : (
+          <View style={styles.twoPanePlaceholder}>
+            <Text style={styles.placeholderIcon}>◍</Text>
+            <Text style={styles.placeholderText}>Select a clan to view its home, members and chat</Text>
+          </View>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -289,6 +303,11 @@ const styles = StyleSheet.create({
   groupCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, marginBottom: spacing.sm },
   groupGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   groupCardGrid: { width: "48.5%" },
+  groupCardActive: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  listPane: { width: 340, borderRightWidth: 1, borderRightColor: colors.border, backgroundColor: colors.surface },
+  twoPanePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl, gap: spacing.md },
+  placeholderIcon: { color: colors.border, fontSize: 64 },
+  placeholderText: { color: colors.textDim, fontSize: 14, textAlign: "center", maxWidth: 280, lineHeight: 20 },
   gcBadge: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3 },
   gcBadgeT: { fontWeight: "900", fontSize: 14 },
   gcName: { color: colors.text, fontWeight: "900", fontSize: 15 },

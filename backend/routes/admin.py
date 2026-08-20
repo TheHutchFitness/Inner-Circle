@@ -7,6 +7,35 @@ def _require_admin(user):
         raise HTTPException(status_code=403, detail="Admin only")
 
 
+@api_router.get("/admin/security/logins")
+async def admin_login_audit(user=Depends(get_current_user)):
+    """Admin: recent failed-login activity to spot brute-force spikes early."""
+    _require_admin(user)
+    now = datetime.now(timezone.utc)
+    since_24h = now - timedelta(hours=24)
+    since_1h = now - timedelta(hours=1)
+    total_24h = await db.login_events.count_documents({"at": {"$gte": since_24h}})
+    total_1h = await db.login_events.count_documents({"at": {"$gte": since_1h}})
+    top_ips = await db.login_events.aggregate([
+        {"$match": {"at": {"$gte": since_24h}}},
+        {"$group": {"_id": "$ip", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 6},
+    ]).to_list(6)
+    recent = await db.login_events.find({}, {"_id": 0}).sort("at", -1).limit(40).to_list(40)
+    for r in recent:
+        if isinstance(r.get("at"), datetime):
+            r["at"] = r["at"].isoformat()
+    locked = await db.auth_limits.count_documents({"kind": "account", "locked_until": {"$gt": now}})
+    return {
+        "total_24h": total_24h, "total_1h": total_1h,
+        "top_ips": [{"ip": t["_id"], "count": t["count"]} for t in top_ips],
+        "locked_accounts": locked,
+        "recent": recent,
+    }
+
+
+
 async def _member_brief(u: dict) -> dict:
     b = ban_state(u)
     return {

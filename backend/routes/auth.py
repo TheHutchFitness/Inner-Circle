@@ -1,11 +1,21 @@
 # ruff: noqa: F403, F405
 from shared import *  # noqa: F401,F403
+from fastapi import Request
+from auth_throttle import (
+    consume_bucket, check_account_backoff, record_failed_account_login,
+    reset_account_login, client_ip, log_failed_login, IP_LOGIN_LIMIT, IP_LOGIN_WINDOW,
+    SIGNUP_IP_LIMIT, SIGNUP_EMAIL_LIMIT, SIGNUP_WINDOW,
+)
 
 
 # ---------- Auth ----------
 @api_router.post("/auth/register")
-async def register(inp: RegisterInput):
-    existing = await db.users.find_one({"email": inp.email.lower()})
+async def register(inp: RegisterInput, request: Request):
+    email = inp.email.strip().lower()
+    ip = client_ip(request)
+    await consume_bucket(kind="signup-ip", raw_key=ip, limit=SIGNUP_IP_LIMIT, window=SIGNUP_WINDOW)
+    await consume_bucket(kind="signup-email", raw_key=email, limit=SIGNUP_EMAIL_LIMIT, window=SIGNUP_WINDOW)
+    existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     doc = default_user_doc(inp.email, inp.display_name)
@@ -32,17 +42,22 @@ async def register(inp: RegisterInput):
 
 
 @api_router.post("/auth/login")
-async def login(inp: LoginInput):
-    user = await db.users.find_one({"email": inp.email.lower()})
-    if not user or not user.get("password_hash"):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    if not verify_password(inp.password, user["password_hash"]):
+async def login(inp: LoginInput, request: Request):
+    email = inp.email.strip().lower()
+    ip = client_ip(request)
+    await consume_bucket(kind="login-ip", raw_key=ip, limit=IP_LOGIN_LIMIT, window=IP_LOGIN_WINDOW)
+    await check_account_backoff(email)
+    user = await db.users.find_one({"email": email})
+    if not user or not user.get("password_hash") or not verify_password(inp.password, user["password_hash"]):
+        await record_failed_account_login(email)
+        await log_failed_login(ip, email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
     if not user.get("is_admin"):
         b = ban_state(user)
         if b and b["scope"] in ("login", "all"):
             until = b["until"].strftime("%b %d, %H:%M UTC")
             raise HTTPException(status_code=403, detail=f"Your access is suspended until {until}." + (f" Reason: {b['reason']}" if b['reason'] else ""))
+    await reset_account_login(email)
     token = await create_session(user["user_id"])
     user.pop("password_hash", None)
     user.pop("_id", None)
@@ -108,11 +123,13 @@ def _apple_audiences() -> list:
 
 
 @api_router.post("/auth/apple")
-async def apple_session(inp: dict = Body(...)):
+async def apple_session(inp: dict = Body(...), request: Request = None):
     """Sign in with Apple (iOS). Verifies the identity token against Apple's public
     keys, then finds/creates a user keyed on the Apple `sub` and issues a session."""
     import jwt as _jwt
     from jwt import PyJWKClient
+    if request is not None:
+        await consume_bucket(kind="apple-ip", raw_key=client_ip(request), limit=IP_LOGIN_LIMIT, window=IP_LOGIN_WINDOW)
 
     token = (inp or {}).get("identity_token") or (inp or {}).get("identityToken")
     if not token:

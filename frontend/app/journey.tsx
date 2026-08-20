@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -11,6 +11,7 @@ import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, bodyImage } from "@/src/lib/theme";
 import { HeroSprite } from "@/src/components/HeroSprite";
+import { useResponsive } from "@/src/lib/responsive";
 import { PetCompanion } from "@/src/components/PetCompanion";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { MemberSheet } from "@/src/components/MemberSheet";
@@ -352,6 +353,8 @@ function ZoneReveal({ zone, onClose }: { zone: any; onClose: () => void }) {
 export default function Journey() {
   const { token, user } = useAuth();
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
+  const { width: winW } = useWindowDimensions();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [combatNode, setCombatNode] = useState<any>(null);
@@ -414,6 +417,7 @@ export default function Journey() {
   // Map ambience: flowing dashed path + a gentle hero idle bob.
   const dashOffset = useSharedValue(0);
   const heroBob = useSharedValue(0);
+  const [zoom, setZoom] = useState(1);
   useEffect(() => {
     dashOffset.value = withRepeat(withTiming(-24, { duration: 900, easing: Easing.linear }), -1, false);
     heroBob.value = withRepeat(withSequence(withTiming(-5, { duration: 900, easing: Easing.inOut(Easing.sin) }), withTiming(0, { duration: 900, easing: Easing.inOut(Easing.sin) })), -1, false);
@@ -482,9 +486,12 @@ export default function Journey() {
   const claimedCount = nodes.filter((n) => n.claimed).length;
   const heroIndex = Math.min(claimedCount, Math.max(0, nodes.length - 1));
 
-  const contentW = Math.max(SCREEN_W * 1.5, nodes.length * 116 + 120);
+  const contentW = isDesktop ? Math.max(winW - 32, nodes.length * 200 + 120) * zoom : Math.max(SCREEN_W * 1.5, nodes.length * 116 + 120);
+  const mapH = isDesktop ? 460 : 340;
+  const baseY = isDesktop ? 210 : 150;
+  const amp = isDesktop ? 74 : 46;
   const nodeX = (i: number) => 70 + (nodes.length <= 1 ? 0 : i * ((contentW - 150) / (nodes.length - 1)));
-  const nodeY = (i: number) => 150 + Math.sin(i * 0.9) * 46;
+  const nodeY = (i: number) => baseY + Math.sin(i * 0.9) * amp;
 
   const xps = neighbors.map((n) => n.xp);
   const minXp = Math.min(...xps, 0); const maxXp = Math.max(...xps, 1);
@@ -526,10 +533,17 @@ export default function Journey() {
         </View>
       )}
 
+      {isDesktop && (
+        <View style={styles.zoomBar}>
+          <Pressable testID="journey-zoom-out" onPress={() => setZoom((z) => Math.max(0.6, +(z - 0.2).toFixed(2)))} style={styles.zoomBtn}><Text style={styles.zoomBtnText}>−</Text></Pressable>
+          <Pressable testID="journey-zoom-reset" onPress={() => setZoom(1)} style={styles.zoomReset}><Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text></Pressable>
+          <Pressable testID="journey-zoom-in" onPress={() => setZoom((z) => Math.min(2, +(z + 0.2).toFixed(2)))} style={styles.zoomBtn}><Text style={styles.zoomBtnText}>+</Text></Pressable>
+        </View>
+      )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ width: contentW }} style={styles.mapScroll}>
-        <View style={{ width: contentW, height: 340 }}>
+        <View style={{ width: contentW, height: mapH }}>
           <EmberField accent={accent} width={contentW} />
-          <Svg width={contentW} height={340} style={StyleSheet.absoluteFill}>
+          <Svg width={contentW} height={mapH} style={StyleSheet.absoluteFill}>
             <AnimatedPolyline points={points} fill="none" stroke={colors.border} strokeWidth={5} strokeDasharray="2 10" strokeLinecap="round" animatedProps={dashProps} />
             {traveledPoints.split(" ").length > 1 && (
               <Polyline points={traveledPoints} fill="none" stroke={accent} strokeWidth={5} strokeLinecap="round" />
@@ -629,6 +643,11 @@ const styles = StyleSheet.create({
   statVal: { color: colors.text, fontWeight: "900", fontSize: 15, fontVariant: ["tabular-nums"] },
   statLbl: { color: colors.textDim, fontSize: 8, letterSpacing: 1, marginTop: 1 },
   mapScroll: { flex: 1, marginTop: spacing.sm },
+  zoomBar: { position: "absolute", top: 90, right: 16, zIndex: 60, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(5,5,8,0.85)", borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 4 },
+  zoomBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center" },
+  zoomBtnText: { color: colors.text, fontSize: 20, fontWeight: "900", lineHeight: 22 },
+  zoomReset: { paddingHorizontal: 8, minWidth: 52, alignItems: "center" },
+  zoomLabel: { color: colors.textMid, fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
   nodeHit: { position: "absolute", width: 92, alignItems: "center", marginLeft: -20 },
   nodeIcon: { color: colors.text, fontWeight: "900", fontSize: 16, marginBottom: 24 },
   nodeLabel: { color: colors.textMid, fontSize: 9, textAlign: "center", width: 92, fontWeight: "700" },
