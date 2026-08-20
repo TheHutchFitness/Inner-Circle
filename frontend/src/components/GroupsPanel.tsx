@@ -5,9 +5,11 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { ChatRoom } from "@/src/components/ChatRoom";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
+import { useResponsive, webCenter } from "@/src/lib/responsive";
 
 export function GroupsPanel() {
   const { token, user } = useAuth();
+  const { isDesktop } = useResponsive();
   const [list, setList] = useState<any[]>([]);
   const [canCreate, setCanCreate] = useState(false);
   const [myCount, setMyCount] = useState(0);
@@ -170,7 +172,7 @@ export function GroupsPanel() {
 
   // ---------- Group list ----------
   return (
-    <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }}>
+    <ScrollView contentContainerStyle={[{ padding: spacing.lg, paddingBottom: 120 }, webCenter(isDesktop)]}>
       {canCreate ? (
         creating ? (
           <View style={styles.annBox}>
@@ -218,8 +220,9 @@ export function GroupsPanel() {
 
       <Text style={styles.section}>ALL GROUPS ({list.length})</Text>
       {list.length === 0 ? <Text style={styles.dim}>No groups yet. Be the first to start one!</Text> :
-        list.map((g) => (
-          <Pressable key={g.id} testID={`group-${g.id}`} onPress={() => openGroup(g.id)} style={[styles.groupCard, { borderColor: g.color || colors.borderStrong }]}>
+        <View style={isDesktop ? styles.groupGrid : undefined}>
+        {list.map((g) => (
+          <Pressable key={g.id} testID={`group-${g.id}`} onPress={() => openGroup(g.id)} style={[styles.groupCard, { borderColor: g.color || colors.borderStrong }, isDesktop && styles.groupCardGrid]}>
             <View style={[styles.gcBadge, { borderColor: g.color || colors.border }]}>
               <Text style={[styles.gcBadgeT, { color: g.color || colors.brandPrimary }]}>{g.badge ? g.badge : g.level}</Text>
             </View>
@@ -230,6 +233,7 @@ export function GroupsPanel() {
             <Text style={[styles.gcArrow, { color: g.color || colors.brandPrimary }]}>›</Text>
           </Pressable>
         ))}
+        </View>}
     </ScrollView>
   );
 }
@@ -283,6 +287,8 @@ const styles = StyleSheet.create({
   memName: { color: colors.text, fontWeight: "800", fontSize: 13 },
   memRank: { color: colors.textDim, fontSize: 10, marginTop: 1 },
   groupCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.md, marginBottom: spacing.sm },
+  groupGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  groupCardGrid: { width: "48.5%" },
   gcBadge: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface3 },
   gcBadgeT: { fontWeight: "900", fontSize: 14 },
   gcName: { color: colors.text, fontWeight: "900", fontSize: 15 },

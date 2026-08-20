@@ -61,7 +61,36 @@ async def leaderboard(board_type: str, filter: str = "all", gym: str = "", user=
         users.sort(key=lambda x: x["metric"], reverse=True)
     else:
         raise HTTPException(status_code=400, detail="Invalid board type")
-    return users[:50]
+    # SECURITY: never return raw user docs (they hold email/phone/apple_sub/etc.).
+    # Emit only display + cosmetic + computed metric fields the leaderboard UI needs.
+    def _safe(u: dict) -> dict:
+        return {
+            "user_id": u.get("user_id"),
+            "display_name": u.get("display_name", "Athlete"),
+            "avatar_id": u.get("avatar_id", "avatar_white"),
+            "sex": u.get("sex", "male"),
+            "xp": u.get("xp", 0),
+            "rank": u.get("rank"),
+            "level": level_from_xp(u.get("xp", 0)),
+            "total_lift": u.get("total_lift", 0),
+            "ratio": u.get("ratio", 0),
+            "metric": u.get("metric", 0),
+            "metric_label": u.get("metric_label", ""),
+            "enhanced": bool(u.get("enhanced")),
+            "founder_backer": bool(u.get("founder_backer")),
+            "skool_verified": bool(u.get("skool_verified")),
+            "loadout": u.get("loadout"),
+            "photo_media_id": u.get("photo_media_id"),
+            "use_photo": bool(u.get("use_photo")),
+            "active_frame": u.get("active_frame"),
+            "equipped_skin": u.get("equipped_skin"),
+            "equipped_weapon": u.get("equipped_weapon"),
+            "equipped_hair": u.get("equipped_hair"),
+            "equipped_beard": u.get("equipped_beard"),
+            "equipped_pet": u.get("equipped_pet"),
+            "inperson_gym": u.get("inperson_gym", "") or "",
+        }
+    return [_safe(u) for u in users[:50]]
 
 
 @api_router.get("/leaderboard/season/history")

@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { colors, spacing, radius } from "@/src/lib/theme";
+import { useResponsive, webCenter } from "@/src/lib/responsive";
 
 type Gym = { name: string; verified: boolean; lat: number; lng: number; address?: string; members?: number; _dist?: number };
 type Loc = { lat: number; lng: number } | null;
@@ -12,11 +13,13 @@ function fmtDist(km?: number) {
 
 // react-native-maps is native-only; web shows the gyms as a simple list.
 export function GymsMap({ gyms, userLoc = null }: { gyms: Gym[]; userLoc?: Loc }) {
+  const { isDesktop } = useResponsive();
   return (
-    <ScrollView contentContainerStyle={styles.wrap}>
+    <ScrollView contentContainerStyle={[styles.wrap, webCenter(isDesktop)]}>
       <Text style={styles.note}>🗺️ Interactive map available on the mobile app.{userLoc ? " Nearest first:" : " Locations set:"}</Text>
+      <View style={isDesktop ? styles.grid : undefined}>
       {gyms.map((g, i) => (
-        <View key={i} style={styles.row}>
+        <View key={i} style={[styles.row, isDesktop && styles.rowGrid]}>
           <View style={styles.rowTop}>
             <Text style={styles.name}>{g.verified ? "✓ " : ""}{g.name}</Text>
             {g._dist != null && <Text style={styles.dist}>{fmtDist(g._dist)}</Text>}
@@ -24,12 +27,15 @@ export function GymsMap({ gyms, userLoc = null }: { gyms: Gym[]; userLoc?: Loc }
           <Text style={styles.meta}>{g.address || `${g.lat.toFixed(3)}, ${g.lng.toFixed(3)}`} · {g.members || 0} member{g.members === 1 ? "" : "s"}</Text>
         </View>
       ))}
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { padding: spacing.lg, gap: spacing.sm },
+  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: spacing.sm },
+  rowGrid: { width: "48.5%" },
   note: { color: colors.textDim, fontSize: 12, marginBottom: spacing.sm, lineHeight: 18 },
   row: { backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
   rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

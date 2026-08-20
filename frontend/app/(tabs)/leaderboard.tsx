@@ -10,6 +10,7 @@ import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { MemberSheet } from "@/src/components/MemberSheet";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { GymWatermark } from "@/src/components/GymWatermark";
+import { useResponsive, webCenter } from "@/src/lib/responsive";
 
 function HeroSweep() {
   const x = useSharedValue(-0.4);
@@ -68,6 +69,7 @@ const PODIUM_COLORS = ["#FFD700", "#C0C0C0", "#CD7F32"];
 
 export default function Leaderboards() {
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
   const { token, user } = useAuth();
   const [board, setBoard] = useState("xp");
   const [rows, setRows] = useState<any[]>([]);
@@ -165,7 +167,7 @@ export default function Leaderboards() {
         style={StyleSheet.absoluteFill}
       />
       <GymWatermark />
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={[{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }, webCenter(isDesktop)]}>
       <View style={styles.titleRow}>
         <Text style={styles.h1}>RANKINGS</Text>
         <View style={styles.activePill}>
@@ -327,12 +329,12 @@ export default function Leaderboards() {
             })}
           </View>
 
-          <View style={styles.listWrap}>
+          <View style={[styles.listWrap, isDesktop && styles.gridWrap]}>
             {rest.map((r, i) => {
               const isMe = r.user_id === user?.user_id;
               const av = avatarFor(r.avatar_id);
               return (
-                <Pressable testID={`rank-row-${i+4}`} key={r.user_id} onPress={() => r.user_id && setMemberId(r.user_id)} style={[styles.row, isMe && styles.rowMe]}>
+                <Pressable testID={`rank-row-${i+4}`} key={r.user_id} onPress={() => r.user_id && setMemberId(r.user_id)} style={[styles.row, isMe && styles.rowMe, isDesktop && styles.rowGrid]}>
                   <Text style={styles.rowRank}>#{i + 4}</Text>
                   <View style={{ marginRight: 4 }}><PlayerAvatar person={r} token={token} size={34} /></View>
                   <View style={{ flex: 1 }}>
@@ -479,6 +481,8 @@ const styles = StyleSheet.create({
   rosterClose: { color: colors.textDim, fontSize: 20, fontWeight: "900", paddingHorizontal: 8 },
   rosterSearch: { backgroundColor: colors.surface2, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm, fontSize: 14 },
   listWrap: { paddingHorizontal: spacing.lg, marginTop: spacing.lg },
+  gridWrap: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  rowGrid: { width: "48.5%" },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, gap: spacing.md },
   rowMe: { backgroundColor: colors.brandTertiary, paddingHorizontal: spacing.md, borderRadius: radius.sm, marginVertical: 2, borderBottomWidth: 0 },
   rowRank: { color: colors.brandPrimary, fontWeight: "900", width: 40, fontVariant: ["tabular-nums"] },

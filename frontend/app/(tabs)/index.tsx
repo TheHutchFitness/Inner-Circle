@@ -8,6 +8,7 @@ import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, avatarFor, RANK_COLORS, fmtWeight, bgImage, avatarImage, rankIndex, bodyImage } from "@/src/lib/theme";
+import { useResponsive, webCenter } from "@/src/lib/responsive";
 import { HudSectionHeader, HudFrame } from "@/src/components/Hud";
 import { MemberSheet } from "@/src/components/MemberSheet";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
@@ -37,6 +38,7 @@ function fmtSeason(s: string) {
 
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
   const { user, token } = useAuth();
   const { isSubscribed } = useSubscription();
   const router = useRouter();
@@ -111,7 +113,7 @@ export default function Dashboard() {
         style={StyleSheet.absoluteFill}
       />
       <GymWatermark />
-      <ScrollView style={styles.root} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
+      <ScrollView style={styles.root} contentContainerStyle={[{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }, webCenter(isDesktop)]}>
       <View style={styles.topBar}>
         <Pressable testID="open-recap" onPress={() => router.push("/recap")} style={styles.hudBtn}>
           <Text style={styles.hudBtnText}>▤ RECAP</Text>

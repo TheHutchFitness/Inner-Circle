@@ -6,6 +6,7 @@ import * as Location from "expo-location";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { GymsMap } from "@/src/components/GymsMap";
+import { useResponsive, webCenter } from "@/src/lib/responsive";
 
 // Haversine distance in km between two lat/lng points.
 function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -22,6 +23,7 @@ export default function GymsMapScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { token } = useAuth();
+  const { isDesktop } = useResponsive();
   const [gyms, setGyms] = useState<any[] | null>(null);
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [locating, setLocating] = useState(false);
@@ -153,10 +155,11 @@ export default function GymsMapScreen() {
           ) : board.length === 0 ? (
             <View style={styles.center}><Text style={styles.empty}>No check-ins logged yet this month. Be the first to put your gym on the board!</Text></View>
           ) : (
-            <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.lg }}>
+            <ScrollView contentContainerStyle={[{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.lg }, webCenter(isDesktop)]}>
               <Text style={styles.boardHead}>MOST CHECK-INS THIS MONTH</Text>
+              <View style={isDesktop ? styles.boardGrid : undefined}>
               {board.map((b, i) => (
-                <View key={b.gym_id} style={[styles.boardRow, i === 0 && styles.boardRowTop]}>
+                <View key={b.gym_id} style={[styles.boardRow, i === 0 && styles.boardRowTop, isDesktop && styles.boardRowGrid]}>
                   <Text style={[styles.boardRank, i === 0 && { color: "#FBBF24" }]}>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.boardName} numberOfLines={1}>{b.verified ? "✓ " : ""}{b.name}</Text>
@@ -165,6 +168,7 @@ export default function GymsMapScreen() {
                   <Text style={styles.boardCount}>{b.checkins}<Text style={styles.boardCountLbl}> check-ins</Text></Text>
                 </View>
               ))}
+              </View>
             </ScrollView>
           )}
         </View>
@@ -218,6 +222,8 @@ const styles = StyleSheet.create({
   segTOn: { color: colors.brandPrimary },
   streakNote: { color: colors.warning, fontSize: 12, fontWeight: "900", textAlign: "center", paddingBottom: 6, backgroundColor: colors.surface2, letterSpacing: 0.5 },
   boardHead: { color: colors.textDim, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginBottom: spacing.md },
+  boardGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  boardRowGrid: { width: "48.5%" },
   boardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
   boardRowTop: { borderColor: "#FBBF24", backgroundColor: "rgba(251,191,36,0.08)" },
   boardRank: { width: 34, textAlign: "center", color: colors.textMid, fontWeight: "900", fontSize: 15 },

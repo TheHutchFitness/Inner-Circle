@@ -10,6 +10,7 @@ import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, avatarFor, avatarImage, hasAvatarArt, AVATARS, HAIR_COLORS, BEARD_OPTIONS, defaultHair, RANK_COLORS, fmtWeight, frameFor, CLASS_TIER_COLORS, CARD_FRAMES, rankIndex, loadoutTitle, bodyImage } from "@/src/lib/theme";
+import { useResponsive, webCenter } from "@/src/lib/responsive";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { StrengthChart } from "@/src/components/StrengthChart";
 import { RadarChart } from "@/src/components/RadarChart";
@@ -29,6 +30,7 @@ const LIFT_TABS = [["BENCH", "bench"], ["SQUAT", "squat"], ["DEAD", "deadlift"],
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
+  const { isDesktop } = useResponsive();
   const { user, token, refresh, signOut } = useAuth();
   const { isSubscribed } = useSubscription();
   const router = useRouter();
@@ -163,7 +165,7 @@ export default function Profile() {
     <SwipeTabs current="profile">
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
     <GymWatermark />
-    <ScrollView style={{ flex: 1, backgroundColor: "transparent" }} contentContainerStyle={{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: "transparent" }} contentContainerStyle={[{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }, webCenter(isDesktop)]}>
       <View style={styles.topRow}>
         <Text style={styles.hudTag}>⌁ PLAYER CARD</Text>
         <Pressable testID="open-settings" onPress={() => router.push("/settings")} style={styles.gearBtn}><Text style={styles.gearText}>⚙ CONFIG</Text></Pressable>
