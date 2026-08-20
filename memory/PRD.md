@@ -503,3 +503,7 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Backend admin.py: POST /api/admin/enhanced-remove {user_id} (admin-only) sets enhanced=False, enhanced_access=False, unsets enhanced_since. _member_brief now returns `enhanced`.
 - admin.tsx: member card shows a red "☣ REMOVE ENHANCED" tag (active when enhanced, dim "NOT ENHANCED" otherwise) -> removeEnhanced() -> patchMember. testID enhanced-remove-<user_id>.
 - Verified: brief enhanced True -> remove -> False; non-admin 403.
+
+## Iteration 36 — Comprehensive onboarding tour + Enhanced admin grant/filter
+- Admin: /api/admin/enhanced-set {user_id,on} replaces enhanced-remove (grant OR remove); /api/admin/members?enhanced_only=true filter. admin.tsx: button toggles GRANT/REMOVE ENHANCED; new filter chip (admin-filter-enhanced). Curl-verified grant->filter shows 1->remove->0.
+- OnboardingTour.tsx rewritten: FULL = 10 steps (Home, Train, Rank, Quests, Social, Me, Home Rooms, level-locked rooms [Athlete's Center Advanced+, The Room Elite+, The Judge members], LITE/FULL switch, Config+replay). LITE = 6 steps (Home, Train, Diet&Health, Cardio, switch, Config). Added step counter. Replay from Settings still works (tour_seen=false).

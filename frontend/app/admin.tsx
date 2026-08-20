@@ -15,6 +15,7 @@ export default function Admin() {
   const router = useRouter();
   const { token, user, refresh } = useAuth();
   const [q, setQ] = useState("");
+  const [enhancedOnly, setEnhancedOnly] = useState(false);
   const [members, setMembers] = useState<any[]>([]);
   const [badgeOpts, setBadgeOpts] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,9 +32,9 @@ export default function Admin() {
     try { setSecurity(await apiFetch(token, "/api/admin/security/logins")); } catch {}
   };
 
-  const loadMembers = async (query = "") => {
+  const loadMembers = async (query = "", enhancedOnly = false) => {
     try {
-      const r = await apiFetch(token, `/api/admin/members?q=${encodeURIComponent(query)}`);
+      const r = await apiFetch(token, `/api/admin/members?q=${encodeURIComponent(query)}&enhanced_only=${enhancedOnly}`);
       setMembers(r.members || []); setBadgeOpts(r.badge_options || []);
     } catch (e: any) { setMsg(e?.message || "Load failed"); }
     setLoading(false);
@@ -163,8 +164,7 @@ export default function Admin() {
     try { patchMember(await apiFetch(token, "/api/admin/founder", { method: "POST", body: JSON.stringify({ user_id: m.user_id, on: !m.founder_grant }) })); flash("Updated ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
   };
   const removeEnhanced = async (m: any) => {
-    if (!m.enhanced) return;
-    try { patchMember(await apiFetch(token, "/api/admin/enhanced-remove", { method: "POST", body: JSON.stringify({ user_id: m.user_id }) })); flash("Enhanced access + red theme removed ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+    try { patchMember(await apiFetch(token, "/api/admin/enhanced-set", { method: "POST", body: JSON.stringify({ user_id: m.user_id, on: !m.enhanced }) })); flash(m.enhanced ? "Enhanced access + red theme removed ✓" : "Enhanced access granted ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
   };
   const feature = async (m: any) => {
     const reason = (reasons[m.user_id] || "").trim();
@@ -403,9 +403,16 @@ export default function Admin() {
         {/* Member management */}
         <Text style={st.section}>MEMBERS</Text>
         <View style={st.searchRow}>
-          <TextInput testID="admin-search" value={q} onChangeText={setQ} onSubmitEditing={() => loadMembers(q)} placeholder="Search by name…" placeholderTextColor={colors.textDim} style={st.search} autoCapitalize="none" />
-          <Pressable testID="admin-search-btn" onPress={() => loadMembers(q)} style={st.searchBtn}><Text style={st.searchBtnText}>GO</Text></Pressable>
+          <TextInput testID="admin-search" value={q} onChangeText={setQ} onSubmitEditing={() => loadMembers(q, enhancedOnly)} placeholder="Search by name…" placeholderTextColor={colors.textDim} style={st.search} autoCapitalize="none" />
+          <Pressable testID="admin-search-btn" onPress={() => loadMembers(q, enhancedOnly)} style={st.searchBtn}><Text style={st.searchBtnText}>GO</Text></Pressable>
         </View>
+        <Pressable
+          testID="admin-filter-enhanced"
+          onPress={() => { const next = !enhancedOnly; setEnhancedOnly(next); setLoading(true); loadMembers(q, next); }}
+          style={[st.filterChip, enhancedOnly && st.tagDanger]}
+        >
+          <Text style={[st.tagText, enhancedOnly && st.tagDangerText]}>{enhancedOnly ? "☣ SHOWING ENHANCED ONLY · TAP TO CLEAR" : "☣ FILTER: ENHANCED USERS ONLY"}</Text>
+        </Pressable>
 
         {loading ? <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing.lg }} /> : members.length === 0 ? (
           <Text style={st.dim}>No members found.</Text>
@@ -418,10 +425,9 @@ export default function Admin() {
               <Pressable
                 testID={`enhanced-remove-${m.user_id}`}
                 onPress={() => removeEnhanced(m)}
-                disabled={!m.enhanced}
-                style={[st.tag, m.enhanced && st.tagDanger, !m.enhanced && { opacity: 0.4 }]}
+                style={[st.tag, m.enhanced && st.tagDanger]}
               >
-                <Text style={[st.tagText, m.enhanced && st.tagDangerText]}>{m.enhanced ? "☣ REMOVE ENHANCED" : "☣ NOT ENHANCED"}</Text>
+                <Text style={[st.tagText, m.enhanced && st.tagDangerText]}>{m.enhanced ? "☣ REMOVE ENHANCED" : "☣ GRANT ENHANCED"}</Text>
               </Pressable>
             </View>
 
@@ -528,6 +534,7 @@ const st = StyleSheet.create({
   removeBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.error },
   removeText: { color: colors.error, fontWeight: "900", fontSize: 10, letterSpacing: 1 },
   searchRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  filterChip: { alignSelf: "flex-start", paddingVertical: 7, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, marginBottom: spacing.md },
   search: { flex: 1, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 12, borderWidth: 1, borderColor: colors.border },
   searchBtn: { paddingHorizontal: 18, justifyContent: "center", borderRadius: radius.sm, backgroundColor: colors.brandPrimary },
   searchBtnText: { color: "#001122", fontWeight: "900", letterSpacing: 1 },

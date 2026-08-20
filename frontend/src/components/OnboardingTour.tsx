@@ -15,31 +15,27 @@ type Step = {
   where: string;
 };
 
-const QUESTS: Step = {
-  icon: "❖",
-  tag: "STEP 1 · THE JOURNEY",
-  title: "RUN THE QUEST MAP",
-  desc: "Complete quests on your RPG map to earn XP, rank up, and unlock milestone rewards. Boss quests drop loot when you crush them.",
-  where: "Find it in the QUESTS ❖ tab.",
-};
-const ARMORY: Step = {
-  icon: "⚔",
-  tag: "STEP 2 · THE ARMORY",
-  title: "GEAR UP YOUR AVATAR",
-  desc: "Equip full-body skins and weapons, then style your look. Earn cosmetics from boss drops or grab exclusive pieces from the store.",
-  where: "Find it in ME ◉ → THE ARMORY.",
-};
-const CLANS: Step = {
-  icon: "◍",
-  tag: "STEP 3 · CLANS",
-  title: "JOIN A CLAN",
-  desc: "Team up with a Clan, level it up together, and battle rival clans in monthly challenges to climb the seasonal leaderboards.",
-  where: "Find it in the SOCIAL ◍ tab → GROUPS.",
-};
+// ---- Full-mode walkthrough: every tab + home rooms + level locks + config ----
+const S_HOME: Step = { icon: "◆", tag: "TAB 1 · HOME", title: "YOUR COMMAND CENTER", desc: "Your dashboard — rank, level, XP, streak and quick shortcuts to every room. The card up top tracks your progress as you train.", where: "Bottom bar → HOME" };
+const S_TRAIN: Step = { icon: "🏋", tag: "TAB 2 · TRAIN", title: "LOG YOUR LIFTS", desc: "Start and log workouts, track your sets and reps, and hit new PRs. Everything you log feeds your rank and the leaderboards.", where: "Bottom bar → TRAIN" };
+const S_RANK: Step = { icon: "◈", tag: "TAB 3 · RANK", title: "CLIMB THE BOARDS", desc: "Seasonal leaderboards for strength and cardio. See exactly where you stand against the whole Circle and chase the top spots.", where: "Bottom bar → RANK" };
+const S_QUESTS: Step = { icon: "❖", tag: "TAB 4 · QUESTS", title: "RUN THE JOURNEY MAP", desc: "Complete quests on your RPG map to earn XP, rank up and unlock milestone rewards. Boss quests drop loot when you crush them.", where: "Bottom bar → QUESTS" };
+const S_SOCIAL: Step = { icon: "◍", tag: "TAB 5 · SOCIAL", title: "CHAT & CLANS", desc: "Chat rooms (ALL + your gym) to talk with the Circle, plus GROUPS where you join a clan and battle rivals in monthly challenges.", where: "Bottom bar → SOCIAL" };
+const S_ME: Step = { icon: "◉", tag: "TAB 6 · ME", title: "PROFILE & ARMORY", desc: "Your player card, combat stats, PRs and badges. Tap THE ARMORY to equip full-body skins and weapons and style your avatar.", where: "Bottom bar → ME" };
+const S_ROOMS: Step = { icon: "⌂", tag: "ON THE HOME TAB", title: "ROOMS & TOOLS", desc: "Scroll the Home tab for your rooms: Gym Map, Diet & Health (macros + food log), Cardio GPS, the AI Coach, In-Person Coaching and Founders.", where: "HOME → scroll to ROOMS" };
+const S_LOCKS: Step = { icon: "🔒", tag: "UNLOCKABLES", title: "SOME ROOMS UNLOCK BY RANK", desc: "A few rooms show a 🔒 until you level up: ATHLETE'S CENTER opens at Advanced+, THE ROOM at Elite+, and THE JUDGE for members. Keep training and they'll open automatically.", where: "HOME → rooms marked 🔒" };
+const S_MODE: Step = { icon: "◆", tag: "TOP-RIGHT SWITCH", title: "LITE vs FULL MODE", desc: "The little pill at the top-right of every screen flips between FULL (games, cosmetics & chat) and LITE (pure tracking, no distractions). Switch whenever you like.", where: "Any screen → top-right pill" };
+const S_CONFIG: Step = { icon: "⚙", tag: "SETTINGS", title: "CONFIG & HELP", desc: "Tap ⚙ CONFIG on the ME tab for settings — switch modes, set your gender and macro goals, manage your account, and REPLAY THIS TOUR anytime you need a refresher.", where: "ME → ⚙ CONFIG (top-right)" };
+
+// ---- Lite-mode walkthrough: tracking-focused, game rooms hidden ----
+const L_HOME: Step = { icon: "◆", tag: "TAB 1 · HOME", title: "YOUR DASHBOARD", desc: "Your home base — level, streak and quick shortcuts to your tracking tools. Everything you need is one tap away.", where: "Bottom bar → HOME" };
+const L_DIET: Step = { icon: "🥗", tag: "ON THE HOME TAB", title: "DIET & HEALTH", desc: "Log meals and macros from a big food list, save your go-to meals, set daily calorie & protein goals, and track steps and conditioning.", where: "HOME → DIET & HEALTH" };
+const L_CARDIO: Step = { icon: "🛰", tag: "ON THE HOME TAB", title: "CARDIO GPS", desc: "Track your runs and rides with live pace, distance and elevation, and log them to your history.", where: "HOME → CARDIO GPS TRACKER" };
 
 // First-time walkthrough shown once, right after the athlete picks Lite/Full mode.
-// Introduces Quests, the Armory (Full only), and Clans so brand-new members know
-// where to start. Dismissing it writes tour_seen so it never returns.
+// Comprehensive tour of every tab, the home rooms, level-locked rooms, the mode
+// switch, and Config so brand-new members never have to ask where things are.
+// Dismissing it writes tour_seen so it never returns (replayable from Settings).
 export function OnboardingTour() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -47,12 +43,14 @@ export function OnboardingTour() {
   const [i, setI] = useState(0);
   const [busy, setBusy] = useState(false);
 
-  // Armory is a Full-mode feature — skip that slide for Lite members.
-  const steps: Step[] = isLite(user) ? [QUESTS, CLANS] : [QUESTS, ARMORY, CLANS];
+  const lite = isLite(user);
+  const steps: Step[] = lite
+    ? [L_HOME, S_TRAIN, L_DIET, L_CARDIO, S_MODE, S_CONFIG]
+    : [S_HOME, S_TRAIN, S_RANK, S_QUESTS, S_SOCIAL, S_ME, S_ROOMS, S_LOCKS, S_MODE, S_CONFIG];
   const step = steps[i];
   const last = i === steps.length - 1;
 
-  const done = async (goQuests: boolean) => {
+  const done = async (goStart: boolean) => {
     if (busy) return;
     setBusy(true);
     try {
@@ -61,7 +59,7 @@ export function OnboardingTour() {
         body: JSON.stringify({ tour_seen: true }),
       });
       await refresh();
-      if (goQuests) router.push("/(tabs)/quests");
+      if (goStart) router.push(lite ? "/(tabs)" : "/(tabs)/quests");
     } catch {
       setBusy(false);
     }
@@ -98,6 +96,7 @@ export function OnboardingTour() {
             <View key={idx} style={[styles.dot, idx === i && styles.dotOn]} />
           ))}
         </View>
+        <Text style={styles.counter}>{i + 1} / {steps.length}</Text>
       </View>
 
       <View style={styles.footer}>
@@ -108,7 +107,7 @@ export function OnboardingTour() {
         )}
         {last ? (
           <Pressable testID="tour-finish" disabled={busy} onPress={() => done(true)} style={styles.nextBtn}>
-            {busy ? <ActivityIndicator color="#001122" /> : <Text style={styles.nextText}>ENTER THE ARENA →</Text>}
+            {busy ? <ActivityIndicator color="#001122" /> : <Text style={styles.nextText}>{lite ? "START TRAINING →" : "ENTER THE ARENA →"}</Text>}
           </Pressable>
         ) : (
           <Pressable testID="tour-next" disabled={busy} onPress={() => setI((n) => n + 1)} style={styles.nextBtn}>
@@ -137,6 +136,7 @@ const styles = StyleSheet.create({
   dots: { flexDirection: "row", justifyContent: "center", gap: 8, marginTop: spacing.lg },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border },
   dotOn: { backgroundColor: colors.brandPrimary, width: 22 },
+  counter: { color: colors.textDim, fontSize: 11, fontWeight: "800", letterSpacing: 2, textAlign: "center", marginTop: spacing.sm },
   footer: { flexDirection: "row", gap: spacing.sm },
   backBtn: { paddingVertical: 15, paddingHorizontal: spacing.lg, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
   backText: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 13 },

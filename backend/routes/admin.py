@@ -82,11 +82,13 @@ async def admin_inperson(payload: dict, user=Depends(get_current_user)):
 
 
 @api_router.get("/admin/members")
-async def admin_members(q: str = "", user=Depends(get_current_user)):
+async def admin_members(q: str = "", enhanced_only: bool = False, user=Depends(get_current_user)):
     _require_admin(user)
     query = {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}}
     if q.strip():
         query["display_name"] = {"$regex": re.escape(q.strip()), "$options": "i"}
+    if enhanced_only:
+        query["$or"] = [{"enhanced": True}, {"enhanced_access": True}]
     rows = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(100)
     return {"members": [await _member_brief(r) for r in rows], "badge_options": ADMIN_BADGE_OPTIONS}
 
@@ -149,17 +151,19 @@ async def admin_enhanced_theme(payload: dict, user=Depends(get_current_user)):
     return {"enhanced": on}
 
 
-@api_router.post("/admin/enhanced-remove")
-async def admin_enhanced_remove(payload: dict, user=Depends(get_current_user)):
-    """Admin: strip Enhanced access + the red theme from a member's account."""
+@api_router.post("/admin/enhanced-set")
+async def admin_enhanced_set(payload: dict, user=Depends(get_current_user)):
+    """Admin: grant or remove Enhanced access + the red theme for a member."""
     _require_admin(user)
     uid = payload.get("user_id")
+    on = bool(payload.get("on", False))
     if not uid:
         raise HTTPException(status_code=400, detail="user_id required")
-    r = await db.users.update_one(
-        {"user_id": uid},
-        {"$set": {"enhanced": False, "enhanced_access": False}, "$unset": {"enhanced_since": ""}},
-    )
+    if on:
+        upd = {"$set": {"enhanced": True, "enhanced_access": True, "enhanced_since": datetime.now(timezone.utc)}}
+    else:
+        upd = {"$set": {"enhanced": False, "enhanced_access": False}, "$unset": {"enhanced_since": ""}}
+    r = await db.users.update_one({"user_id": uid}, upd)
     if not r.matched_count:
         raise HTTPException(status_code=404, detail="Member not found")
     fresh = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
