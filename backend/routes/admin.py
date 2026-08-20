@@ -56,6 +56,7 @@ async def _member_brief(u: dict) -> dict:
         "inperson_client": bool(u.get("inperson_client")),
         "inperson_gym": u.get("inperson_gym", "") or "",
         "inperson_request": bool(u.get("inperson_request")),
+        "enhanced": bool(u.get("enhanced") or u.get("enhanced_access")),
     }
 
 
@@ -146,6 +147,23 @@ async def admin_enhanced_theme(payload: dict, user=Depends(get_current_user)):
         upd["enhanced_since"] = datetime.now(timezone.utc)
     await db.users.update_one({"user_id": user["user_id"]}, {"$set": upd})
     return {"enhanced": on}
+
+
+@api_router.post("/admin/enhanced-remove")
+async def admin_enhanced_remove(payload: dict, user=Depends(get_current_user)):
+    """Admin: strip Enhanced access + the red theme from a member's account."""
+    _require_admin(user)
+    uid = payload.get("user_id")
+    if not uid:
+        raise HTTPException(status_code=400, detail="user_id required")
+    r = await db.users.update_one(
+        {"user_id": uid},
+        {"$set": {"enhanced": False, "enhanced_access": False}, "$unset": {"enhanced_since": ""}},
+    )
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Member not found")
+    fresh = await db.users.find_one({"user_id": uid}, {"_id": 0, "password_hash": 0})
+    return await _member_brief(fresh)
 
 
 # ---------- Rank control + temporary bans ----------

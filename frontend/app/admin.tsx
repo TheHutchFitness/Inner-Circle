@@ -162,6 +162,10 @@ export default function Admin() {
   const toggleFounder = async (m: any) => {
     try { patchMember(await apiFetch(token, "/api/admin/founder", { method: "POST", body: JSON.stringify({ user_id: m.user_id, on: !m.founder_grant }) })); flash("Updated ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
   };
+  const removeEnhanced = async (m: any) => {
+    if (!m.enhanced) return;
+    try { patchMember(await apiFetch(token, "/api/admin/enhanced-remove", { method: "POST", body: JSON.stringify({ user_id: m.user_id }) })); flash("Enhanced access + red theme removed ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
   const feature = async (m: any) => {
     const reason = (reasons[m.user_id] || "").trim();
     try { await apiFetch(token, "/api/admin/featured", { method: "POST", body: JSON.stringify({ user_id: m.user_id, reason }) }); flash("Featured ✓"); await loadFeatured(); } catch (e: any) { flash(e?.message || "Failed"); }
@@ -411,6 +415,14 @@ export default function Admin() {
             <View style={st.tagRow}>
               <Pressable onPress={() => toggleSkool(m)} style={[st.tag, m.skool_verified && st.tagOn]}><Text style={[st.tagText, m.skool_verified && st.tagTextOn]}>✓ SKOOL</Text></Pressable>
               <Pressable onPress={() => toggleFounder(m)} style={[st.tag, m.founder_grant && st.tagOn]}><Text style={[st.tagText, m.founder_grant && st.tagTextOn]}>★ FOUNDER</Text></Pressable>
+              <Pressable
+                testID={`enhanced-remove-${m.user_id}`}
+                onPress={() => removeEnhanced(m)}
+                disabled={!m.enhanced}
+                style={[st.tag, m.enhanced && st.tagDanger, !m.enhanced && { opacity: 0.4 }]}
+              >
+                <Text style={[st.tagText, m.enhanced && st.tagDangerText]}>{m.enhanced ? "☣ REMOVE ENHANCED" : "☣ NOT ENHANCED"}</Text>
+              </Pressable>
             </View>
 
             <Text style={st.miniLabel}>IN-PERSON CLIENT</Text>
@@ -527,6 +539,8 @@ const st = StyleSheet.create({
   tagOn: { borderColor: colors.success, backgroundColor: "rgba(57,255,20,0.12)" },
   tagText: { color: colors.textDim, fontWeight: "800", fontSize: 11 },
   tagTextOn: { color: colors.success },
+  tagDanger: { borderColor: "#FF2A3C", backgroundColor: "rgba(255,42,60,0.14)" },
+  tagDangerText: { color: "#FF2A3C" },
   rankBtn: { flex: 1, paddingVertical: 9, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: "rgba(0,229,255,0.08)" },
   rankBtnText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
   banBtn: { flex: 1, paddingVertical: 9, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.08)" },
