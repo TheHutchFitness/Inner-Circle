@@ -8,6 +8,18 @@ import { ChatRoom } from "@/src/components/ChatRoom";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { useResponsive, webCenter } from "@/src/lib/responsive";
 
+function timeAgo(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso).getTime();
+  if (isNaN(d)) return "";
+  const s = Math.floor((Date.now() - d) / 1000);
+  if (s < 60) return "now";
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  if (s < 604800) return `${Math.floor(s / 86400)}d`;
+  return `${Math.floor(s / 604800)}w`;
+}
+
 export function GroupsPanel() {
   const { token, user } = useAuth();
   const { isDesktop } = useResponsive();
@@ -246,7 +258,10 @@ export function GroupsPanel() {
               <Text style={styles.gcName}>{g.name}{g.role === "creator" ? " 👑" : g.role === "member" ? " ✓" : ""}</Text>
               <Text style={[styles.gcMeta, { color: g.color || colors.textDim }]}>◈ Lv {g.level} · {g.title} · {g.member_count} member{g.member_count === 1 ? "" : "s"}</Text>
             </View>
-            <Text style={[styles.gcArrow, { color: g.color || colors.brandPrimary }]}>›</Text>
+            <View style={{ alignItems: "flex-end", gap: 2 }}>
+              {!!g.last_message_at && <Text testID={`group-last-${g.id}`} style={styles.gcTime}>{timeAgo(g.last_message_at)}</Text>}
+              <Text style={[styles.gcArrow, { color: g.color || colors.brandPrimary }]}>›</Text>
+            </View>
           </Pressable>
         ))}
         </View>}
@@ -335,6 +350,7 @@ const styles = StyleSheet.create({
   gcName: { color: colors.text, fontWeight: "900", fontSize: 15 },
   gcMeta: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   gcArrow: { color: colors.brandPrimary, fontSize: 22, fontWeight: "900" },
+  gcTime: { color: colors.textDim, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
   dim: { color: colors.textDim, fontSize: 12, marginTop: spacing.sm, lineHeight: 18 },
   inviteHint: { color: colors.textDim, fontSize: 11, lineHeight: 16, marginTop: 6, marginBottom: spacing.sm },
   err: { color: colors.error, marginTop: spacing.sm, textAlign: "center" },

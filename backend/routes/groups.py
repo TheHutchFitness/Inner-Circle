@@ -68,7 +68,7 @@ class GroupTarget(BaseModel):
     display_name: Optional[str] = None
 
 
-async def _brief(g: dict, uid: str) -> dict:
+async def _brief(g: dict, uid: str, last_at=None) -> dict:
     members = g.get("members", [])
     officers = g.get("officers", [])
     role = ("creator" if g.get("creator_id") == uid
@@ -84,6 +84,7 @@ async def _brief(g: dict, uid: str) -> dict:
         **meta,
         "champion_title": g.get("champion_title"),
         "role": role, "pending_count": len(g.get("pending", [])),
+        "last_message_at": last_at.isoformat() if isinstance(last_at, datetime) else None,
     }
 
 
@@ -98,8 +99,17 @@ async def list_groups(user=Depends(get_current_user)):
     is_admin = bool(user.get("is_admin"))
     # Private "test" groups are only visible to their creator / admins.
     rows = [g for g in rows if (g.get("name_lower") != "test" or is_admin or g.get("creator_id") == uid or uid in g.get("members", []))]
+    # Latest message time per clan room, in one aggregation.
+    room_ids = [f"group:{g['id']}" for g in rows]
+    last_map: dict = {}
+    if room_ids:
+        agg = await db.chat_messages.aggregate([
+            {"$match": {"room": {"$in": room_ids}}},
+            {"$group": {"_id": "$room", "last": {"$max": "$created_at"}}},
+        ]).to_list(len(room_ids))
+        last_map = {a["_id"]: a["last"] for a in agg}
     return {
-        "groups": [await _brief(g, uid) for g in rows],
+        "groups": [await _brief(g, uid, last_map.get(f"group:{g['id']}")) for g in rows],
         "can_create": _can_create(user),
         "my_group_count": await _count_membership(uid),
     }

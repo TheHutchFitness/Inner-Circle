@@ -175,10 +175,9 @@ GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "").strip()
 
 
 @api_router.get("/gyms/nearby")
-async def gyms_nearby(lat: float, lng: float, radius: int = 5000):
-    """Real-world gyms near a coordinate, via Google Places API (New). Public.
-    Radius is metres (capped 50 km). Returns a small DTO used to drop discovery
-    pins on the Gym Map alongside our own curated gyms."""
+async def gyms_nearby(lat: float, lng: float, radius: int = 5000, user=Depends(get_current_user)):
+    """Real-world gyms near a coordinate, via Google Places API (New). Auth required
+    so the paid Places quota can't be drained by anonymous callers."""
     if not GOOGLE_PLACES_API_KEY:
         return {"gyms": [], "error": "places_unconfigured"}
     radius = max(200, min(int(radius or 5000), 50000))

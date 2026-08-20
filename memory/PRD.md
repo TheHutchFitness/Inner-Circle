@@ -529,3 +529,8 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 
 ## Iteration 42 — Composer glyph centering
 - Emoji/arrow glyphs sat low due to font metrics. Added lineHeight + textAlign/textAlignVertical:"center" + includeFontPadding:false to inputIconTxt/iconText, input, and sendArrow across ChatRoom, coach, inperson. Composer stays alignItems center; icons/send now optically centered with the text line.
+
+## Implemented (2026-08 — Deep-link fix + Chat timestamps + Recent Foods)
+- DEEP-LINK FIX (P0): community.tsx now has a useEffect on params.group that switches the active view to "groups" when a clan deep-link arrives while the Social tab is already mounted (previously room state only initialized once on mount, landing users on the wrong chat). GroupsPanel already reacts to the param to open the clan.
+- CHAT GROUP TIMESTAMPS: GET /api/groups now returns last_message_at per clan via a single aggregation over db.chat_messages (max created_at for group:{id} rooms). _brief() gained the field. GroupsPanel group cards show a subtle relative time (now/m/h/d/w, testID group-last-{id}) above the arrow; hidden when null. Verified via curl (aggregation returns latest created_at).
+- RECENT FOODS: NutritionCard.tsx tracks the last 8 logged foods in AsyncStorage (key hic_recent_foods; scaled macros + grams). A horizontal "⏱ RECENT · tap to log again" chip row (testID recent-food-{name}) appears above the ADD A FOOD button; tapping re-adds the exact logged amount. Verified end-to-end via screenshot (Chicken Breast chip re-adds 280 kcal / 52p).

@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } from "react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
@@ -17,6 +17,10 @@ export default function Community() {
   const params = useLocalSearchParams<{ group?: string }>();
   const lite = !!user?.lite_mode;
   const [room, setRoom] = useState<"main" | "gym" | "groups">(params.group ? "groups" : lite ? "groups" : "main");
+  // Deep-link: if a ?group=<id> arrives while the Social tab is already mounted, switch to GROUPS.
+  useEffect(() => {
+    if (params.group) setRoom("groups");
+  }, [params.group]);
   const gym = (user?.inperson_gym || "").trim();
 
   const canChat = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder || user?.inperson_client;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TextInput, Pressable } from "react-native";
+import { View, Text, StyleSheet, TextInput, Pressable, ScrollView } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { HudSectionHeader } from "@/src/components/Hud";
@@ -81,6 +82,9 @@ const FOODS: { name: string; serving: string; grams: number; calories: number; p
 ];
 
 
+const RECENT_KEY = "hic_recent_foods";
+type RecentFood = { name: string; grams: number; calories: number; protein: number; carbs: number; fats: number };
+
 export function NutritionCard() {
   const { token } = useAuth();
   const [tab, setTab] = useState<"macros" | "supps">("macros");
@@ -104,6 +108,7 @@ export function NutritionCard() {
   const [goalPro, setGoalPro] = useState("");
   const [cfOpen, setCfOpen] = useState(false);
   const [cf, setCf] = useState({ name: "", grams: "", calories: "", protein: "", carbs: "", fats: "" });
+  const [recents, setRecents] = useState<RecentFood[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -115,22 +120,51 @@ export function NutritionCard() {
       try { const m = await apiFetch(token, "/api/nutrition/meals"); setMeals(m.meals || []); } catch {}
       try { const cfd = await apiFetch(token, "/api/nutrition/foods"); setCustomFoods(cfd.foods || []); } catch {}
       try { const g = await apiFetch(token, "/api/nutrition/goals"); setGoals({ calories: g.calories || 0, protein: g.protein || 0 }); setGoalCal(g.calories ? String(g.calories) : ""); setGoalPro(g.protein ? String(g.protein) : ""); } catch {}
+      try { const raw = await AsyncStorage.getItem(RECENT_KEY); if (raw) setRecents(JSON.parse(raw)); } catch {}
     })();
   }, [token]);
+
+  const pushRecent = (item: RecentFood) => {
+    setRecents((prev) => {
+      const next = [item, ...prev.filter((r) => r.name !== item.name)].slice(0, 8);
+      AsyncStorage.setItem(RECENT_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
+
+  const addRecent = (r: RecentFood) => {
+    setVals((v) => ({
+      calories: String((parseInt(v.calories || "0", 10) || 0) + r.calories),
+      protein: String((parseInt(v.protein || "0", 10) || 0) + r.protein),
+      carbs: String((parseInt(v.carbs || "0", 10) || 0) + r.carbs),
+      fats: String((parseInt(v.fats || "0", 10) || 0) + r.fats),
+    }));
+    setLastFood(`${r.grams} g ${r.name}`);
+    setSaved(false);
+    pushRecent(r);
+  };
 
   const set = (k: string, t: string) => { setVals((v) => ({ ...v, [k]: t.replace(/[^0-9]/g, "") })); setSaved(false); };
 
   const addFood = (f: typeof FOODS[number]) => {
     const grams = foodQty[f.name] ?? f.grams;
     const factor = grams / f.grams;
+    const scaled = {
+      name: f.name, grams,
+      calories: Math.round(f.calories * factor),
+      protein: Math.round(f.protein * factor),
+      carbs: Math.round(f.carbs * factor),
+      fats: Math.round(f.fats * factor),
+    };
     setVals((v) => ({
-      calories: String((parseInt(v.calories || "0", 10) || 0) + Math.round(f.calories * factor)),
-      protein: String((parseInt(v.protein || "0", 10) || 0) + Math.round(f.protein * factor)),
-      carbs: String((parseInt(v.carbs || "0", 10) || 0) + Math.round(f.carbs * factor)),
-      fats: String((parseInt(v.fats || "0", 10) || 0) + Math.round(f.fats * factor)),
+      calories: String((parseInt(v.calories || "0", 10) || 0) + scaled.calories),
+      protein: String((parseInt(v.protein || "0", 10) || 0) + scaled.protein),
+      carbs: String((parseInt(v.carbs || "0", 10) || 0) + scaled.carbs),
+      fats: String((parseInt(v.fats || "0", 10) || 0) + scaled.fats),
     }));
     setLastFood(`${grams} g ${f.name}`);
     setSaved(false);
+    pushRecent(scaled);
   };
 
   const bumpQty = (f: typeof FOODS[number], delta: number) =>
@@ -330,6 +364,19 @@ export function NutritionCard() {
                 <Text style={styles.mealSaveToggleText}>★ SAVE CURRENT AS A MEAL</Text>
               </Pressable>
             )}
+            {recents.length > 0 && (
+              <View style={styles.recentWrap}>
+                <Text style={styles.recentLabel}>⏱ RECENT · tap to log again</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingRight: spacing.md }}>
+                  {recents.map((r) => (
+                    <Pressable key={r.name} testID={`recent-food-${r.name}`} onPress={() => addRecent(r)} style={styles.recentChip}>
+                      <Text style={styles.recentChipName} numberOfLines={1}>{r.name}</Text>
+                      <Text style={styles.recentChipMeta}>{r.grams}g · {r.calories} kcal</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
             <Pressable testID="food-add" onPress={() => setFoodOpen((o) => !o)} style={styles.addFoodBtn}>
               <Text style={styles.addFoodText}>{foodOpen ? "▲ CLOSE FOOD LIST" : "🍽 ADD A FOOD (AUTO-FILLS MACROS)"}</Text>
             </Pressable>
@@ -439,6 +486,11 @@ const styles = StyleSheet.create({
   addFoodBtn: { marginTop: spacing.md, paddingVertical: 11, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success, backgroundColor: "rgba(52,211,153,0.08)" },
   addFoodText: { color: colors.success, fontWeight: "900", letterSpacing: 1, fontSize: 11 },
   lastFood: { color: colors.success, fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 6 },
+  recentWrap: { marginTop: spacing.md },
+  recentLabel: { color: colors.textDim, fontSize: 9, letterSpacing: 1.5, fontWeight: "800", marginBottom: 6 },
+  recentChip: { backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success, paddingVertical: 7, paddingHorizontal: 12, minWidth: 96 },
+  recentChipName: { color: colors.success, fontWeight: "800", fontSize: 12 },
+  recentChipMeta: { color: colors.textDim, fontSize: 9, marginTop: 2, fontWeight: "700" },
   foodDropdown: { marginTop: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, overflow: "hidden" },
   foodSearch: { color: colors.text, fontSize: 13, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface2 },
   mealsWrap: { marginTop: spacing.md },
