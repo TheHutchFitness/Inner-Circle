@@ -178,10 +178,10 @@ const styles = StyleSheet.create({
   typingText: { color: colors.textDim, letterSpacing: 1 },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: colors.brandPrimary, backgroundColor: colors.surface2 },
   inputWrap: { paddingHorizontal: spacing.md, paddingTop: spacing.sm, backgroundColor: colors.surface },
-  composer: { flexDirection: "row", alignItems: "flex-end", gap: 4, backgroundColor: colors.surface2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 6, paddingVertical: 5 },
-  sendCircle: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
+  composer: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.surface2, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 6, paddingVertical: 4 },
+  sendCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center" },
   sendArrow: { color: "#001122", fontSize: 15, fontWeight: "900" },
-  input: { flex: 1, color: colors.text, fontSize: 15, paddingHorizontal: 6, paddingTop: 8, paddingBottom: 8, maxHeight: 110 },
+  input: { flex: 1, color: colors.text, fontSize: 15, paddingHorizontal: 6, paddingTop: 6, paddingBottom: 6, minHeight: 30, maxHeight: 100 },
   sendBtn: { backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.lg, height: 48, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   sendText: { color: "#001122", fontWeight: "900", letterSpacing: 2 },
 });

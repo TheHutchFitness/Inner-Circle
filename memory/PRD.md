@@ -523,3 +523,6 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Iteration 40 — Consistent sleek composers across all chat surfaces
 - coach.tsx (AI Coach) & inperson.tsx: replaced boxed input + rectangular SEND with the unified pill composer (inset ghost icons/mic + circular ➤ send). Softened coach bubble border (border vs borderStrong).
 - The Room (the-room.tsx), Social Hub, and clan chats already use the redesigned ChatRoom (bubbles + pill composer) from iteration 34, so all chat rooms now share one modern look.
+
+## Iteration 41 — Composer alignment/slimming fix
+- ChatRoom/coach/inperson composers: alignItems flex-end -> center so camera/photo/mic icons + send button vertically center with the text (were dropped to bottom). Reduced paddingVertical (5->4), input padding (8->6) + minHeight 30, icons 34->30, send 38->36. Bubble padding trimmed (9/13 -> 7/12) to feel less bulky.
