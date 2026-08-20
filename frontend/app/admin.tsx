@@ -58,6 +58,7 @@ export default function Admin() {
   const [gymDir, setGymDir] = useState<any[]>([]);
   const [newGym, setNewGym] = useState("");
   const [editGym, setEditGym] = useState<Record<string, string>>({});
+  const [mergeFrom, setMergeFrom] = useState<string | null>(null);
   const loadGymDir = async () => {
     try { setGymDir((await apiFetch(token, "/api/admin/gyms")).gyms || []); } catch {}
   };
@@ -72,6 +73,12 @@ export default function Admin() {
   };
   const deleteGymDir = async (g: any) => {
     try { await apiFetch(token, `/api/admin/gyms/${g.id}`, { method: "DELETE" }); await loadGymDir(); flash("Gym removed ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const mergeGymDir = async (src: any, dst: any) => {
+    try {
+      const r = await apiFetch(token, `/api/admin/gyms/${src.id}/merge`, { method: "POST", body: JSON.stringify({ into_id: dst.id }) });
+      setMergeFrom(null); await loadGymDir(); flash(`Merged into ${r.into} · ${r.moved} moved ✓`);
+    } catch (e: any) { flash(e?.message || "Failed"); }
   };
   const toggleGymVerified = async (g: any) => {
     try { await apiFetch(token, `/api/admin/gyms/${g.id}/verify`, { method: "POST", body: JSON.stringify({ on: !g.verified }) }); await loadGymDir(); flash(g.verified ? "Unverified" : "Verified ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
@@ -281,9 +288,24 @@ export default function Admin() {
               <Pressable testID={`gym-verify-${g.id}`} onPress={() => toggleGymVerified(g)} style={[st.tag, g.verified && st.tagOn]}>
                 <Text style={[st.tagText, g.verified && st.tagTextOn]}>{g.verified ? "✓ VERIFIED" : "VERIFY"}</Text>
               </Pressable>
+              <Pressable testID={`gym-merge-${g.id}`} onPress={() => setMergeFrom(mergeFrom === g.id ? null : g.id)} style={[st.tag, mergeFrom === g.id && st.tagOn]}>
+                <Text style={[st.tagText, mergeFrom === g.id && st.tagTextOn]}>⇄ MERGE</Text>
+              </Pressable>
               <Pressable testID={`gym-save-${g.id}`} onPress={() => renameGymDir(g)} style={st.featBtn}><Text style={st.featBtnText}>SAVE</Text></Pressable>
               <Pressable testID={`gym-del-${g.id}`} onPress={() => deleteGymDir(g)} style={st.removeBtn}><Text style={st.removeText}>✕</Text></Pressable>
             </View>
+            {mergeFrom === g.id && (
+              <View style={st.mergeBox}>
+                <Text style={st.mergeHint}>Merge “{g.name}” into… (moves all {g.members} members, then deletes it)</Text>
+                {gymDir.filter((o) => o.id !== g.id).length === 0 ? (
+                  <Text style={st.dim}>No other gyms to merge into.</Text>
+                ) : gymDir.filter((o) => o.id !== g.id).map((o) => (
+                  <Pressable key={o.id} testID={`merge-into-${g.id}-${o.id}`} onPress={() => mergeGymDir(g, o)} style={st.mergeOpt}>
+                    <Text style={st.mergeOptText}>→ {o.name}{o.verified ? " ✓" : ""} · {o.members}👤</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
         ))}
 
@@ -442,6 +464,10 @@ const st = StyleSheet.create({
   featBtnText: { color: "#221900", fontWeight: "900", fontSize: 11, letterSpacing: 1 },
   gymMembers: { color: colors.textDim, fontSize: 11, fontWeight: "800", alignSelf: "center", minWidth: 34, textAlign: "center" },
   gymCard: { padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, marginBottom: spacing.sm },
+  mergeBox: { marginTop: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.surface3 },
+  mergeHint: { color: colors.textMid, fontSize: 11, marginBottom: spacing.sm, lineHeight: 16 },
+  mergeOpt: { paddingVertical: 8, paddingHorizontal: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2, marginBottom: 6 },
+  mergeOptText: { color: colors.text, fontSize: 13, fontWeight: "700" },
   gymTopRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   gymLogoBtn: { width: 44, height: 44, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   gymLogoImg: { width: "100%", height: "100%" },

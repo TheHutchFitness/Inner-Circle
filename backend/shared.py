@@ -99,6 +99,7 @@ class ProfileUpdate(BaseModel):
     gym: Optional[str] = None
     lite_mode: Optional[bool] = None
     inperson_request: Optional[bool] = None
+    tour_seen: Optional[bool] = None
 
 
 def social_handle(raw: str) -> str:

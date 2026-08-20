@@ -13,6 +13,7 @@ import { initializeRevenueCat, SubscriptionProvider, useRCIdentityBinder } from 
 import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
 import { HeroIntro } from "@/src/components/HeroIntro";
 import { AppModeIntro } from "@/src/components/AppModeIntro";
+import { OnboardingTour } from "@/src/components/OnboardingTour";
 import { PushManager } from "@/src/lib/push";
 import { isEnhancedPalette, applyEnhancedPalette, colors } from "@/src/lib/theme";
 import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
@@ -47,6 +48,16 @@ function ModeGate() {
   if (loading || !user || intro) return null;
   if (user.mode_selected === true) return null;
   return <AppModeIntro />;
+}
+
+// After mode is chosen, brand-new members get a one-time walkthrough of
+// Quests, the Armory and Clans. Dismissing it writes tour_seen so it's shown once.
+function TourGate() {
+  const { user, intro, loading } = useAuth();
+  if (loading || !user || intro) return null;
+  if (user.mode_selected !== true) return null;
+  if (user.tour_seen === true) return null;
+  return <OnboardingTour />;
 }
 
 // Keeps the red palette in sync with the logged-in athlete's Enhanced status.
@@ -100,6 +111,7 @@ export default function RootLayout() {
               <EnhancedSync />
               <IntroGate />
               <ModeGate />
+              <TourGate />
               <PushManager />
               </UnitsProvider>
             </RCIdentity>

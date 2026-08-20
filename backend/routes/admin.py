@@ -322,6 +322,33 @@ async def admin_delete_gym(gym_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
+@api_router.post("/admin/gyms/{gym_id}/merge")
+async def admin_merge_gym(gym_id: str, payload: dict = Body(default={}), user=Depends(get_current_user)):
+    """Merge one gym into another: re-point every member, carry over logo/verified, then delete the source."""
+    _require_admin(user)
+    into_id = str((payload or {}).get("into_id", "") or "").strip()
+    if not into_id or into_id == gym_id:
+        raise HTTPException(status_code=400, detail="Pick a different gym to merge into")
+    src = await db.gyms.find_one({"id": gym_id})
+    dst = await db.gyms.find_one({"id": into_id})
+    if not src or not dst:
+        raise HTTPException(status_code=404, detail="Gym not found")
+    # Re-point every member on the source gym to the destination gym's name
+    moved = await db.users.update_many(
+        {"inperson_gym": {"$regex": f"^{re.escape(src['name'])}$", "$options": "i"}},
+        {"$set": {"inperson_gym": dst["name"]}})
+    # Carry over logo / verified status if the destination is missing them
+    carry = {}
+    if not dst.get("logo_media_id") and src.get("logo_media_id"):
+        carry["logo_media_id"] = src["logo_media_id"]
+    if src.get("verified") and not dst.get("verified"):
+        carry["verified"] = True
+    if carry:
+        await db.gyms.update_one({"id": into_id}, {"$set": carry})
+    await db.gyms.delete_one({"id": gym_id})
+    return {"ok": True, "moved": moved.modified_count, "into": dst["name"]}
+
+
 @api_router.post("/admin/gyms/{gym_id}/verify")
 async def admin_verify_gym(gym_id: str, payload: dict = Body(default={}), user=Depends(get_current_user)):
     """Mark a gym as a verified, real location (or unverify)."""
