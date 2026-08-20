@@ -13,24 +13,34 @@ type Step = {
   title: string;
   desc: string;
   where: string;
+  target: "home" | "train" | "rank" | "quests" | "social" | "me" | "topright";
 };
 
 // ---- Full-mode walkthrough: every tab + home rooms + level locks + config ----
-const S_HOME: Step = { icon: "◆", tag: "TAB 1 · HOME", title: "YOUR COMMAND CENTER", desc: "Your dashboard — rank, level, XP, streak and quick shortcuts to every room. The card up top tracks your progress as you train.", where: "Bottom bar → HOME" };
-const S_TRAIN: Step = { icon: "🏋", tag: "TAB 2 · TRAIN", title: "LOG YOUR LIFTS", desc: "Start and log workouts, track your sets and reps, and hit new PRs. Everything you log feeds your rank and the leaderboards.", where: "Bottom bar → TRAIN" };
-const S_RANK: Step = { icon: "◈", tag: "TAB 3 · RANK", title: "CLIMB THE BOARDS", desc: "Seasonal leaderboards for strength and cardio. See exactly where you stand against the whole Circle and chase the top spots.", where: "Bottom bar → RANK" };
-const S_QUESTS: Step = { icon: "❖", tag: "TAB 4 · QUESTS", title: "RUN THE JOURNEY MAP", desc: "Complete quests on your RPG map to earn XP, rank up and unlock milestone rewards. Boss quests drop loot when you crush them.", where: "Bottom bar → QUESTS" };
-const S_SOCIAL: Step = { icon: "◍", tag: "TAB 5 · SOCIAL", title: "CHAT & CLANS", desc: "Chat rooms (ALL + your gym) to talk with the Circle, plus GROUPS where you join a clan and battle rivals in monthly challenges.", where: "Bottom bar → SOCIAL" };
-const S_ME: Step = { icon: "◉", tag: "TAB 6 · ME", title: "PROFILE & ARMORY", desc: "Your player card, combat stats, PRs and badges. Tap THE ARMORY to equip full-body skins and weapons and style your avatar.", where: "Bottom bar → ME" };
-const S_ROOMS: Step = { icon: "⌂", tag: "ON THE HOME TAB", title: "ROOMS & TOOLS", desc: "Scroll the Home tab for your rooms: Gym Map, Diet & Health (macros + food log), Cardio GPS, the AI Coach, In-Person Coaching and Founders.", where: "HOME → scroll to ROOMS" };
-const S_LOCKS: Step = { icon: "🔒", tag: "UNLOCKABLES", title: "SOME ROOMS UNLOCK BY RANK", desc: "A few rooms show a 🔒 until you level up: ATHLETE'S CENTER opens at Advanced+, THE ROOM at Elite+, and THE JUDGE for members. Keep training and they'll open automatically.", where: "HOME → rooms marked 🔒" };
-const S_MODE: Step = { icon: "◆", tag: "TOP-RIGHT SWITCH", title: "LITE vs FULL MODE", desc: "The little pill at the top-right of every screen flips between FULL (games, cosmetics & chat) and LITE (pure tracking, no distractions). Switch whenever you like.", where: "Any screen → top-right pill" };
-const S_CONFIG: Step = { icon: "⚙", tag: "SETTINGS", title: "CONFIG & HELP", desc: "Tap ⚙ CONFIG on the ME tab for settings — switch modes, set your gender and macro goals, manage your account, and REPLAY THIS TOUR anytime you need a refresher.", where: "ME → ⚙ CONFIG (top-right)" };
+const S_HOME: Step = { icon: "◆", tag: "TAB 1 · HOME", title: "YOUR COMMAND CENTER", desc: "Your dashboard — rank, level, XP, streak and quick shortcuts to every room. The card up top tracks your progress as you train.", where: "Bottom bar → HOME", target: "home" };
+const S_TRAIN: Step = { icon: "🏋", tag: "TAB 2 · TRAIN", title: "LOG YOUR LIFTS", desc: "Start and log workouts, track your sets and reps, and hit new PRs. Everything you log feeds your rank and the leaderboards.", where: "Bottom bar → TRAIN", target: "train" };
+const S_RANK: Step = { icon: "◈", tag: "TAB 3 · RANK", title: "CLIMB THE BOARDS", desc: "Seasonal leaderboards for strength and cardio. See exactly where you stand against the whole Circle and chase the top spots.", where: "Bottom bar → RANK", target: "rank" };
+const S_QUESTS: Step = { icon: "❖", tag: "TAB 4 · QUESTS", title: "RUN THE JOURNEY MAP", desc: "Complete quests on your RPG map to earn XP, rank up and unlock milestone rewards. Boss quests drop loot when you crush them.", where: "Bottom bar → QUESTS", target: "quests" };
+const S_SOCIAL: Step = { icon: "◍", tag: "TAB 5 · SOCIAL", title: "CHAT & CLANS", desc: "Chat rooms (ALL + your gym) to talk with the Circle, plus GROUPS where you join a clan and battle rivals in monthly challenges.", where: "Bottom bar → SOCIAL", target: "social" };
+const S_ME: Step = { icon: "◉", tag: "TAB 6 · ME", title: "PROFILE & ARMORY", desc: "Your player card, combat stats, PRs and badges. Tap THE ARMORY to equip full-body skins and weapons and style your avatar.", where: "Bottom bar → ME", target: "me" };
+const S_ROOMS: Step = { icon: "⌂", tag: "ON THE HOME TAB", title: "ROOMS & TOOLS", desc: "Scroll the Home tab for your rooms: Gym Map, Diet & Health (macros + food log), Cardio GPS, the AI Coach, In-Person Coaching and Founders.", where: "HOME → scroll to ROOMS", target: "home" };
+const S_LOCKS: Step = { icon: "🔒", tag: "UNLOCKABLES", title: "SOME ROOMS UNLOCK BY RANK", desc: "A few rooms show a 🔒 until you level up: ATHLETE'S CENTER opens at Advanced+, THE ROOM at Elite+, and THE JUDGE for members. Keep training and they'll open automatically.", where: "HOME → rooms marked 🔒", target: "home" };
+const S_MODE: Step = { icon: "◆", tag: "TOP-RIGHT SWITCH", title: "LITE vs FULL MODE", desc: "The little pill at the top-right of every screen flips between FULL (games, cosmetics & chat) and LITE (pure tracking, no distractions). Switch whenever you like.", where: "Any screen → top-right pill", target: "topright" };
+const S_CONFIG: Step = { icon: "⚙", tag: "SETTINGS", title: "CONFIG & HELP", desc: "Tap ⚙ CONFIG on the ME tab for settings — switch modes, set your gender and macro goals, manage your account, and REPLAY THIS TOUR anytime you need a refresher.", where: "ME → ⚙ CONFIG (top-right)", target: "me" };
 
 // ---- Lite-mode walkthrough: tracking-focused, game rooms hidden ----
-const L_HOME: Step = { icon: "◆", tag: "TAB 1 · HOME", title: "YOUR DASHBOARD", desc: "Your home base — level, streak and quick shortcuts to your tracking tools. Everything you need is one tap away.", where: "Bottom bar → HOME" };
-const L_DIET: Step = { icon: "🥗", tag: "ON THE HOME TAB", title: "DIET & HEALTH", desc: "Log meals and macros from a big food list, save your go-to meals, set daily calorie & protein goals, and track steps and conditioning.", where: "HOME → DIET & HEALTH" };
-const L_CARDIO: Step = { icon: "🛰", tag: "ON THE HOME TAB", title: "CARDIO GPS", desc: "Track your runs and rides with live pace, distance and elevation, and log them to your history.", where: "HOME → CARDIO GPS TRACKER" };
+const L_HOME: Step = { icon: "◆", tag: "TAB 1 · HOME", title: "YOUR DASHBOARD", desc: "Your home base — level, streak and quick shortcuts to your tracking tools. Everything you need is one tap away.", where: "Bottom bar → HOME", target: "home" };
+const L_DIET: Step = { icon: "🥗", tag: "ON THE HOME TAB", title: "DIET & HEALTH", desc: "Log meals and macros from a big food list, save your go-to meals, set daily calorie & protein goals, and track steps and conditioning.", where: "HOME → DIET & HEALTH", target: "home" };
+const L_CARDIO: Step = { icon: "🛰", tag: "ON THE HOME TAB", title: "CARDIO GPS", desc: "Track your runs and rides with live pace, distance and elevation, and log them to your history.", where: "HOME → CARDIO GPS TRACKER", target: "home" };
+
+const TABS: [Step["target"], string, string][] = [
+  ["home", "HOME", "◆"],
+  ["train", "TRAIN", "🏋"],
+  ["rank", "RANK", "◈"],
+  ["quests", "QUESTS", "❖"],
+  ["social", "SOCIAL", "◍"],
+  ["me", "ME", "◉"],
+];
 
 // First-time walkthrough shown once, right after the athlete picks Lite/Full mode.
 // Comprehensive tour of every tab, the home rooms, level-locked rooms, the mode
@@ -71,6 +81,12 @@ export function OnboardingTour() {
         <Text style={styles.skipText}>SKIP</Text>
       </Pressable>
 
+      {step.target === "topright" && (
+        <View style={styles.topPointer} pointerEvents="none">
+          <Text style={styles.topPointerText}>UP HERE ↗</Text>
+        </View>
+      )}
+
       <View style={styles.body}>
         <Text style={styles.eyebrow}>⌁ WELCOME TO THE INNER CIRCLE</Text>
 
@@ -98,6 +114,23 @@ export function OnboardingTour() {
         </View>
         <Text style={styles.counter}>{i + 1} / {steps.length}</Text>
       </View>
+
+      {step.target !== "topright" && (
+        <View style={styles.tabStrip} pointerEvents="none">
+          {TABS.map(([key, label, glyph]) => {
+            const on = step.target === key;
+            return (
+              <View key={key} style={styles.tabCell}>
+                <Text style={[styles.tabArrow, !on && { opacity: 0 }]}>▼</Text>
+                <View style={[styles.tabItem, on && styles.tabItemOn]}>
+                  <Text style={[styles.tabGlyph, on && styles.tabGlyphOn]}>{glyph}</Text>
+                  <Text style={[styles.tabLabel, on && styles.tabLabelOn]}>{label}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       <View style={styles.footer}>
         {i > 0 && (
@@ -137,6 +170,17 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border },
   dotOn: { backgroundColor: colors.brandPrimary, width: 22 },
   counter: { color: colors.textDim, fontSize: 11, fontWeight: "800", letterSpacing: 2, textAlign: "center", marginTop: spacing.sm },
+  topPointer: { position: "absolute", top: spacing.lg + 30, right: spacing.lg, zIndex: 10, backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
+  topPointerText: { color: "#001122", fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  tabStrip: { flexDirection: "row", marginBottom: spacing.md, paddingHorizontal: 4 },
+  tabCell: { flex: 1, alignItems: "center" },
+  tabArrow: { color: colors.brandPrimary, fontSize: 14, marginBottom: 2, textShadowColor: colors.brandPrimary, textShadowRadius: 8 },
+  tabItem: { alignItems: "center", paddingVertical: 8, paddingHorizontal: 2, borderRadius: radius.sm, width: "100%", borderWidth: 1, borderColor: "transparent" },
+  tabItemOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  tabGlyph: { color: colors.textDim, fontSize: 15 },
+  tabGlyphOn: { color: colors.brandPrimary },
+  tabLabel: { color: colors.textDim, fontSize: 8, fontWeight: "800", letterSpacing: 0.5, marginTop: 3 },
+  tabLabelOn: { color: colors.brandPrimary },
   footer: { flexDirection: "row", gap: spacing.sm },
   backBtn: { paddingVertical: 15, paddingHorizontal: spacing.lg, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
   backText: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 13 },

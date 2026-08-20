@@ -507,3 +507,6 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Iteration 36 — Comprehensive onboarding tour + Enhanced admin grant/filter
 - Admin: /api/admin/enhanced-set {user_id,on} replaces enhanced-remove (grant OR remove); /api/admin/members?enhanced_only=true filter. admin.tsx: button toggles GRANT/REMOVE ENHANCED; new filter chip (admin-filter-enhanced). Curl-verified grant->filter shows 1->remove->0.
 - OnboardingTour.tsx rewritten: FULL = 10 steps (Home, Train, Rank, Quests, Social, Me, Home Rooms, level-locked rooms [Athlete's Center Advanced+, The Room Elite+, The Judge members], LITE/FULL switch, Config+replay). LITE = 6 steps (Home, Train, Diet&Health, Cardio, switch, Config). Added step counter. Replay from Settings still works (tour_seen=false).
+
+## Iteration 37 — Tour Highlights (point at real tabs)
+- OnboardingTour: each Step has a `target` (home/train/rank/quests/social/me/topright). A faux 6-tab strip renders above the footer mirroring the real bottom bar; the target tab glows (cyan) with a ▼ arrow. For the LITE/FULL switch step (target topright) an "UP HERE ↗" pill points to the top-right. TABS constant added. Verified via screenshots (Home highlighted; mode step top-right pointer).
