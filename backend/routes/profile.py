@@ -316,32 +316,40 @@ async def gym_checkins_status(user=Depends(get_current_user)):
 
 @api_router.post("/gyms/check-in")
 async def gym_check_in(payload: dict = Body(default={}), user=Depends(get_current_user)):
-    """Check in at a nearby gym (must be within range) to earn XP. Once per gym per day.
-    First check-in of each day extends a consecutive-day streak for bonus XP."""
+    """Check in at a gym you're physically at (within 500 m of its map pin) to earn XP.
+    Once per gym per day. First check-in of each day extends a consecutive-day streak."""
     uid = user["user_id"]
     gym_id = str((payload or {}).get("gym_id", "") or "").strip()
+    gym_name = str((payload or {}).get("gym") or (payload or {}).get("gym_name") or "").strip()
     lat = (payload or {}).get("lat")
     lng = (payload or {}).get("lng")
-    if not gym_id or lat is None or lng is None:
-        raise HTTPException(status_code=400, detail="Gym and your location are required")
-    g = await db.gyms.find_one({"id": gym_id})
+    if lat is None or lng is None:
+        raise HTTPException(status_code=400, detail="Your location is required to check in")
+    # Resolve the gym (by id, else by name) — it must exist and have a map pin.
+    g = None
+    if gym_id and not gym_id.startswith("name:"):
+        g = await db.gyms.find_one({"id": gym_id})
+    if not g and gym_name:
+        g = await db.gyms.find_one({"name_lower": gym_name.lower()})
     if not g:
         raise HTTPException(status_code=404, detail="Gym not found")
     if g.get("lat") is None or g.get("lng") is None:
-        raise HTTPException(status_code=400, detail="This gym has no map location yet")
+        raise HTTPException(status_code=400, detail="This gym has no map location yet — ask an admin to pin it")
     dist = _haversine_km(float(lat), float(lng), float(g["lat"]), float(g["lng"]))
     if dist > CHECKIN_RADIUS_KM:
         away = f"{int(dist * 1000)} m" if dist < 1 else f"{dist:.1f} km"
-        raise HTTPException(status_code=400, detail=f"You're {away} from {g['name']} — get closer to check in")
+        raise HTTPException(status_code=400, detail=f"You're {away} from {g['name']} — get within 500 m to check in")
+    key = g["id"]
+    name = g["name"]
     now = datetime.now(timezone.utc)
     today = now.strftime("%Y-%m-%d")
     yday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-    if await db.gym_checkins.find_one({"user_id": uid, "gym_id": gym_id, "day": today}):
+    if await db.gym_checkins.find_one({"user_id": uid, "gym_id": key, "day": today}):
         total = await db.gym_checkins.count_documents({"user_id": uid})
-        return {"ok": True, "already": True, "xp_awarded": 0, "total": total, "gym": g["name"],
+        return {"ok": True, "already": True, "xp_awarded": 0, "total": total, "gym": name,
                 "streak": int(user.get("checkin_streak", 0) or 0)}
     await db.gym_checkins.insert_one({
-        "user_id": uid, "gym_id": gym_id, "gym_name": g["name"], "day": today,
+        "user_id": uid, "gym_id": key, "gym_name": name, "day": today,
         "at": now, "lat": float(lat), "lng": float(lng),
     })
     # Streak: only the first check-in of a NEW day extends it (and earns the bonus).
@@ -361,7 +369,7 @@ async def gym_check_in(payload: dict = Body(default={}), user=Depends(get_curren
     await award_group_xp(uid, CHECKIN_XP)
     total = await db.gym_checkins.count_documents({"user_id": uid})
     return {"ok": True, "xp_awarded": xp, "base_xp": CHECKIN_XP, "streak_bonus": streak_bonus,
-            "streak": streak, "total": total, "gym": g["name"]}
+            "streak": streak, "total": total, "gym": name}
 
 
 @api_router.get("/gyms/leaderboard")

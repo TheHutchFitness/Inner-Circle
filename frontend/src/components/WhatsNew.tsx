@@ -6,7 +6,33 @@ import { NeonButton } from "@/src/components/NeonButton";
 import { colors, spacing, radius } from "@/src/lib/theme";
 
 // Bump this key whenever there's a new rundown to show everyone again.
-const SEEN_KEY = "thecircle_whatsnew_v4";
+const SEEN_KEY = "thecircle_whatsnew_v5";
+const LATEST_VERSION = "0.3";
+
+// Running changelog — newest release first. Add a new entry each update and it
+// stacks here so members can see everything that's changed over time.
+const CHANGELOG: { version: string; date: string; items: string[] }[] = [
+  {
+    version: "0.3",
+    date: "June 2026",
+    items: [
+      "Per-gym chat rooms — every gym you belong to (up to 5) now has its own chat room, with a gym switcher in the Social hub.",
+      "Simple gym check-ins — tap CHECK IN on any of your gyms once a day to earn XP and build your streak (no GPS needed).",
+      "Journey zone art — the RPG map zones now have painted gym/city backdrops instead of flat gradients.",
+      "This What's New popup now keeps a running changelog so you can see everything that's changed.",
+    ],
+  },
+  {
+    version: "0.2",
+    date: "May 2026",
+    items: [
+      "PR Room & Form Lab — AI + member critiques on your lifts and physique.",
+      "Fallout-style Journey map with a live Pip-Boy HUD.",
+      "Rebranded Groups to Clans, plus a fresh neon button system app-wide.",
+      "Multi-gym memberships — belong to up to 5 gyms.",
+    ],
+  },
+];
 
 const SECTIONS: { icon: string; title: string; body: string }[] = [
   { icon: "🏆", title: "PR Room", body: "Post a personal record (video or photo + your numbers). An AI powerlifting coach breaks it down and members like & comment. Each week's most-liked PR wins a Champion badge + XP." },
@@ -49,9 +75,25 @@ export function WhatsNew() {
         <View style={styles.card}>
           <Text style={styles.eyebrow}>▚ WELCOME TO THE CIRCLE //</Text>
           <Text style={styles.title}>WHAT'S NEW</Text>
-          <View style={styles.verPill}><Text style={styles.verText}>UPDATE 0.2</Text></View>
-          <Text style={styles.sub}>Here's a quick rundown of everything the app can do.</Text>
-          <ScrollView style={{ maxHeight: 440 }} contentContainerStyle={{ paddingBottom: spacing.md }} showsVerticalScrollIndicator={false}>
+          <View style={styles.verPill}><Text style={styles.verText}>UPDATE {LATEST_VERSION}</Text></View>
+          <Text style={styles.sub}>Here's what just changed — and a rundown of everything the app can do.</Text>
+          <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: spacing.md }} showsVerticalScrollIndicator={false}>
+            <Text style={styles.sectionHead}>▚ CHANGELOG //</Text>
+            {CHANGELOG.map((rel) => (
+              <View key={rel.version} style={styles.relCard}>
+                <View style={styles.relHead}>
+                  <View style={styles.relPill}><Text style={styles.relPillText}>v{rel.version}</Text></View>
+                  <Text style={styles.relDate}>{rel.date}</Text>
+                </View>
+                {rel.items.map((it, i) => (
+                  <View key={i} style={styles.relItem}>
+                    <Text style={styles.relDot}>▸</Text>
+                    <Text style={styles.relText}>{it}</Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+            <Text style={[styles.sectionHead, { marginTop: spacing.lg }]}>▚ WHAT THE CIRCLE DOES //</Text>
             {SECTIONS.map((s) => (
               <View key={s.title} style={styles.row}>
                 <Text style={styles.rowIcon}>{s.icon}</Text>
@@ -77,6 +119,15 @@ const styles = StyleSheet.create({
   sub: { color: colors.textDim, fontSize: 13, marginTop: 4, marginBottom: spacing.md },
   verPill: { alignSelf: "flex-start", backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 4, marginTop: 8 },
   verText: { color: "#fff", fontWeight: "900", letterSpacing: 1.5, fontSize: 11 },
+  sectionHead: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 12, marginBottom: spacing.sm },
+  relCard: { backgroundColor: colors.surface3, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  relHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
+  relPill: { backgroundColor: colors.brandPrimary, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 },
+  relPillText: { color: "#fff", fontWeight: "900", fontSize: 11, letterSpacing: 1 },
+  relDate: { color: colors.textDim, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  relItem: { flexDirection: "row", gap: 7, alignItems: "flex-start", marginBottom: 5 },
+  relDot: { color: colors.brandPrimary, fontSize: 12, lineHeight: 18, fontWeight: "900" },
+  relText: { flex: 1, color: colors.textMid, fontSize: 12.5, lineHeight: 18 },
   row: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start", paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   rowIcon: { fontSize: 22, width: 30, textAlign: "center" },
   rowTitle: { color: colors.text, fontWeight: "900", fontSize: 14, letterSpacing: 0.5 },

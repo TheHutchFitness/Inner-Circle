@@ -9,7 +9,7 @@ import * as Haptics from "expo-haptics";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius, bodyImage, weaponImage, weaponName } from "@/src/lib/theme";
+import { colors, spacing, radius, bodyImage, weaponImage, weaponName, zoneImage } from "@/src/lib/theme";
 import { Image as ExpoImage } from "expo-image";
 
 function weaponLabel(id?: string) {
@@ -23,22 +23,14 @@ function hexA(hex: string, a: number) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-// Environmental texture per area — buildings, gyms & barbells themed to the zone name.
-function zoneDecor(name?: string): string[] {
-  const n = (name || "").toLowerCase();
-  if (/(iron|forge|steel|foundry|furnace)/.test(n)) return ["🏭", "🏋️", "🔩", "🏢", "🏋️", "⚙️", "🏭"];
-  if (/(storm|sky|thunder|peak|ridge|summit|mountain)/.test(n)) return ["🏙️", "🗼", "⚡", "🏋️", "🏢", "🌩️", "🏔️"];
-  if (/(waste|desert|dust|ash|ruin|barren|badland)/.test(n)) return ["🏚️", "🌵", "🏋️", "🪨", "🏚️", "💀", "🛢️"];
-  if (/(citadel|throne|palace|king|elite|olymp|temple|colise)/.test(n)) return ["🏛️", "👑", "🏋️", "🏰", "🏛️", "⚔️", "🗿"];
-  if (/(neon|cyber|grid|circuit|matrix|core|nexus)/.test(n)) return ["🌆", "🏙️", "🏋️", "🖥️", "🏢", "🔌", "🛰️"];
-  return ["🏋️", "🏢", "🏭", "💪", "🏋️", "🏙️", "🏢"];
-}
+// Environmental texture per area is now a painted backdrop image (see zoneImage()).
 import { HeroSprite } from "@/src/components/HeroSprite";
 import { useResponsive } from "@/src/lib/responsive";
 import { PetCompanion } from "@/src/components/PetCompanion";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { MemberSheet } from "@/src/components/MemberSheet";
 import { initSfx, playSfx, isSfxEnabled, setSfxEnabled, startZoneMusic, stopMusic } from "@/src/lib/sfx";
+import { SystemAwakening, Chronicle, SystemWindow, type StoryCtx, type SysMsg } from "@/src/components/JourneyStory";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -119,18 +111,41 @@ function DamageNumber({ value, crit }: { value: number; crit?: boolean }) {
   );
 }
 
-function Combat({ node, stats, accent, onWin, onClose }: { node: any; stats: any; accent: string; onWin: () => void; onClose: () => void }) {
+// D&D-style skill map — the 5 combat stats become rollable skills.
+const SKILLS: Record<string, { label: string; short: string; hit: string; miss: string }> = {
+  strength:  { label: "STRENGTH",  short: "STR", hit: "You heave the iron and shatter its guard.", miss: "The weight stalls — the enemy holds." },
+  power:     { label: "POWER",     short: "PWR", hit: "You explode through the rep — devastating.", miss: "No drive behind it. A glancing blow." },
+  speed:     { label: "AGILITY",   short: "AGI", hit: "You strike faster than it can react.", miss: "Too slow — it slips your blow." },
+  endurance: { label: "ENDURANCE", short: "END", hit: "You grind through the burn and outlast it.", miss: "Your gas tank sputters mid-set." },
+  grit:      { label: "GRIT",      short: "GRT", hit: "Pure will — you refuse to break.", miss: "Doubt creeps in. The blow softens." },
+};
+const ZONE_SKILLS: string[][] = [
+  ["grit", "endurance"],                       // 0 Wastes
+  ["strength", "power"],                        // 1 Iron Valley
+  ["speed", "endurance"],                       // 2 Storm Ridge
+  ["power", "grit"],                            // 3 Ember Peaks
+  ["strength", "speed", "grit"],                // 4 Crimson Citadel
+  ["power", "strength", "grit", "endurance"],   // 5 Ascension
+];
+
+function Combat({ node, stats, accent, zoneIndex, onWin, onClose }: { node: any; stats: any; accent: string; zoneIndex?: number; onWin: () => void; onClose: () => void }) {
   const isBoss = !!node?.boss;
-  const [hp, setHp] = useState(100);
+  const maxHp = isBoss ? 180 : 100;
+  const [hp, setHp] = useState(maxHp);
   const [dmgs, setDmgs] = useState<{ id: number; value: number; crit: boolean }[]>([]);
   const [victory, setVictory] = useState(false);
   const [phase, setPhase] = useState(1);
   const [banner, setBanner] = useState<string | null>(null);
+  const [round, setRound] = useState(0);
+  const [rolling, setRolling] = useState(false);
+  const [face, setFace] = useState(20);
+  const [result, setResult] = useState<{ d: number; mod: number; dc: number; total: number; outcome: "crit" | "hit" | "miss"; skill: string } | null>(null);
   const heroX = useSharedValue(-40);
   const shake = useSharedValue(0);
   const slash = useSharedValue(0);
   const enemyX = useSharedValue(0);
   const flash = useSharedValue(0);
+  const dieScale = useSharedValue(1);
   const timers = useRef<any[]>([]);
 
   const heroStyle = useAnimatedStyle(() => ({ transform: [{ translateX: heroX.value }] }));
@@ -138,82 +153,90 @@ function Combat({ node, stats, accent, onWin, onClose }: { node: any; stats: any
   const slashStyle = useAnimatedStyle(() => ({ opacity: slash.value, transform: [{ scale: 0.6 + slash.value * 1.1 }, { rotate: "-25deg" }] }));
   const enemyStyle = useAnimatedStyle(() => ({ transform: [{ translateX: enemyX.value }] }));
   const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
+  const dieStyle = useAnimatedStyle(() => ({ transform: [{ scale: dieScale.value }] }));
 
-  const power = Math.round((stats?.strength || 40) * 0.35 + (stats?.power || 40) * 0.3 + (stats?.grit || 40) * 0.15);
-  const normalHits = isBoss ? 5 : 3;
-
-  const doHit = (i: number, total: number, finisher: boolean) => {
-    playSfx("slash");
-    const rmHit = setTimeout(() => playSfx("hit"), 90);
-    timers.current.push(rmHit);
-    try { Haptics.impactAsync(finisher ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium); } catch {}
-    const crit = finisher || Math.random() < 0.35;
-    const base = Math.max(12, Math.round(power * (0.35 + Math.random() * 0.5)));
-    const value = finisher ? Math.round(base * 2.6) : crit ? Math.round(base * 1.6) : base;
-    heroX.value = withSequence(withTiming(finisher ? 40 : 26, { duration: finisher ? 90 : 110 }), withTiming(6, { duration: 180 }));
-    slash.value = withSequence(withTiming(1, { duration: finisher ? 60 : 90 }), withTiming(0, { duration: 240 }));
-    shake.value = withSequence(withTiming(-10, { duration: 45 }), withTiming(10, { duration: 60 }), withTiming(0, { duration: 60 }));
-    enemyX.value = withSequence(withTiming(finisher ? 24 : 14, { duration: 70 }), withTiming(0, { duration: 130 }));
-    if (finisher) flash.value = withSequence(withTiming(0.85, { duration: 70 }), withTiming(0, { duration: 400 }));
-    const did = Date.now() + i;
-    setDmgs((d) => [...d, { id: did, value, crit }]);
-    const rm = setTimeout(() => setDmgs((d) => d.filter((x) => x.id !== did)), 1000);
-    timers.current.push(rm);
-  };
+  const order = ZONE_SKILLS[Math.max(0, Math.min(5, zoneIndex ?? 0))];
+  const skillKey = order[round % order.length];
+  const skill = SKILLS[skillKey];
+  const statVal = Math.round(stats?.[skillKey] ?? 40);
+  const modifier = Math.max(-2, Math.min(9, Math.round((statVal - 40) / 6)));
+  const dc = (isBoss ? 12 : 9) + Math.floor(round / 2) + (phase === 2 ? 2 : 0);
 
   useEffect(() => {
     heroX.value = withTiming(0, { duration: 420, easing: Easing.out(Easing.cubic) });
-    let t = 500;
-    const step = 560;
-    const half = Math.ceil(normalHits / 2);
-    for (let i = 0; i < normalHits; i++) {
-      const at = t + i * step;
-      // Boss phase transition at halfway
-      if (isBoss && i === half) {
-        const pt = setTimeout(() => {
-          setPhase(2); setBanner("PHASE II — ENRAGED");
-          try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
-          flash.value = withSequence(withTiming(0.6, { duration: 120 }), withTiming(0, { duration: 300 }));
-          const clr = setTimeout(() => setBanner(null), 1100);
-          timers.current.push(clr);
-        }, at - 200);
-        timers.current.push(pt);
-      }
-      const hitAt = at + (isBoss && i >= half ? 400 : 0);
-      const th = setTimeout(() => {
-        doHit(i, normalHits, false);
-        const frac = (i + 1) / (normalHits + (isBoss ? 1 : 0));
-        setHp(Math.max(isBoss ? 12 : 0, Math.round(100 - frac * 100)));
-      }, hitAt);
-      timers.current.push(th);
-    }
-    // Boss finisher
-    if (isBoss) {
-      const finAt = t + normalHits * step + 500;
-      const fb = setTimeout(() => { setBanner("FINISHER!"); }, finAt - 350);
-      const ft = setTimeout(() => { doHit(99, normalHits, true); setHp(0); setBanner(null); }, finAt);
-      timers.current.push(fb, ft);
-    }
-    const winAt = t + normalHits * step + (isBoss ? 1100 : 250);
-    const done = setTimeout(() => {
-      setVictory(true);
-      playSfx("victory");
-      try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
-      slash.value = withRepeat(withSequence(withTiming(1, { duration: 200 }), withTiming(0.3, { duration: 200 })), 2, false);
-    }, winAt);
-    timers.current.push(done);
     return () => { timers.current.forEach(clearTimeout); };
   }, []);
+
+  const applyStrike = (outcome: "crit" | "hit" | "miss") => {
+    playSfx("slash");
+    const rmHit = setTimeout(() => playSfx("hit"), 90);
+    timers.current.push(rmHit);
+    const finisher = outcome === "crit";
+    try { Haptics.impactAsync(finisher ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium); } catch {}
+    heroX.value = withSequence(withTiming(finisher ? 40 : 24, { duration: 100 }), withTiming(6, { duration: 180 }));
+    slash.value = withSequence(withTiming(1, { duration: 80 }), withTiming(0, { duration: 240 }));
+    shake.value = withSequence(withTiming(-10, { duration: 45 }), withTiming(10, { duration: 60 }), withTiming(0, { duration: 60 }));
+    enemyX.value = withSequence(withTiming(finisher ? 24 : 12, { duration: 70 }), withTiming(0, { duration: 130 }));
+    if (finisher) flash.value = withSequence(withTiming(0.8, { duration: 70 }), withTiming(0, { duration: 400 }));
+    const value = outcome === "crit" ? 34 + Math.floor(Math.random() * 16) : outcome === "hit" ? 20 + Math.floor(Math.random() * 12) : 7 + Math.floor(Math.random() * 5);
+    const did = Date.now();
+    setDmgs((d) => [...d, { id: did, value, crit: outcome !== "miss" }]);
+    const rm = setTimeout(() => setDmgs((d) => d.filter((x) => x.id !== did)), 1000);
+    timers.current.push(rm);
+    setHp((prev) => {
+      const nx = Math.max(0, prev - value);
+      if (isBoss && prev > maxHp * 0.5 && nx <= maxHp * 0.5) {
+        setPhase(2); setBanner("PHASE II — ENRAGED");
+        try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); } catch {}
+        flash.value = withSequence(withTiming(0.6, { duration: 120 }), withTiming(0, { duration: 300 }));
+        const clr = setTimeout(() => setBanner(null), 1100); timers.current.push(clr);
+      }
+      if (nx <= 0) {
+        const done = setTimeout(() => {
+          setVictory(true); playSfx("victory");
+          try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
+          slash.value = withRepeat(withSequence(withTiming(1, { duration: 200 }), withTiming(0.3, { duration: 200 })), 2, false);
+        }, 450);
+        timers.current.push(done);
+      }
+      return nx;
+    });
+  };
+
+  const roll = () => {
+    if (rolling || victory) return;
+    setRolling(true); setResult(null);
+    dieScale.value = withSequence(withTiming(1.25, { duration: 120 }), withTiming(1, { duration: 160 }));
+    let ticks = 0;
+    const iv = setInterval(() => {
+      setFace(1 + Math.floor(Math.random() * 20));
+      ticks++;
+      if (ticks > 12) {
+        clearInterval(iv);
+        const d = 1 + Math.floor(Math.random() * 20);
+        setFace(d);
+        const total = d + modifier;
+        const nat20 = d === 20; const nat1 = d === 1;
+        const success = !nat1 && (nat20 || total >= dc);
+        const outcome: "crit" | "hit" | "miss" = nat20 || (success && total >= dc + 6) ? "crit" : success ? "hit" : "miss";
+        setResult({ d, mod: modifier, dc, total, outcome, skill: skill.label });
+        applyStrike(outcome);
+        setRound((r) => r + 1);
+        setRolling(false);
+      }
+    }, 55);
+    timers.current.push(iv);
+  };
 
   return (
     <View style={styles.combatWrap}>
       <Animated.View style={[styles.flashLayer, { backgroundColor: isBoss ? "#FFFFFF" : accent }, flashStyle]} pointerEvents="none" />
       <Animated.View style={[styles.combatStage, shakeStyle]}>
-        <Text style={styles.combatTitle}>{isBoss ? "☠ BOSS BATTLE" : "⚔ ENCOUNTER"}</Text>
+        <Text style={styles.combatTitle}>{isBoss ? "☠ BOSS · SKILL CHECK" : "⚔ SKILL CHECK"}</Text>
         <Text style={styles.combatSub}>{node?.title}{isBoss ? `  ·  PHASE ${phase}` : ""}</Text>
 
         <View style={styles.hpBar}>
-          <View style={[styles.hpFill, { width: `${hp}%`, backgroundColor: hp > 40 ? accent : colors.error }]} />
+          <View style={[styles.hpFill, { width: `${(hp / maxHp) * 100}%`, backgroundColor: hp > maxHp * 0.4 ? accent : colors.error }]} />
           {isBoss && <View style={styles.hpPhaseMark} />}
         </View>
 
@@ -242,7 +265,28 @@ function Combat({ node, stats, accent, onWin, onClose }: { node: any; stats: any
             </Pressable>
           </View>
         ) : (
-          <Text style={styles.combatHint}>POWER {power} · landing hits...</Text>
+          <View style={styles.checkBox}>
+            <Text style={styles.checkStat}>CHECK · <Text style={{ color: accent }}>{skill.label}</Text>  ·  DC {dc}</Text>
+            <View style={styles.checkRow}>
+              <Animated.View style={[styles.die, { borderColor: accent }, dieStyle]}>
+                <Text style={[styles.dieFace, { color: accent }]}>{face}</Text>
+              </Animated.View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modText}>{skill.short} modifier: <Text style={{ color: accent }}>{modifier >= 0 ? `+${modifier}` : modifier}</Text>  (stat {statVal})</Text>
+                {result ? (
+                  <Text style={[styles.resultText, { color: result.outcome === "miss" ? colors.textDim : result.outcome === "crit" ? colors.warning : accent }]}>
+                    ⚄ {result.d} {result.mod >= 0 ? "+" : "−"} {Math.abs(result.mod)} = {result.total} vs {result.dc} · {result.outcome === "crit" ? "CRITICAL!" : result.outcome === "hit" ? "HIT" : "MISS"}
+                  </Text>
+                ) : (
+                  <Text style={styles.resultText}>Roll a d20 and add your {skill.short}.</Text>
+                )}
+              </View>
+            </View>
+            {result && <Text style={styles.checkStory}>{result.outcome === "miss" ? skill.miss : skill.hit}</Text>}
+            <Pressable testID="combat-roll" onPress={roll} disabled={rolling} style={[styles.primaryBtn, { backgroundColor: accent, opacity: rolling ? 0.6 : 1 }]}>
+              <Text style={styles.primaryBtnText}>{rolling ? "ROLLING…" : "⚄ ROLL THE DICE"}</Text>
+            </Pressable>
+          </View>
         )}
       </Animated.View>
       <Pressable testID="combat-flee" onPress={onClose} style={styles.fleeBtn}><Text style={styles.fleeText}>{victory ? "" : "FLEE"}</Text></Pressable>
@@ -364,9 +408,10 @@ function ZoneReveal({ zone, onClose }: { zone: any; onClose: () => void }) {
       <LinearGradient colors={[zone?.primary || "#000", "#050508"]} style={StyleSheet.absoluteFill} />
       <Animated.View style={[st, { alignItems: "center" }]}>
         <Animated.Text style={[styles.zoneRevealGlow, { color: zone?.accent }, glowSt]}>✦</Animated.Text>
-        <Text style={styles.zoneRevealKicker}>NEW ZONE UNLOCKED</Text>
+        <Text style={styles.zoneRevealKicker}>◇ THE CIRCLE · NEW REALM UNLOCKED</Text>
         <Text style={[styles.zoneRevealName, { color: zone?.accent }]}>{zone?.name}</Text>
         <Text style={styles.zoneRevealTier}>TIER {zone?.tier} REACHED</Text>
+        <Text style={styles.zoneRevealLore}>You leave the old realm behind. The Atrophy loses its grip — your legend grows. Read your Chronicle (📜) for the next chapter.</Text>
       </Animated.View>
       <Text style={styles.zoneRevealTap}>tap to continue</Text>
     </Pressable>
@@ -386,6 +431,8 @@ export default function Journey() {
   const [toast, setToast] = useState<string | null>(null);
   const [milestone, setMilestone] = useState<{ lift: string; value: number } | null>(null);
   const [zoneReveal, setZoneReveal] = useState<any>(null);
+  const [chronicleOpen, setChronicleOpen] = useState(false);
+  const [sysWin, setSysWin] = useState<SysMsg | null>(null);
   const [sfxOn, setSfxOn] = useState(true);
   const [taunt, setTaunt] = useState<{ id: string; text: string } | null>(null);
   const [peekUser, setPeekUser] = useState<string | null>(null);
@@ -462,6 +509,12 @@ export default function Journey() {
     if (!n) return;
     if (n.claimed) return flash("✓ Already cleared");
     if (!n.complete) return flash("🔒 Finish the objectives first");
+    // Solo-Leveling style: The Circle issues the quest before the fight.
+    setSysWin({
+      title: n.boss ? "⚠ BOSS ENCOUNTER" : "QUEST ACCEPTED",
+      lines: [ (n.title || n.name || "Quest").toUpperCase(), n.boss ? "A guardian of The Atrophy blocks your ascent." : "The Circle calls. Answer it." ],
+      tone: n.boss ? "danger" : "info",
+    });
     setCombatNode(n);
   };
 
@@ -475,7 +528,12 @@ export default function Journey() {
     } catch (e: any) { setCombatNode(null); flash(e?.message || "Couldn't claim"); }
   };
 
-  const finishReward = async () => { setReward(null); await load(); };
+  const finishReward = async () => {
+    setReward(null);
+    await load();
+    // Story flourish once the reward reveal closes.
+    setSysWin({ title: "QUEST CLEARED", lines: ["The Circle acknowledges your victory.", "The Atrophy is pushed back — for now."], tone: "victory" });
+  };
 
   const openTopMilestone = () => {
     const prs = user?.prs || {};
@@ -529,32 +587,14 @@ export default function Journey() {
   const neighborX = (xp: number) => 70 + ((xp - minXp) / Math.max(1, maxXp - minXp)) * (contentW - 150);
 
   const points = nodes.map((_, i) => `${nodeX(i)},${nodeY(i)}`).join(" ");
-  const decor = (() => {
-    const set = zoneDecor(data?.zone?.name);
-    const count = Math.max(9, Math.round(contentW / 150));
-    const items: { emoji: string; x: number; y: number; size: number; op: number }[] = [];
-    for (let i = 0; i < count; i++) {
-      const s = Math.abs(Math.sin((i + 1) * 12.9898) * 43758.5453);
-      const j = s - Math.floor(s);
-      const s2 = Math.abs(Math.sin((i + 1) * 78.233) * 12543.123);
-      const j2 = s2 - Math.floor(s2);
-      items.push({
-        emoji: set[i % set.length],
-        x: ((i + 0.5) / count) * contentW + (j - 0.5) * 70,
-        y: 16 + j2 * (mapH - 56),
-        size: 24 + Math.floor(j * 26),
-        op: 0.05 + j2 * 0.07,
-      });
-    }
-    return items;
-  })();
   const traveledPoints = nodes.slice(0, heroIndex + 1).map((_, i) => `${nodeX(i)},${nodeY(i)}`).join(" ");
   const traveledCoords = nodes.slice(0, heroIndex + 1).map((_, i) => ({ x: nodeX(i), y: nodeY(i) }));
   const activeIndex = nodes.findIndex((n) => n.complete && !n.claimed);
 
   return (
     <View style={styles.root}>
-      <LinearGradient colors={[primary, "#050508", "#050508"]} style={StyleSheet.absoluteFill} />
+      <ExpoImage source={zoneImage(data?.zone?.index)} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
+      <LinearGradient colors={[hexA(primary, 0.5), "rgba(5,5,8,0.86)", "rgba(5,5,8,0.96)"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable testID="journey-back" onPress={() => router.back()} hitSlop={10}><Text style={styles.back}>‹ BACK</Text></Pressable>
         <View style={{ alignItems: "center" }}>
@@ -562,6 +602,7 @@ export default function Journey() {
           <Text style={styles.zoneTier}>TIER {data?.zone?.tier} · RANK #{data?.me?.rank_position}/{data?.me?.total_players}</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          <Pressable testID="journey-story" onPress={() => setChronicleOpen(true)} hitSlop={10}><Text style={[styles.prBtn, { color: accent }]}>📜</Text></Pressable>
           <Pressable testID="journey-sfx" onPress={toggleSfx} hitSlop={10}><Text style={[styles.prBtn, { color: sfxOn ? accent : colors.textDim }]}>{sfxOn ? "🔊" : "🔇"}</Text></Pressable>
           <Pressable testID="journey-milestone" onPress={openTopMilestone} hitSlop={10}><Text style={[styles.prBtn, { color: accent }]}>PRs ✦</Text></Pressable>
         </View>
@@ -592,16 +633,12 @@ export default function Journey() {
       )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ width: contentW }} style={styles.mapScroll}>
         <View style={{ width: contentW, height: mapH }}>
+          <ExpoImage source={zoneImage(data?.zone?.index)} style={[StyleSheet.absoluteFill, styles.mapArt]} contentFit="cover" transition={300} />
           <LinearGradient
-            colors={[hexA(primary, 0.28), "transparent", hexA(accent, 0.16)]}
+            colors={[hexA(primary, 0.22), "rgba(5,5,8,0.42)", hexA(accent, 0.14)]}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
             style={StyleSheet.absoluteFill} pointerEvents="none"
           />
-          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-            {decor.map((d, i) => (
-              <Text key={`decor-${i}`} style={{ position: "absolute", left: d.x, top: d.y, fontSize: d.size, opacity: d.op }}>{d.emoji}</Text>
-            ))}
-          </View>
           <EmberField accent={accent} width={contentW} />
           <Svg width={contentW} height={mapH} style={StyleSheet.absoluteFill}>
             <AnimatedPolyline points={points} fill="none" stroke={colors.border} strokeWidth={5} strokeDasharray="2 10" strokeLinecap="round" animatedProps={dashProps} />
@@ -716,10 +753,11 @@ export default function Journey() {
 
       {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
 
-      {combatNode && <Combat node={combatNode} stats={data?.me?.stats} accent={accent} onWin={claim} onClose={() => setCombatNode(null)} />}
+      {combatNode && <Combat node={combatNode} stats={data?.me?.stats} accent={accent} zoneIndex={data?.zone?.index} onWin={claim} onClose={() => setCombatNode(null)} />}
       {reward && <Reward label={reward.label} boss={reward.boss} accent={accent} onClose={finishReward} />}
       {milestone && <MilestoneOverlay lift={milestone.lift} value={milestone.value} accent={accent} token={token} onClose={() => setMilestone(null)} />}
       {zoneReveal && <ZoneReveal zone={zoneReveal} onClose={() => setZoneReveal(null)} />}
+      <SystemWindow data={sysWin} onDone={() => setSysWin(null)} />
       {questInfo && (
         <Modal visible transparent animationType="fade" onRequestClose={() => setQuestInfo(null)}>
           <Pressable style={styles.qiWrap} onPress={() => setQuestInfo(null)}>
@@ -769,6 +807,15 @@ export default function Journey() {
         </Modal>
       )}
       <MemberSheet userId={peekUser} visible={!!peekUser} onClose={() => setPeekUser(null)} />
+      {data && (() => {
+        const ctx: StoryCtx = { name: user?.display_name || "Player", level: data?.me?.level || myLevel, rank: user?.rank || "Beginner", zoneIndex: data?.zone?.index ?? 0 };
+        return (
+          <>
+            <SystemAwakening ctx={ctx} />
+            <Chronicle visible={chronicleOpen} onClose={() => setChronicleOpen(false)} ctx={ctx} />
+          </>
+        );
+      })()}
     </View>
   );
 }
@@ -786,6 +833,7 @@ const styles = StyleSheet.create({
   statVal: { color: colors.text, fontWeight: "900", fontSize: 15, fontVariant: ["tabular-nums"] },
   statLbl: { color: colors.textDim, fontSize: 8, letterSpacing: 1, marginTop: 1 },
   mapScroll: { flex: 1, marginTop: spacing.sm },
+  mapArt: { opacity: 0.92 },
   zoomBar: { position: "absolute", top: 90, right: 16, zIndex: 60, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(5,5,8,0.85)", borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 4 },
   zoomBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center" },
   zoomBtnText: { color: colors.text, fontSize: 20, fontWeight: "900", lineHeight: 22 },
@@ -878,6 +926,14 @@ const styles = StyleSheet.create({
   dmgText: { color: colors.warning, fontWeight: "900", fontSize: 22, fontVariant: ["tabular-nums"] },
   dmgCrit: { color: colors.error, fontSize: 30 },
   combatHint: { color: colors.textDim, marginTop: spacing.xl, letterSpacing: 1, fontSize: 11 },
+  checkBox: { width: "100%", marginTop: spacing.lg, alignItems: "stretch" },
+  checkStat: { color: colors.textMid, fontWeight: "900", letterSpacing: 1, fontSize: 12, textAlign: "center", marginBottom: spacing.sm },
+  checkRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.sm },
+  die: { width: 56, height: 56, borderRadius: 10, borderWidth: 2, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)" },
+  dieFace: { fontSize: 24, fontWeight: "900" },
+  modText: { color: colors.textDim, fontSize: 12, marginBottom: 3 },
+  resultText: { color: colors.textMid, fontSize: 12.5, fontWeight: "800" },
+  checkStory: { color: "#CFE8FF", fontSize: 12.5, lineHeight: 18, textAlign: "center", marginBottom: spacing.md, fontStyle: "italic" },
   victoryBox: { alignItems: "center", marginTop: spacing.xl },
   victoryText: { fontWeight: "900", letterSpacing: 6, fontSize: 30, marginBottom: spacing.lg },
   primaryBtn: { paddingVertical: 14, paddingHorizontal: spacing.xl, borderRadius: radius.sm, alignItems: "center" },
@@ -910,5 +966,6 @@ const styles = StyleSheet.create({
   zoneRevealKicker: { color: colors.textMid, fontWeight: "800", letterSpacing: 4, fontSize: 12 },
   zoneRevealName: { fontWeight: "900", letterSpacing: 4, fontSize: 30, marginTop: spacing.sm, textAlign: "center" },
   zoneRevealTier: { color: colors.textDim, letterSpacing: 2, fontSize: 12, marginTop: spacing.sm },
+  zoneRevealLore: { color: "#CFE8FF", fontSize: 12.5, lineHeight: 19, textAlign: "center", marginTop: spacing.md, paddingHorizontal: spacing.xl, maxWidth: 420 },
   zoneRevealTap: { position: "absolute", bottom: 60, color: colors.textDim, letterSpacing: 2, fontSize: 11 },
 });

@@ -767,16 +767,21 @@ async def _gyms_payload(user: dict) -> dict:
     if not gyms:
         gyms = [user["inperson_gym"]] if (user.get("inperson_gym") or "").strip() else []
     primary = (user.get("inperson_gym") or "").strip().lower()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     out = []
     for name in gyms:
         g = await db.gyms.find_one({"name_lower": name.lower()},
-                                   {"_id": 0, "name": 1, "coaching_enabled": 1, "verified": 1, "logo_media_id": 1})
+                                   {"_id": 0, "id": 1, "name": 1, "coaching_enabled": 1, "verified": 1, "logo_media_id": 1})
+        checkin_key = g["id"] if g else f"name:{name.lower()}"
+        checked = await db.gym_checkins.find_one({"user_id": user["user_id"], "gym_id": checkin_key, "day": today}) is not None
         out.append({
+            "id": checkin_key,
             "name": g["name"] if g else name,
             "coaching_enabled": bool(g and g.get("coaching_enabled")),
             "verified": bool(g and g.get("verified")),
             "logo_media_id": g.get("logo_media_id") if g else None,
             "primary": name.lower() == primary,
+            "checked_in_today": checked,
         })
     return {"gyms": out, "max": MAX_GYMS}
 

@@ -95,9 +95,9 @@ export function HeroIntro({ user, mode, onDone }: { user: any; mode: "signup" | 
         </Animated.View>
 
         <Animated.View style={titleStyle}>
-          <Text style={styles.kicker}>{isSignup ? "⌁ SYSTEM · SOUL LINK ESTABLISHED" : "⌁ SYSTEM · WELCOME BACK"}</Text>
-          <Text style={styles.title}>{isSignup ? "HERO AWAKENED" : `${(user?.display_name || "ATHLETE").toUpperCase()}`}</Text>
-          <Text style={[styles.sub, { color: rankColor }]}>{isSignup ? "YOUR ASCENSION BEGINS" : `LEVEL ${lvl} · ${rank.toUpperCase()}`}</Text>
+          <Text style={styles.kicker}>{isSignup ? "◇ THE CIRCLE · SOUL LINK ESTABLISHED" : "◇ THE CIRCLE · WELCOME BACK"}</Text>
+          <Text style={styles.title}>{isSignup ? "YOU HAVE BEEN CHOSEN" : `${(user?.display_name || "ATHLETE").toUpperCase()}`}</Text>
+          <Text style={[styles.sub, { color: rankColor }]}>{isSignup ? "RISE — BEFORE THE ATROPHY" : `LEVEL ${lvl} · ${rank.toUpperCase()}`}</Text>
         </Animated.View>
 
         <View style={styles.xpTrack}>

@@ -131,7 +131,6 @@ export default function Dashboard() {
 
   const isPremium = isSubscribed || user.skool_verified || user?.is_founder;
   const canAthletesCenter = rankIndex(rank) >= 2 || user?.all_rooms_access || user?.athletes_center_access;
-  const canRoom = rankIndex(rank) >= 6 || user?.all_rooms_access;
   const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
 
   return (
@@ -255,6 +254,17 @@ export default function Dashboard() {
       )}
 
       <HudSectionHeader label="ROOMS" />
+
+      {/* 1 · FOUNDERS — bright red hero CTA */}
+      <Pressable testID="open-founders" onPress={() => router.push("/founders")} style={styles.foundersCta}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.foundersTitle}>★ FOUNDERS</Text>
+          <Text style={styles.foundersSub}>First 100 members + development backers · free access for life</Text>
+        </View>
+        <Text style={styles.foundersArrow}>▶</Text>
+      </Pressable>
+
+      {/* 2 · Athlete's Center */}
       <Pressable testID="open-athletes-center" onPress={() => router.push("/athletes-center")} style={[styles.ctaCard, !canAthletesCenter && styles.locked]}>
         <View>
           <Text style={styles.ctaTitle}>{`ATHLETE'S CENTER ${canAthletesCenter ? "" : "🔒"}`}</Text>
@@ -263,24 +273,7 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
 
-      {!lite && (
-      <Pressable testID="open-the-room" onPress={() => router.push("/the-room")} style={[styles.ctaCard, !canRoom && styles.locked]}>
-        <View>
-          <Text style={styles.ctaTitle}>THE ROOM {canRoom ? "" : "🔒"}</Text>
-          <Text style={styles.ctaSub}>Elite-only encrypted chatroom · Elite+</Text>
-        </View>
-        <Text style={styles.ctaArrow}>▶</Text>
-      </Pressable>
-      )}
-
-      <Pressable testID="open-gyms-map" onPress={() => router.push("/gyms-map")} style={styles.ctaCard}>
-        <View>
-          <Text style={styles.ctaTitle}>GYM MAP</Text>
-          <Text style={styles.ctaSub}>Find training spots & real gyms near you · check-ins</Text>
-        </View>
-        <Text style={styles.ctaArrow}>▶</Text>
-      </Pressable>
-
+      {/* 3 · Diet & Health */}
       <Pressable testID="open-diet-health" onPress={() => router.push("/diet-health")} style={styles.ctaCard}>
         <View>
           <Text style={styles.ctaTitle}>DIET & HEALTH</Text>
@@ -289,6 +282,7 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
 
+      {/* 4 · Cardio / GPS */}
       <Pressable testID="open-cardio" onPress={() => router.push("/cardio")} style={styles.ctaCard}>
         <View>
           <Text style={styles.ctaTitle}>CARDIO · GPS TRACKER</Text>
@@ -297,16 +291,16 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
 
-      {(user?.is_admin || user?.inperson_client) && (
-        <Pressable testID="open-inperson" onPress={() => router.push("/inperson")} style={styles.inpersonCta}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.inpersonTitle}>🏋 IN-PERSON COACHING ROOM</Text>
-            <Text style={styles.ctaSub}>{user?.is_admin ? "Chat, files & assigned workouts for your in-person clients" : "Private room with Coach Hutch · plans, files & chat"}</Text>
-          </View>
-          {ipUnread > 0 ? <View style={styles.ipBadge}><Text style={styles.ipBadgeText}>{ipUnread}</Text></View> : <Text style={styles.ctaArrow}>▶</Text>}
-        </Pressable>
-      )}
+      {/* 5 · Gym Map */}
+      <Pressable testID="open-gyms-map" onPress={() => router.push("/gyms-map")} style={styles.ctaCard}>
+        <View>
+          <Text style={styles.ctaTitle}>GYM MAP</Text>
+          <Text style={styles.ctaSub}>Find training spots & real gyms near you · check-ins</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
 
+      {/* 6 · AI Coach */}
       <Pressable testID="open-coach" onPress={() => router.push("/coach")} style={styles.ctaCard}>
         <View>
           <Text style={styles.ctaTitle}>AI COACH · CHAT</Text>
@@ -315,24 +309,7 @@ export default function Dashboard() {
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
 
-      <Pressable testID="open-founders" onPress={() => router.push("/founders")} style={styles.ctaCard}>
-        <View>
-          <Text style={styles.ctaTitle}>FOUNDERS</Text>
-          <Text style={styles.ctaSub}>First 100 members + development backers</Text>
-        </View>
-        <Text style={styles.ctaArrow}>▶</Text>
-      </Pressable>
-
-      {!lite && (
-      <Pressable testID="open-pr-room" onPress={() => router.push("/pr-room")} style={[styles.ctaCard, !canJudge && styles.locked]}>
-        <View>
-          <Text style={styles.ctaTitle}>PR ROOM {canJudge ? "" : "🔒"}</Text>
-          <Text style={styles.ctaSub}>Post PRs · AI coach breakdown + member hype · Members</Text>
-        </View>
-        <Text style={styles.ctaArrow}>▶</Text>
-      </Pressable>
-      )}
-
+      {/* 7 · Form Lab */}
       {!lite && (
       <Pressable testID="open-form-lab" onPress={() => router.push("/form-lab")} style={[styles.ctaCard, !canJudge && styles.locked]}>
         <View>
@@ -343,6 +320,18 @@ export default function Dashboard() {
       </Pressable>
       )}
 
+      {/* 8 · PR Room */}
+      {!lite && (
+      <Pressable testID="open-pr-room" onPress={() => router.push("/pr-room")} style={[styles.ctaCard, !canJudge && styles.locked]}>
+        <View>
+          <Text style={styles.ctaTitle}>PR ROOM {canJudge ? "" : "🔒"}</Text>
+          <Text style={styles.ctaSub}>Post PRs · AI coach breakdown + member hype · Members</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
+      )}
+
+      {/* 9 · The Judge */}
       {!lite && (
       <Pressable testID="open-judge" onPress={() => router.push("/judge")} style={[styles.ctaCard, !canJudge && styles.locked]}>
         <View>
@@ -353,6 +342,7 @@ export default function Dashboard() {
       </Pressable>
       )}
 
+      {/* 10 · The Enhanced (+ today's protocol reminder) */}
       {!lite && (
       <Pressable testID="open-enhanced" onPress={() => router.push("/enhanced")} style={styles.enhancedCta}>
         <View style={{ flex: 1 }}>
@@ -380,10 +370,22 @@ export default function Dashboard() {
         </Pressable>
       )}
 
+      {/* 11 · In-Person Coaching */}
+      {(user?.is_admin || user?.inperson_client) && (
+        <Pressable testID="open-inperson" onPress={() => router.push("/inperson")} style={styles.inpersonCta}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.inpersonTitle}>🏋 IN-PERSON COACHING ROOM</Text>
+            <Text style={styles.ctaSub}>{user?.is_admin ? "Chat, files & assigned workouts for your in-person clients" : "Private room with Coach Hutch · plans, files & chat"}</Text>
+          </View>
+          {ipUnread > 0 ? <View style={styles.ipBadge}><Text style={styles.ipBadgeText}>{ipUnread}</Text></View> : <Text style={styles.ctaArrow}>▶</Text>}
+        </Pressable>
+      )}
+
+      {/* 12 · Custom Program */}
       <Pressable testID="open-custom-program" onPress={() => router.push("/custom-program")} style={styles.customProgCta}>
         <View style={{ flex: 1 }}>
           <View style={styles.customProgTitleRow}>
-            <Text style={styles.customProgTitle}>★ 1-ON-1 CUSTOM PROGRAM</Text>
+            <Text style={styles.customProgTitle}>★ CUSTOM PROGRAM</Text>
             {programAlert?.unseen && <View style={styles.readyBadge}><Text style={styles.readyBadgeText}>PROGRAM READY</Text></View>}
             {!programAlert?.unseen && programAlert?.intake_pending && <View style={styles.intakeBadge}><Text style={styles.intakeBadgeText}>COMPLETE INTAKE</Text></View>}
           </View>
@@ -501,6 +503,10 @@ const styles = StyleSheet.create({
   intakeBadge: { backgroundColor: colors.warning, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 2 },
   intakeBadgeText: { color: "#221900", fontWeight: "900", fontSize: 8, letterSpacing: 1 },
   enhancedCta: { flexDirection: "row", alignItems: "center", marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: "#FF2A3C", backgroundColor: "rgba(255,42,60,0.07)" },
+  foundersCta: { flexDirection: "row", alignItems: "center", marginHorizontal: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.sm, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1.5, borderColor: "#FF2A3C", backgroundColor: "rgba(255,42,60,0.12)", shadowColor: "#FF2A3C", shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 0 } },
+  foundersTitle: { color: "#FF3B4E", fontWeight: "900", letterSpacing: 1.5, fontSize: 16 },
+  foundersSub: { color: "#FFB3B9", fontSize: 11, marginTop: 2 },
+  foundersArrow: { color: "#FF3B4E", fontSize: 15, fontWeight: "900" },
   enhancedTitle: { color: "#FF2A3C", fontWeight: "900", letterSpacing: 1, fontSize: 15 },
   enhancedSub: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   enhancedArrow: { color: "#FF2A3C", fontSize: 14 },

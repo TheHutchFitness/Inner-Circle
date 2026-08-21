@@ -368,6 +368,22 @@ export const BG_IMAGES_F: Record<string, any> = {
   bg_freak: require("@/assets/images/bg_freak_f.png"),
 };
 
+// Painted RPG-map backdrops per Journey zone tier (index 0=E .. 5=S).
+export const ZONE_IMAGES: Record<number, any> = {
+  0: require("@/assets/images/zones/zone_0.png"),
+  1: require("@/assets/images/zones/zone_1.png"),
+  2: require("@/assets/images/zones/zone_2.png"),
+  3: require("@/assets/images/zones/zone_3.png"),
+  4: require("@/assets/images/zones/zone_4.png"),
+  5: require("@/assets/images/zones/zone_5.png"),
+};
+
+export function zoneImage(index?: number) {
+  const i = Math.max(0, Math.min(5, Math.round(index ?? 0)));
+  return ZONE_IMAGES[i] || ZONE_IMAGES[0];
+}
+
+
 // ---------- Cosmetics display maps (mirror backend COSMETICS) ----------
 export const EMBLEM_ICONS: Record<string, string> = {
   em_none: "", em_flame: "🔥", em_bolt: "⚡", em_skull: "💀",

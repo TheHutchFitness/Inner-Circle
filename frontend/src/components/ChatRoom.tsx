@@ -16,8 +16,9 @@ function ChatVideo({ uri }: { uri: string }) {
   return <VideoView player={player} style={st.video} nativeControls allowsFullscreen contentFit="contain" />;
 }
 
-export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, highlightMine, bottomInset = 0 }: {
+export function ChatRoom({ room, gymName, accent, sendTextColor, placeholder, emptyText, highlightMine, bottomInset = 0 }: {
   room: "main" | "the_room" | "gym";
+  gymName?: string;
   accent: string;
   sendTextColor: string;
   placeholder: string;
@@ -42,9 +43,12 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
   const isVerified = !!(user?.email_verified || user?.phone_verified);
   const isAdmin = !!user?.is_admin;
 
+  // For a specific gym room, thread the gym name through as a query param.
+  const gymQ = room === "gym" && gymName ? `?gym=${encodeURIComponent(gymName)}` : "";
+
   const loadPin = async () => {
     try {
-      const r = await apiFetch(token, `/api/chat/${room}/pin`);
+      const r = await apiFetch(token, `/api/chat/${room}/pin${gymQ}`);
       setPin(r?.pin?.text || null);
     } catch {}
   };
@@ -52,7 +56,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
   const savePin = async () => {
     setAdminBusy(true);
     try {
-      const r = await apiFetch(token, `/api/chat/${room}/pin`, { method: "POST", body: JSON.stringify({ text: pinDraft.trim() }) });
+      const r = await apiFetch(token, `/api/chat/${room}/pin${gymQ}`, { method: "POST", body: JSON.stringify({ text: pinDraft.trim() }) });
       setPin(r?.pin?.text || null);
       setAdminAction(null);
     } catch {}
@@ -62,7 +66,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
   const clearChat = async () => {
     setAdminBusy(true);
     try {
-      await apiFetch(token, `/api/chat/${room}/clear`, { method: "POST" });
+      await apiFetch(token, `/api/chat/${room}/clear${gymQ}`, { method: "POST" });
       await load();
       setAdminAction(null);
     } catch {}
@@ -71,7 +75,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
 
   const load = async () => {
     try {
-      const rows = await apiFetch(token, `/api/chat/${room}/messages`);
+      const rows = await apiFetch(token, `/api/chat/${room}/messages${gymQ}`);
       setMessages(rows);
       setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 50);
     } catch {}
@@ -82,7 +86,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
     loadPin();
     const iv = setInterval(load, 4000);
     return () => clearInterval(iv);
-  }, [token, room]);
+  }, [token, room, gymName]);
 
   const ensurePermission = async (source: "camera" | "gallery") => {
     if (Platform.OS === "web") return true;
@@ -157,7 +161,7 @@ export function ChatRoom({ room, accent, sendTextColor, placeholder, emptyText, 
         }
         media_id = (await r.json()).media_id;
       }
-      await apiFetch(token, `/api/chat/${room}/messages`, {
+      await apiFetch(token, `/api/chat/${room}/messages${gymQ}`, {
         method: "POST",
         body: JSON.stringify({ text: text.trim(), media_id }),
       });
@@ -384,7 +388,6 @@ const st = StyleSheet.create({
   input: { flex: 1, color: colors.text, fontSize: 15, lineHeight: 20, paddingHorizontal: 6, paddingTop: 5, paddingBottom: 5, minHeight: 30, maxHeight: 100, textAlignVertical: "center", includeFontPadding: false },
   sendCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   sendArrow: { fontSize: 15, lineHeight: 18, fontWeight: "900", textAlign: "center", textAlignVertical: "center", includeFontPadding: false },
-  sendArrow: { fontSize: 15, fontWeight: "900" },
   sendBtn: { paddingHorizontal: spacing.lg, paddingVertical: 12, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", minHeight: 44 },
   sendText: { fontWeight: "900", letterSpacing: 2 },
   modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "center", padding: spacing.lg },

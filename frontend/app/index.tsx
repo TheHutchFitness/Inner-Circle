@@ -152,7 +152,7 @@ export default function Index() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.heroWrap}>
           <GlitchImage
-            source={require("../assets/images/login-bg.png")}
+            source={require("../assets/images/login-journey.png")}
             style={styles.hero}
           />
           <LinearGradient
@@ -165,6 +165,7 @@ export default function Index() {
         <View style={styles.wordmarkWrap}>
           <Text style={styles.brandMark}>WELCOME TO</Text>
           <Text style={styles.brandBig}>THE CIRCLE</Text>
+          <Text style={styles.sysTagline}>◇ THE CIRCLE IS ONLINE · RISE BEFORE THE ATROPHY</Text>
         </View>
 
         <View style={styles.card}>
@@ -328,10 +329,11 @@ export default function Index() {
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   container: { paddingBottom: spacing.xl },
-  heroWrap: { width: "100%", aspectRatio: 1.7, position: "relative" },
+  heroWrap: { width: "100%", aspectRatio: 0.82, position: "relative" },
   hero: { width: "100%", height: "100%" },
   brandMark: { color: colors.brandPrimary, fontSize: 14, letterSpacing: 6, fontWeight: "700" },
   brandBig: { color: colors.text, fontSize: 34, fontWeight: "900", letterSpacing: 3, marginTop: 4 },
+  sysTagline: { color: "#3AA0FF", fontSize: 10.5, letterSpacing: 2, fontWeight: "800", marginTop: 8, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
   wordmarkWrap: { alignItems: "center", marginTop: -8, marginBottom: spacing.md },
   tagline: { color: colors.textDim, letterSpacing: 4, marginTop: spacing.sm, fontSize: 12 },
   card: { marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },

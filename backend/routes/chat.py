@@ -9,21 +9,8 @@ from shared import *  # noqa: F401,F403
 
 # ---------- Chat ----------
 @api_router.get("/chat/{room}/messages")
-async def get_messages(room: str, user=Depends(get_current_user)):
-    if room not in ("main", "the_room", "gym") and not room.startswith("group:"):
-        raise HTTPException(status_code=400, detail="Invalid room")
-    if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak") and not user.get("all_rooms_access"):
-        raise HTTPException(status_code=403, detail="The Room requires Elite rank")
-    store_room = room
-    if room == "gym":
-        gym = (user.get("inperson_gym") or "").strip()
-        if not gym:
-            raise HTTPException(status_code=403, detail="Set your gym in Profile to join its chat")
-        store_room = f"gym:{gym.lower()}"
-    if room.startswith("group:"):
-        g = await db.groups.find_one({"id": room.split(":", 1)[1]})
-        if not g or user["user_id"] not in g.get("members", []):
-            raise HTTPException(status_code=403, detail="Members only")
+async def get_messages(room: str, gym: str | None = None, user=Depends(get_current_user)):
+    store_room = await _resolve_store_room(room, user, gym)
     rows = await db.chat_messages.find({"room": store_room}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
     rows.reverse()
     # Backer status can change after a message is posted — reflect current status on read
@@ -87,25 +74,12 @@ async def get_messages(room: str, user=Depends(get_current_user)):
 
 
 @api_router.post("/chat/{room}/messages")
-async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_user)):
-    if room not in ("main", "the_room", "gym") and not room.startswith("group:"):
-        raise HTTPException(status_code=400, detail="Invalid room")
+async def post_message(room: str, inp: ChatMessageIn, gym: str | None = None, user=Depends(get_current_user)):
     b = ban_state(user)
     if b and b["scope"] in ("chat", "all"):
         until = b["until"].strftime("%b %d, %H:%M UTC")
         raise HTTPException(status_code=403, detail=f"You're muted in chat until {until}." + (f" Reason: {b['reason']}" if b['reason'] else ""))
-    if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak") and not user.get("all_rooms_access"):
-        raise HTTPException(status_code=403, detail="The Room requires Elite rank")
-    store_room = room
-    if room == "gym":
-        gym = (user.get("inperson_gym") or "").strip()
-        if not gym:
-            raise HTTPException(status_code=403, detail="Set your gym in Profile to join its chat")
-        store_room = f"gym:{gym.lower()}"
-    if room.startswith("group:"):
-        g = await db.groups.find_one({"id": room.split(":", 1)[1]})
-        if not g or user["user_id"] not in g.get("members", []):
-            raise HTTPException(status_code=403, detail="Members only")
+    store_room = await _resolve_store_room(room, user, gym)
     text = (inp.text or "").strip()
     media = None
     if inp.media_id:
@@ -148,16 +122,34 @@ async def post_message(room: str, inp: ChatMessageIn, user=Depends(get_current_u
     return msg
 
 
-async def _resolve_store_room(room: str, user):
-    """Map a public room id to its stored room key, enforcing access."""
+def _user_gyms(user) -> list:
+    """The gyms this member belongs to (falls back to their single primary gym)."""
+    gyms = user.get("gyms")
+    if not gyms:
+        gyms = [user["inperson_gym"]] if (user.get("inperson_gym") or "").strip() else []
+    return gyms
+
+
+async def _resolve_store_room(room: str, user, gym: str | None = None):
+    """Map a public room id to its stored room key, enforcing access.
+
+    For the "gym" room, an optional `gym` name selects one of the member's up-to-5
+    gyms; when omitted it defaults to their primary gym.
+    """
     if room not in ("main", "the_room", "gym") and not room.startswith("group:"):
         raise HTTPException(status_code=400, detail="Invalid room")
+    if room == "the_room" and rank_from_xp(user["xp"]) not in ("Elite", "Freak") \
+            and not user.get("all_rooms_access") and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="The Room requires Elite rank")
     store_room = room
     if room == "gym":
-        gym = (user.get("inperson_gym") or "").strip()
-        if not gym:
+        gyms = _user_gyms(user)
+        target = (gym or "").strip() or (user.get("inperson_gym") or "").strip() or (gyms[0] if gyms else "")
+        if not target:
             raise HTTPException(status_code=403, detail="Set your gym in Profile to join its chat")
-        store_room = f"gym:{gym.lower()}"
+        if not any(g.lower() == target.lower() for g in gyms):
+            raise HTTPException(status_code=403, detail="Join this gym to access its chat")
+        store_room = f"gym:{target.lower()}"
     if room.startswith("group:"):
         g = await db.groups.find_one({"id": room.split(":", 1)[1]})
         if not g or user["user_id"] not in g.get("members", []):
@@ -166,9 +158,9 @@ async def _resolve_store_room(room: str, user):
 
 
 @api_router.get("/chat/{room}/pin")
-async def get_pin(room: str, user=Depends(get_current_user)):
+async def get_pin(room: str, gym: str | None = None, user=Depends(get_current_user)):
     """The pinned welcome/rules message for a room (or null)."""
-    store_room = await _resolve_store_room(room, user)
+    store_room = await _resolve_store_room(room, user, gym)
     p = await db.chat_pins.find_one({"room": store_room}, {"_id": 0})
     if not p or not (p.get("text") or "").strip():
         return {"pin": None}
@@ -176,11 +168,11 @@ async def get_pin(room: str, user=Depends(get_current_user)):
 
 
 @api_router.post("/chat/{room}/pin")
-async def set_pin(room: str, inp: ChatMessageIn, user=Depends(get_current_user)):
+async def set_pin(room: str, inp: ChatMessageIn, gym: str | None = None, user=Depends(get_current_user)):
     """Admin: pin (or, with empty text, unpin) a message to the top of a room."""
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admins only")
-    store_room = await _resolve_store_room(room, user)
+    store_room = await _resolve_store_room(room, user, gym)
     text = (inp.text or "").strip()[:500]
     if not text:
         await db.chat_pins.delete_one({"room": store_room})
@@ -194,11 +186,11 @@ async def set_pin(room: str, inp: ChatMessageIn, user=Depends(get_current_user))
 
 
 @api_router.post("/chat/{room}/clear")
-async def clear_room(room: str, user=Depends(get_current_user)):
+async def clear_room(room: str, gym: str | None = None, user=Depends(get_current_user)):
     """Admin: wipe every message in a room."""
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admins only")
-    store_room = await _resolve_store_room(room, user)
+    store_room = await _resolve_store_room(room, user, gym)
     res = await db.chat_messages.delete_many({"room": store_room})
     return {"deleted": res.deleted_count}
 
@@ -258,7 +250,8 @@ def _store_room_ok(store_room: str, u: dict) -> bool:
     if store_room == "the_room":
         return rank_from_xp(u.get("xp", 0)) in ("Elite", "Freak") or bool(u.get("all_rooms_access"))
     if store_room.startswith("gym:"):
-        return (u.get("inperson_gym") or "").strip().lower() == store_room.split(":", 1)[1]
+        gname = store_room.split(":", 1)[1]
+        return any(g.lower() == gname for g in _user_gyms(u))
     return False  # group:* handled separately (needs a DB lookup)
 
 

@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 36 — simple tap gym check-in + per-gym chat rooms + WhatsNew changelog + journey painted zones. Backend: 10/10 pytest passed (test_iter36_tap_checkin_gymchat.py). Frontend: verified E2E on mobile viewport (390x844) as owner — WhatsNew shows CHANGELOG + 'WHAT THE CIRCLE DOES' rundown and closes via testID whatsnew-close; My Gyms shows per-gym 'CHECK IN · +150 XP' button with correct testID gym-checkin-<name>; tapping flips the card to 'CHECKED IN TODAY' and surfaces the '🔥 1-day check-in streak' banner + toast 'Checked in · +175 XP · 🔥 1-day streak (+25)'; Social hub shows a GYMS tab and horizontal gym-chat-<name> chip switcher that loads the correct 'GYM CHAT' room per chip; Journey map renders painted zone backdrop image (assets/images/zones/zone_0.png) — no emoji textures. All four features working end-to-end.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter36_tap_checkin_gymchat.py",
+    "/app/test_reports/pytest/pytest_iter36.xml"
+  ],
+  "action_items": [
+    "Restore bot2 canonical XP if strict — my backend tests bumped bot2 by ~+325 XP (currently 1350). No canonical baseline was documented in memory/test_credentials.md for bot2; consider adding one or re-run cleanup script.",
+    "Non-blocker: numerous console warnings on web bundle (textShadow*, shadow*, props.pointerEvents deprecated). Pre-existing across iterations."
+  ],
+  "critical_code_review_comments": [
+    "chat.py line 107 has a stylistic wart: 'founder_backer': user.get('founder_backer', False),        'text': text[:500], — extra whitespace and both keys on same line. Works, but ugly.",
+    "routes/profile.py gym_check_in accepts an unstructured dict body. A Pydantic model (GymCheckInIn) would make the API contract explicit and match the rest of the codebase."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter36_tap_checkin_gymchat.py (new)",
+    "/app/test_reports/iteration_36.json (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None persisted. Test-created gyms/check-ins/chat msgs cleaned via cleanup script (Mongo delete_many TEST_* + owner gyms/checkins wiped). bot2 XP left at 1350 (baseline unknown).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend suite is idempotent and cleans its own test gyms via DELETE /api/gyms/mine. If bot2's inperson_gym is empty on next run, the default-gym test still passes because it adds a temp gym first. Owner's gyms list was cleared during cleanup — re-add if needed for future tests.",
+  "rca_of_issue": "N/A — all features implemented correctly. During iter36 UI testing the diet-onboarding modal appears for owner after a state wipe; not related to this iteration but worth noting: it did not block iter36 flows once dismissed."
+}
