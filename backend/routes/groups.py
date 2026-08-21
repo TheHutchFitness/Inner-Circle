@@ -393,6 +393,40 @@ def _require_admin_u(user):
         raise HTTPException(status_code=403, detail="Admin only")
 
 
+@api_router.get("/admin/groups")
+async def admin_list_groups(user=Depends(get_current_user)):
+    """Admin: list every clan for moderation (name, members, level)."""
+    _require_admin_u(user)
+    rows = await db.groups.find({}, {"_id": 0}).sort("xp", -1).to_list(1000)
+    creator_ids = [g.get("creator_id") for g in rows if g.get("creator_id")]
+    names = {}
+    if creator_ids:
+        async for u in db.users.find({"user_id": {"$in": creator_ids}}, {"_id": 0, "user_id": 1, "display_name": 1}):
+            names[u["user_id"]] = u.get("display_name")
+    return {"groups": [{
+        "id": g["id"], "name": g["name"],
+        "member_count": len(g.get("members", [])),
+        "creator_id": g.get("creator_id"),
+        "creator_name": names.get(g.get("creator_id"), "—"),
+        "xp": g.get("xp", 0),
+        "level": _group_level(g.get("xp", 0)),
+    } for g in rows]}
+
+
+@api_router.delete("/admin/groups/{gid}")
+async def admin_delete_group(gid: str, user=Depends(get_current_user)):
+    """Admin: permanently delete a clan and its chat history."""
+    _require_admin_u(user)
+    g = await db.groups.find_one({"id": gid})
+    if not g:
+        raise HTTPException(status_code=404, detail="Clan not found")
+    await db.groups.delete_one({"id": gid})
+    await db.chat_messages.delete_many({"room": f"group:{gid}"})
+    return {"ok": True, "deleted": gid, "name": g.get("name")}
+
+
+
+
 async def _challenge_standings(ch: dict) -> list:
     snap = ch.get("start_snapshot", {}) or {}
     groups = await db.groups.find({}, {"_id": 0, "id": 1, "name": 1, "xp": 1, "members": 1}).to_list(500)

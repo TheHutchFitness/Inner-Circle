@@ -43,7 +43,7 @@ export default function Admin() {
   const loadFeatured = async () => {
     try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
   };
-  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); loadSecurity(); } /* eslint-disable-line */ }, [token]);
+  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); loadSecurity(); loadClans(); } /* eslint-disable-line */ }, [token]);
 
   const loadStore = async () => {
     try { setStoreItems((await apiFetch(token, "/api/admin/store")).items || []); } catch {}
@@ -133,6 +133,30 @@ export default function Admin() {
   // ---- Group (Clan) Challenge ----
   const [challenge, setChallenge] = useState<any>(null);
   const [chalTitle, setChalTitle] = useState("");
+  // ---- Clan directory (admin moderation) ----
+  const [clanDir, setClanDir] = useState<any[]>([]);
+  const loadClans = async () => {
+    try { setClanDir((await apiFetch(token, "/api/admin/groups")).groups || []); } catch {}
+  };
+  const doDeleteClan = async (c: any) => {
+    try {
+      await apiFetch(token, `/api/admin/groups/${c.id}`, { method: "DELETE" });
+      setClanDir((list) => list.filter((x) => x.id !== c.id));
+      flash(`Deleted “${c.name}” ✓`);
+    } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const deleteClan = (c: any) => {
+    const title = `Delete clan “${c.name}”?`;
+    const body = "This removes the clan, its members' membership, and all its chat history. This cannot be undone.";
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`${title}\n\n${body}`)) doDeleteClan(c);
+      return;
+    }
+    Alert.alert(title, body, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => doDeleteClan(c) },
+    ]);
+  };
   const loadChallenge = async () => {
     try { setChallenge(await apiFetch(token, "/api/group-challenge")); } catch {}
   };
@@ -275,6 +299,21 @@ export default function Admin() {
             </>
           )}
         </View>
+
+        {/* Clan directory — list + delete */}
+        <Text style={st.section}>🛡 ALL CLANS ({clanDir.length})</Text>
+        <Text style={st.dim}>Delete a clan to permanently remove it, its memberships and chat history.</Text>
+        {clanDir.length === 0 ? (
+          <Text style={st.dim}>No clans yet.</Text>
+        ) : clanDir.map((c) => (
+          <View key={c.id} style={st.clanRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={st.name}>🛡 {c.name}</Text>
+              <Text style={st.cardSub}>Lv {c.level} · {c.member_count} member{c.member_count === 1 ? "" : "s"} · led by {c.creator_name}</Text>
+            </View>
+            <Pressable testID={`clan-del-${c.id}`} onPress={() => deleteClan(c)} style={st.removeBtn}><Text style={st.removeText}>DELETE</Text></Pressable>
+          </View>
+        ))}
 
         </>)}
 
@@ -553,6 +592,7 @@ const st = StyleSheet.create({
   tabBtnOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
   tabBtnText: { color: colors.textDim, fontWeight: "900", fontSize: 10, letterSpacing: 0.5 },
   tabBtnTextOn: { color: colors.brandPrimary },
+  clanRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
   deleteBtn: { marginTop: 4, paddingVertical: 11, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.error, backgroundColor: "rgba(255,45,85,0.1)" },
   deleteBtnText: { color: colors.error, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   locked: { color: colors.error, fontWeight: "900", letterSpacing: 3, fontSize: 20 },

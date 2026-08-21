@@ -603,3 +603,17 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Batch 5 (2026-08)
 - Bottom tab bar neon restyle ((tabs)/_layout.tsx): active tab now has a blue→orange LinearGradient glow pill behind it, orange icon (blue text-shadow glow) + orange bold label, and a blue→orange gradient underline. Verified via screenshot.
 - STILL PENDING: full NeonButton rollout to every primary button across ~15 screens (large multi-file pass); Judge cleanup; Purge Test Data tool.
+
+## Batch 6 (2026-08 — Neon button system + Admin tabs + Clan rename/delete)
+- BUTTON SYSTEM (all 4 reference families recreated as reusable code components so wording swaps freely):
+  - NeonButton.tsx (family 1, primary CTA): upgraded to angled/chamfered neon hexagon via react-native-svg polygon + blue↔orange gradient fill + glow + bold italic label. onLayout-measured SVG (unique gradient id per instance). Fixed a temporal-dead-zone bug (used h before declaration).
+  - ActionButton.tsx (family 2, action w/ states): electric-bordered slab, tones blue|orange|gold|fire|red, active/loading + flat grey "inactive"(disabled) state.
+  - NavButton.tsx (family 3, secondary nav): rounded dark slab + thin tinted neon border + icon + label, glow lifts on press. tones blue|gold|orange|red.
+  - CircleIconButton.tsx (family 4): circular metallic core + glowing energy ring (blue|orange|gold), for composer icons.
+  - Rollout: login ENTER/ENLIST (NeonButton); settings SAVE PROFILE + VERIFY (NeonButton), REPLAY TOUR + PRIVACY (NavButton), REMOVE ENHANCED + DELETE ACCOUNT (ActionButton red); profile REQUEST COACHING + REQUEST SESSION (NeonButton), INVENTORY/ARMORY/PREMIUM/PURCHASES/SIGN OUT (NavButton); workout FINISH WORKOUT (NeonButton); coach send + inperson composer icons (CircleIconButton).
+  - FIXED: settings.tsx crashed last session (used NeonButton without importing it).
+- ADMIN PANEL TABS (admin.tsx): split the long panel into 4 tabs — 👥 USERS (security + spotlight + members), 🛡 CLANS (clan challenge + clan directory), 🏋 GYMS (gym directory), 🛒 COSMETICS (store drops). tab state + tabBar pills (testID admin-tab-users/groups/gyms/cosmetics). Enhanced-red toggle stays global above tabs.
+- FIXED BLACK-TEXT BUG: st.searchInput was USED (gym name/address inputs) but never DEFINED in the StyleSheet → text rendered black. Added the style with color: colors.text.
+- GROUPS → CLANS rebrand: renamed every user-facing "Group(s)" label to "Clan(s)" across Social tab (title/tab/create/list/empty), Home CLANS button, Profile MY CLANS, Clans leaderboard, GroupsPanel (create/leave/all clans), community gate copy, admin. Kept internal routes (/api/groups), room ids ("groups"), nav param (params.group), testIDs and variable names unchanged.
+- DELETE CLANS (admin): backend GET /api/admin/groups (list all clans w/ member_count/level/creator_name) + DELETE /api/admin/groups/{gid} (removes clan + its group:{gid} chat messages), both admin-gated via _require_admin_u. Frontend: CLANS tab "ALL CLANS (n)" list with per-clan DELETE (testID clan-del-{id}) + web/native confirm. Verified: list renders (test + Powerlifters), delete confirm wired.
+- COACHING TOGGLE: user reported "coaching button not working properly". Verified the ADMIN toggle WORKS end-to-end (POST /api/admin/gyms/{id}/coaching flips coaching_enabled; UI COACHING↔🏋 COACHING persists across reload). Suspected the real issue is member-side coaching_available (profile.py matches gyms by name_lower + coaching_enabled). NEEDS user clarification on exactly what fails.
