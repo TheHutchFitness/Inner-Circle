@@ -246,7 +246,7 @@ export default function Admin() {
         </View>
 
         <View style={st.tabBar}>
-          {([["users", "👥 USERS"], ["groups", "🛡 GROUPS"], ["gyms", "🏋 GYMS"], ["cosmetics", "🛒 COSMETICS"]] as const).map(([k, label]) => (
+          {([["users", "👥 USERS"], ["groups", "🛡 CLANS"], ["gyms", "🏋 GYMS"], ["cosmetics", "🛒 COSMETICS"]] as const).map(([k, label]) => (
             <Pressable key={k} testID={`admin-tab-${k}`} onPress={() => setTab(k)} style={[st.tabBtn, tab === k && st.tabBtnOn]}>
               <Text style={[st.tabBtnText, tab === k && st.tabBtnTextOn]}>{label}</Text>
             </Pressable>
@@ -255,7 +255,7 @@ export default function Admin() {
 
         {tab === "groups" && (<>
         {/* Group (Clan) Challenge */}
-        <Text style={st.section}>🏆 GROUP CHALLENGE</Text>
+        <Text style={st.section}>🏆 CLAN CHALLENGE</Text>
         <View style={st.card}>
           {challenge?.active ? (
             <>
@@ -268,7 +268,7 @@ export default function Admin() {
             </>
           ) : (
             <>
-              <Text style={st.cardSub}>Start a monthly clan-vs-clan competition. The group that earns the most XP over 30 days wins.</Text>
+              <Text style={st.cardSub}>Start a monthly clan-vs-clan competition. The clan that earns the most XP over 30 days wins.</Text>
               {challenge?.last?.winner_name ? <Text style={st.chalStand}>Last winner: 🏆 {challenge.last.winner_name} ({challenge.last.title})</Text> : null}
               <TextInput testID="challenge-title" value={chalTitle} onChangeText={setChalTitle} placeholder="Challenge title (optional)" placeholderTextColor={colors.textDim} style={st.annInput2} />
               <Pressable testID="start-challenge" onPress={startChallenge} style={st.annBtn}><Text style={st.annBtnText}>+ START MONTHLY CHALLENGE</Text></Pressable>

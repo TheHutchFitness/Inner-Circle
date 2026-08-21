@@ -123,7 +123,7 @@ export default function Dashboard() {
       <ScrollView style={styles.root} contentContainerStyle={[{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }, webCenter(isDesktop)]}>
       <View style={styles.topBar}>
         <Pressable testID="open-clans" onPress={() => router.push("/clans")} style={styles.hudBtn}>
-          <Text style={styles.hudBtnText}>🛡 GROUPS</Text>
+          <Text style={styles.hudBtnText}>🛡 CLANS</Text>
         </Pressable>
         <GymBadge />
         <Pressable testID="open-progression" onPress={() => router.push("/progression")} style={styles.hudBtn}>

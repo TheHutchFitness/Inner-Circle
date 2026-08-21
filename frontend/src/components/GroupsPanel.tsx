@@ -128,7 +128,7 @@ export function GroupsPanel() {
             )}
             {sel.role === "pending" && <View style={styles.pendPill}><Text style={styles.pendT}>⏳ REQUEST PENDING</Text></View>}
             {sel.role === "member" && (
-              <Pressable testID="group-leave" onPress={() => act(`/api/groups/${sel.id}/leave`)} style={styles.leaveBtn}><Text style={styles.leaveT}>LEAVE GROUP</Text></Pressable>
+              <Pressable testID="group-leave" onPress={() => act(`/api/groups/${sel.id}/leave`)} style={styles.leaveBtn}><Text style={styles.leaveT}>LEAVE CLAN</Text></Pressable>
             )}
 
             {/* Announcements */}
@@ -204,18 +204,18 @@ export function GroupsPanel() {
       {canCreate ? (
         creating ? (
           <View style={styles.annBox}>
-            <TextInput testID="grp-name" value={name} onChangeText={setName} placeholder="Group name" placeholderTextColor={colors.textDim} style={styles.input} />
+            <TextInput testID="grp-name" value={name} onChangeText={setName} placeholder="Clan name" placeholderTextColor={colors.textDim} style={styles.input} />
             <TextInput testID="grp-desc" value={desc} onChangeText={setDesc} placeholder="Description (optional)" placeholderTextColor={colors.textDim} style={styles.input} multiline />
             <View style={{ flexDirection: "row", gap: spacing.sm }}>
-              <Pressable testID="grp-create" onPress={create} style={[styles.primaryBtn, { flex: 1 }]}><Text style={styles.primaryBtnT}>CREATE GROUP</Text></Pressable>
+              <Pressable testID="grp-create" onPress={create} style={[styles.primaryBtn, { flex: 1 }]}><Text style={styles.primaryBtnT}>CREATE CLAN</Text></Pressable>
               <Pressable onPress={() => setCreating(false)} style={[styles.leaveBtn, { flex: 1 }]}><Text style={styles.leaveT}>CANCEL</Text></Pressable>
             </View>
           </View>
         ) : (
-          <Pressable testID="new-group" onPress={() => { setCreating(true); setMsg(null); }} style={styles.primaryBtn}><Text style={styles.primaryBtnT}>＋ CREATE A GROUP</Text></Pressable>
+          <Pressable testID="new-group" onPress={() => { setCreating(true); setMsg(null); }} style={styles.primaryBtn}><Text style={styles.primaryBtnT}>＋ CREATE A CLAN</Text></Pressable>
         )
       ) : (
-        <Text style={styles.dim}>Groups can be created by Founders & premium members. You can still join up to 2 groups.</Text>
+        <Text style={styles.dim}>Clans can be created by Founders & premium members. You can still join up to 2 clans.</Text>
       )}
       {msg && <Text style={styles.err}>{msg}</Text>}
 
@@ -226,7 +226,7 @@ export function GroupsPanel() {
             <Text style={styles.chalTitle}>🏆 {challenge.active.title}</Text>
             <Text style={styles.chalDays}>{challenge.active.days_left}d left</Text>
           </View>
-          <Text style={styles.chalSub}>Clan vs clan — the group that earns the most XP wins. Winner's clan gets +{challenge.active.reward_xp} XP and every member earns the Clan Champion badge.</Text>
+          <Text style={styles.chalSub}>Clan vs clan — the clan that earns the most XP wins. Winner's clan gets +{challenge.active.reward_xp} XP and every member earns the Clan Champion badge.</Text>
           {(challenge.standings || []).length === 0 ? (
             <Text style={styles.dim}>No XP earned yet — log workouts to climb!</Text>
           ) : (challenge.standings || []).slice(0, 5).map((s: any, i: number) => {
@@ -246,8 +246,8 @@ export function GroupsPanel() {
         </View>
       ) : null}
 
-      <Text style={styles.section}>ALL GROUPS ({list.length})</Text>
-      {list.length === 0 ? <Text style={styles.dim}>No groups yet. Be the first to start one!</Text> :
+      <Text style={styles.section}>ALL CLANS ({list.length})</Text>
+      {list.length === 0 ? <Text style={styles.dim}>No clans yet. Be the first to start one!</Text> :
         <View>
         {list.map((g) => (
           <Pressable key={g.id} testID={`group-${g.id}`} onPress={() => openGroup(g.id)} style={[styles.groupCard, { borderColor: g.color || colors.borderStrong }, sel?.id === g.id && styles.groupCardActive]}>

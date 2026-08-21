@@ -38,13 +38,13 @@ export default function Community() {
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>▚ THE CIRCLE</Text>
-            <Text style={styles.h1}>{room === "groups" ? "GROUPS" : "SOCIAL HUB"}</Text>
+            <Text style={styles.h1}>{room === "groups" ? "CLANS" : "SOCIAL HUB"}</Text>
           </View>
         </View>
         <View style={styles.segment}>
           {!lite && <Tab id="main" label="ALL" />}
           {!lite && !!gym && <Tab id="gym" label={gym.toUpperCase()} />}
-          <Tab id="groups" label="GROUPS" />
+          <Tab id="groups" label="CLANS" />
         </View>
       </View>
 
@@ -54,7 +54,7 @@ export default function Community() {
         <View style={[styles.gate, { paddingTop: spacing.xl }]}>
           <Text style={styles.eyebrow}>ACCESS DENIED</Text>
           <Text style={styles.gateTitle}>CIRCLE LOCKED</Text>
-          <Text style={styles.gateSub}>The chat is exclusive to $5/mo premium members or verified The Circle Skool members. Groups are open to everyone.</Text>
+          <Text style={styles.gateSub}>The chat is exclusive to $5/mo premium members or verified The Circle Skool members. Clans are open to everyone.</Text>
           <Pressable testID="gate-paywall" onPress={() => router.push("/paywall")} style={styles.gateBtn}>
             <Text style={styles.gateBtnText}>UNLOCK PREMIUM</Text>
           </Pressable>

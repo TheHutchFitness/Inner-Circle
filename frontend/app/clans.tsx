@@ -35,10 +35,10 @@ export default function Clans() {
       {clans === null ? (
         <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
       ) : clans.length === 0 ? (
-        <View style={styles.center}><Text style={styles.empty}>No clans yet — be the first to start one in Social → Groups.</Text></View>
+        <View style={styles.center}><Text style={styles.empty}>No clans yet — be the first to start one in Social → Clans.</Text></View>
       ) : (
         <ScrollView contentContainerStyle={[{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.xl }, webCenter(isDesktop)]}>
-          <Text style={styles.sub}>Ranked by members · tap to open Groups</Text>
+          <Text style={styles.sub}>Ranked by members · tap to open Clans</Text>
           <View style={isDesktop ? styles.grid : undefined}>
             {clans.map((c, i) => (
               <Pressable

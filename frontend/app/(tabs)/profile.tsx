@@ -314,11 +314,11 @@ export default function Profile() {
       )}
 
       {/* MY GROUP — clans the athlete belongs to */}
-      <HudSectionHeader label="MY GROUPS" />
+      <HudSectionHeader label="MY CLANS" />
       <View style={{ paddingHorizontal: spacing.lg }}>
         {myGroups.length === 0 ? (
           <Pressable testID="find-groups" onPress={() => router.push("/(tabs)/community")} style={styles.groupEmptyBtn}>
-            <Text style={styles.groupEmptyText}>🛡 You're not in a group yet — find one in Social → Groups</Text>
+            <Text style={styles.groupEmptyText}>🛡 You're not in a clan yet — find one in Social → Clans</Text>
           </Pressable>
         ) : (
           myGroups.map((g) => (
