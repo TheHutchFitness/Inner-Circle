@@ -182,6 +182,12 @@ async def me(user=Depends(get_current_user)):
     user.update(await founder_status(user))
     user["is_creator"] = bool(user.get("social_tiktok") or user.get("social_instagram") or user.get("social_youtube"))
     user["season_champ_titles"] = await season_titles_for(user["user_id"])
+    # Coaching is only requestable if the member's chosen gym is a coaching-enabled gym.
+    gym = (user.get("inperson_gym") or "").strip()
+    user["coaching_available"] = False
+    if gym:
+        cg = await db.gyms.find_one({"name_lower": gym.lower(), "coaching_enabled": True}, {"_id": 1})
+        user["coaching_available"] = bool(cg)
     return user
 
 
