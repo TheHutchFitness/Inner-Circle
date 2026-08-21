@@ -46,6 +46,8 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
   const [verifyOpen, setVerifyOpen] = useState(false);
 
   const [feed, setFeed] = useState<any[]>([]);
+  const [board, setBoard] = useState<any[]>([]);
+  const [view, setView] = useState<"feed" | "board">("feed");
   const [composerOpen, setComposerOpen] = useState(false);
   const [pending, setPending] = useState<any>(null);
   const [exercise, setExercise] = useState("");
@@ -64,7 +66,8 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
   const scrollRef = useRef<ScrollView>(null);
 
   const load = async () => { try { setFeed(await apiFetch(token, `/api/rooms/${cfg.room}/feed`)); } catch {} };
-  useEffect(() => { if (canAccess) load(); /* eslint-disable-next-line */ }, [canAccess]);
+  const loadBoard = async () => { try { setBoard(await apiFetch(token, `/api/rooms/${cfg.room}/leaderboard`)); } catch {} };
+  useEffect(() => { if (canAccess) { load(); loadBoard(); } /* eslint-disable-next-line */ }, [canAccess]);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
 
@@ -202,7 +205,33 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
         </View>
         {err && <Text style={st.err}>{err}</Text>}
 
-        {feed.length === 0 ? (
+        <View style={st.tabs}>
+          <Pressable testID={`${cfg.room}-tab-feed`} onPress={() => setView("feed")} style={[st.tab, view === "feed" && { borderColor: cfg.accent }]}>
+            <Text style={[st.tabText, view === "feed" && { color: cfg.accent }]}>FEED</Text>
+          </Pressable>
+          <Pressable testID={`${cfg.room}-tab-board`} onPress={() => { setView("board"); loadBoard(); }} style={[st.tab, view === "board" && { borderColor: cfg.accent }]}>
+            <Text style={[st.tabText, view === "board" && { color: cfg.accent }]}>🏆 WEEKLY TOP</Text>
+          </Pressable>
+        </View>
+
+        {view === "board" ? (
+          board.length === 0 ? (
+            <Text style={st.empty}>No ranked posts this week yet — most-liked posts show here.</Text>
+          ) : board.map((p) => {
+            const rc = RANK_COLORS[p.rank] || colors.textMid;
+            const medal = p.rank_pos === 1 ? "🥇" : p.rank_pos === 2 ? "🥈" : p.rank_pos === 3 ? "🥉" : `#${p.rank_pos}`;
+            return (
+              <Pressable key={p.post_id} onPress={() => { setView("feed"); setTimeout(() => openComments(p), 50); }} style={st.boardRow}>
+                <Text style={[st.boardPos, { color: cfg.accent }]}>{medal}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={st.name} numberOfLines={1}>{p.display_name}{p.founder_backer ? " ★" : ""}</Text>
+                  <Text style={[st.rank, { color: rc }]}>{p.exercise ? p.exercise.toUpperCase() : (p.rank || "").toUpperCase()}{p.weight ? ` · ${p.weight}` : ""}</Text>
+                </View>
+                <Text style={[st.boardLikes, { color: cfg.accent }]}>♥ {p.like_count || 0}</Text>
+              </Pressable>
+            );
+          })
+        ) : feed.length === 0 ? (
           <Text style={st.empty}>No posts yet — be the first to drop a lift and get critiqued.</Text>
         ) : feed.map((p) => {
           const rc = RANK_COLORS[p.rank] || colors.textMid;
@@ -332,6 +361,12 @@ const st = StyleSheet.create({
   pickBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", backgroundColor: colors.surface2 },
   pickText: { fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   err: { color: colors.error, fontSize: 12, marginBottom: spacing.sm, fontWeight: "700" },
+  tabs: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  tab: { flex: 1, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.sm, paddingVertical: 10, alignItems: "center", backgroundColor: colors.surface2 },
+  tabText: { color: colors.textDim, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
+  boardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  boardPos: { fontSize: 16, fontWeight: "900", minWidth: 34, textAlign: "center" },
+  boardLikes: { fontWeight: "900", fontSize: 14 },
   empty: { color: colors.textDim, textAlign: "center", marginTop: spacing.xl, fontSize: 13 },
   card: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.md },
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

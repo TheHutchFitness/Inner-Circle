@@ -125,6 +125,9 @@ async def journey(user=Depends(get_current_user)):
                 "id": q["id"], "scope": sc, "title": q["title"],
                 "complete": q["complete"], "claimed": q["claimed"],
                 "reward_xp": q["reward_xp"], "reward_label": q["reward_label"],
+                "objectives": q.get("objectives", []),
+                "flavor": q.get("flavor", ""),
+                "global_percent": q.get("global_percent", 0),
                 "boss": sc == "boss",
             })
     all_users = await db.users.find(

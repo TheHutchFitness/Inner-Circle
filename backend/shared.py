@@ -73,6 +73,7 @@ class RegisterInput(BaseModel):
     email: EmailStr
     password: str
     display_name: str
+    full_name: Optional[str] = None
     sex: Optional[Literal["male", "female", "other"]] = None
     referral_code: Optional[str] = None
     gym: Optional[str] = None

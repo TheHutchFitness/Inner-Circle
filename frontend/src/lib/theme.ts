@@ -226,6 +226,22 @@ export const WEAPON_IMAGES: Record<string, any> = {
 export function skinImage(id?: string) {
   return SKIN_IMAGES[id || ""] || null;
 }
+export const WEAPON_NAMES: Record<string, string> = {
+  w_sword: "Iron Sword",
+  w_bo: "Bo Staff",
+  w_daggers: "Twin Daggers",
+  w_bow: "War Bow",
+  w_katana: "Plasma Katana",
+  w_plasma: "Plasma Rifle",
+  w_axe: "Rune War Axe",
+  w_glaive: "Dragon Glaive",
+  w_shadowblade: "Shadow Blade",
+  w_soulscythe: "Soul Scythe",
+  w_stormspear: "Storm Spear",
+};
+export function weaponName(id?: string) {
+  return WEAPON_NAMES[id || ""] || "Unarmed";
+}
 export function weaponImage(id?: string) {
   return WEAPON_IMAGES[id || ""] || null;
 }

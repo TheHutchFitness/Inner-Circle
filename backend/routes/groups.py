@@ -233,7 +233,10 @@ async def invite_member(gid: str, inp: GroupTarget, user=Depends(get_current_use
     if inp.user_id:
         target = await db.users.find_one({"user_id": inp.user_id})
     elif name:
-        target = await db.users.find_one({"display_name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}})
+        target = await db.users.find_one({"$or": [
+            {"display_name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+            {"full_name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+        ]})
     if not target:
         raise HTTPException(status_code=404, detail="Member not found")
     if target["user_id"] in g.get("members", []):

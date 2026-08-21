@@ -20,6 +20,10 @@ async def register(inp: RegisterInput, request: Request):
         raise HTTPException(status_code=400, detail="Email already registered")
     doc = default_user_doc(inp.email, inp.display_name)
     doc["password_hash"] = hash_password(inp.password)
+    full_name = (inp.full_name or "").strip()
+    if not full_name:
+        raise HTTPException(status_code=400, detail="Full legal name is required")
+    doc["full_name"] = full_name[:80]
     if inp.sex:
         doc["sex"] = inp.sex
     if inp.gym:

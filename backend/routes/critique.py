@@ -182,6 +182,23 @@ async def critique_submit(
     return doc
 
 
+@api_router.get("/rooms/{room}/leaderboard")
+async def critique_leaderboard(room: str, user=Depends(get_current_user)):
+    """Weekly board: most-liked posts in this room over the last 7 days."""
+    _room_or_404(room)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    rows = await db.critique_posts.find(
+        {"room": room, "created_at": {"$gte": week_ago}}, {"_id": 0, "likes": 0}
+    ).sort("like_count", -1).limit(20).to_list(20)
+    out = []
+    for i, r in enumerate(rows):
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+        r["rank_pos"] = i + 1
+        out.append(r)
+    return out
+
+
 @api_router.get("/rooms/{room}/feed")
 async def critique_feed(room: str, user=Depends(get_current_user)):
     _room_or_404(room)

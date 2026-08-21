@@ -40,6 +40,7 @@ export default function Index() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [gym, setGym] = useState("");
   const [inpersonReq, setInpersonReq] = useState(false);
@@ -110,7 +111,10 @@ export default function Index() {
     setSubmitting(true);
     try {
       if (mode === "login") await loginEmail(email.trim(), password);
-      else await registerEmail(email.trim(), password, name.trim() || email.split("@")[0], sex, referralCode.trim(), gym.trim(), inpersonReq);
+      else {
+        if (!fullName.trim()) { setErr("Please enter your full legal name"); setSubmitting(false); return; }
+        await registerEmail(email.trim(), password, name.trim() || email.split("@")[0], sex, referralCode.trim(), gym.trim(), inpersonReq, fullName.trim());
+      }
     } catch (e: any) {
       setErr(e.message || "Auth failed");
     } finally {
@@ -182,6 +186,17 @@ export default function Index() {
             </Pressable>
           </View>
 
+          {mode === "signup" && (
+            <TextInput
+              testID="input-full-name"
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Full Legal Name"
+              placeholderTextColor={colors.textDim}
+              style={styles.input}
+              autoCapitalize="words"
+            />
+          )}
           {mode === "signup" && (
             <TextInput
               testID="input-name"

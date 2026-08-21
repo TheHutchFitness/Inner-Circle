@@ -19,7 +19,7 @@ interface AuthCtx {
   signOut: () => Promise<void>;
   loginEmail: (email: string, password: string) => Promise<void>;
   appleSignIn: (payload: { identity_token: string; email?: string | null; name?: string | null }) => Promise<void>;
-  registerEmail: (email: string, password: string, name: string, sex?: string, referralCode?: string, gym?: string, inpersonRequest?: boolean) => Promise<void>;
+  registerEmail: (email: string, password: string, name: string, sex?: string, referralCode?: string, gym?: string, inpersonRequest?: boolean, fullName?: string) => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -105,11 +105,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIntro({ mode: "login" });
   }, [setSession]);
 
-  const registerEmail = useCallback(async (email: string, password: string, name: string, sex?: string, referralCode?: string, gym?: string, inpersonRequest?: boolean) => {
+  const registerEmail = useCallback(async (email: string, password: string, name: string, sex?: string, referralCode?: string, gym?: string, inpersonRequest?: boolean, fullName?: string) => {
     const r = await fetch(`${API}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, display_name: name, sex, referral_code: referralCode || undefined, gym: gym?.trim() || undefined, inperson_request: inpersonRequest || undefined }),
+      body: JSON.stringify({ email, password, display_name: name, full_name: fullName || undefined, sex, referral_code: referralCode || undefined, gym: gym?.trim() || undefined, inperson_request: inpersonRequest || undefined }),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));

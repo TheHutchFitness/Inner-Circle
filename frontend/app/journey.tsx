@@ -9,13 +9,11 @@ import * as Haptics from "expo-haptics";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius, bodyImage, weaponImage } from "@/src/lib/theme";
+import { colors, spacing, radius, bodyImage, weaponImage, weaponName } from "@/src/lib/theme";
 import { Image as ExpoImage } from "expo-image";
 
 function weaponLabel(id?: string) {
-  if (!id) return "UNARMED";
-  const cleaned = id.replace(/^weapon[_-]?/i, "").replace(/[_-]+/g, " ").trim();
-  return (cleaned || "UNARMED").toUpperCase();
+  return weaponName(id).toUpperCase();
 }
 import { HeroSprite } from "@/src/components/HeroSprite";
 import { useResponsive } from "@/src/lib/responsive";
@@ -683,7 +681,26 @@ export default function Journey() {
                 {questInfo.boss ? "☠ BOSS ENCOUNTER" : "QUEST"} · {questInfo.claimed ? "CLEARED" : questInfo.complete ? "READY" : "LOCKED"}
               </Text>
               <Text style={styles.qiTitle}>{questInfo.title || questInfo.name || "Unknown Quest"}</Text>
-              {!!questInfo.desc && <Text style={styles.qiDesc}>{questInfo.desc}</Text>}
+              {!!(questInfo.flavor || questInfo.desc) && <Text style={styles.qiDesc}>{questInfo.flavor || questInfo.desc}</Text>}
+              {Array.isArray(questInfo.objectives) && questInfo.objectives.length > 0 && (
+                <View style={styles.qiObjs}>
+                  <Text style={styles.qiObjHead}>OBJECTIVES</Text>
+                  {questInfo.objectives.map((o: any, i: number) => {
+                    const cur = o.current ?? 0, tgt = o.target ?? 1;
+                    const done = cur >= tgt;
+                    const pct = Math.max(0, Math.min(1, tgt ? cur / tgt : 0));
+                    return (
+                      <View key={i} style={styles.qiObj}>
+                        <View style={styles.qiObjTop}>
+                          <Text style={[styles.qiObjLabel, done && { color: colors.success }]} numberOfLines={1}>{done ? "✓ " : "◻ "}{o.label}</Text>
+                          <Text style={[styles.qiObjNum, done && { color: colors.success }]}>{cur.toLocaleString?.() ?? cur}/{tgt.toLocaleString?.() ?? tgt}</Text>
+                        </View>
+                        <View style={styles.qiBar}><View style={[styles.qiBarFill, { width: `${pct * 100}%`, backgroundColor: done ? colors.success : accent }]} /></View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
               <View style={styles.qiRow}>
                 <View style={styles.qiStat}><Text style={styles.qiStatLbl}>REWARD</Text><Text style={styles.qiStatVal}>{questInfo.reward_label || `${questInfo.reward_xp || 0} XP`}</Text></View>
                 <View style={styles.qiStat}><Text style={styles.qiStatLbl}>STATUS</Text><Text style={[styles.qiStatVal, { color: questInfo.claimed ? colors.success : questInfo.complete ? accent : colors.textDim }]}>{questInfo.claimed ? "✓ DONE" : questInfo.complete ? "READY" : "IN PROGRESS"}</Text></View>
@@ -765,6 +782,14 @@ const styles = StyleSheet.create({
   qiKicker: { fontSize: 10, fontWeight: "900", letterSpacing: 2 },
   qiTitle: { color: colors.text, fontSize: 20, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
   qiDesc: { color: colors.textMid, fontSize: 13, lineHeight: 19, marginTop: spacing.sm },
+  qiObjs: { marginTop: spacing.md, gap: spacing.sm },
+  qiObjHead: { color: colors.textDim, fontSize: 9, fontWeight: "900", letterSpacing: 2 },
+  qiObj: { gap: 4 },
+  qiObjTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  qiObjLabel: { color: colors.text, fontSize: 12, fontWeight: "700", flex: 1, marginRight: 8 },
+  qiObjNum: { color: colors.textMid, fontSize: 11, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  qiBar: { height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
+  qiBarFill: { height: "100%", borderRadius: 3 },
   qiRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
   qiStat: { flex: 1, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.sm },
   qiStatLbl: { color: colors.textDim, fontSize: 8, fontWeight: "900", letterSpacing: 1 },

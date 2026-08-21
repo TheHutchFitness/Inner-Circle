@@ -167,7 +167,7 @@ export function GroupsPanel() {
                 </Pressable>
                 <Text style={styles.inviteHint}>Anyone who opens your link joins {sel.name} instantly — no approval needed.</Text>
                 <View style={styles.annBox}>
-                  <TextInput testID="invite-input" value={invite} onChangeText={setInvite} placeholder="Or invite a member by name…" placeholderTextColor={colors.textDim} style={styles.input} autoCapitalize="none" />
+                  <TextInput testID="invite-input" value={invite} onChangeText={setInvite} placeholder="Invite by display name or full name…" placeholderTextColor={colors.textDim} style={styles.input} autoCapitalize="words" />
                   <Pressable testID="invite-btn" onPress={async () => { if (invite.trim()) { await act(`/api/groups/${sel.id}/invite`, { display_name: invite.trim() }); setInvite(""); } }} style={styles.smallBtn}><Text style={styles.smallBtnT}>INVITE</Text></Pressable>
                 </View>
               </>
