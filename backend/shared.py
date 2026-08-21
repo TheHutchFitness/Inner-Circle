@@ -345,7 +345,7 @@ async def award_group_xp(user_id: str, amount: int):
 async def founder_status(user) -> dict:
     """First FOUNDER_LIMIT real members (by signup order) are Founding Beta members and
     get all subscription/Skool-gated perks free. Returns {is_founder, founder_number}."""
-    if not user or user.get("is_bot") or user.get("is_admin"):
+    if not user or user.get("is_bot"):
         return {"is_founder": False, "founder_number": None}
     if user.get("founder_grant"):
         return {"is_founder": True, "founder_number": user.get("founder_number_override")}
@@ -353,7 +353,7 @@ async def founder_status(user) -> dict:
     if not created:
         return {"is_founder": False, "founder_number": None}
     ahead = await db.users.count_documents(
-        {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, "created_at": {"$lt": created}, **NOT_TEST_EMAIL}
+        {"is_bot": {"$ne": True}, "created_at": {"$lt": created}, **NOT_TEST_EMAIL}
     )
     num = ahead + 1
     return {"is_founder": num <= FOUNDER_LIMIT, "founder_number": num if num <= FOUNDER_LIMIT else None}
@@ -696,6 +696,7 @@ class StepsLog(BaseModel):
 
 
 class HeartRateLog(BaseModel):
+    current_bpm: Optional[int] = None
     resting_bpm: Optional[int] = None
     avg_bpm: Optional[int] = None
     max_bpm: Optional[int] = None

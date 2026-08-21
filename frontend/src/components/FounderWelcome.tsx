@@ -35,6 +35,9 @@ export function FounderWelcome() {
           <Text style={styles.numSub}>of the first 100</Text>
         </View>
         <Text style={styles.body}>You&apos;re one of the founding members. Every subscription &amp; Skool-gated perk is unlocked for you — for life. Now go put the work in. 💪</Text>
+        <View style={styles.badgeUnlock}>
+          <Text style={styles.badgeUnlockText}>★ FOUNDER BADGE UNLOCKED</Text>
+        </View>
         <Pressable testID="founder-welcome-dismiss" onPress={dismiss} disabled={busy} style={styles.btn}>
           {busy ? <ActivityIndicator color="#001122" /> : <Text style={styles.btnText}>LET&apos;S GO →</Text>}
         </Pressable>
@@ -53,7 +56,9 @@ const styles = StyleSheet.create({
   numLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 2 },
   num: { color: colors.brandPrimary, fontSize: 52, fontWeight: "900", lineHeight: 58, textShadowColor: colors.brandPrimary, textShadowRadius: 14 },
   numSub: { color: colors.textDim, fontSize: 11, letterSpacing: 1 },
-  body: { color: colors.textMid, fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: spacing.lg },
+  body: { color: colors.textMid, fontSize: 14, lineHeight: 21, textAlign: "center", marginBottom: spacing.md },
+  badgeUnlock: { borderWidth: 1, borderColor: colors.warning, borderRadius: radius.sm, paddingVertical: 8, paddingHorizontal: spacing.md, marginBottom: spacing.lg, backgroundColor: "rgba(255,184,0,0.1)" },
+  badgeUnlockText: { color: colors.warning, fontSize: 12, fontWeight: "900", letterSpacing: 2 },
   btn: { backgroundColor: colors.brandPrimary, paddingVertical: 15, paddingHorizontal: spacing.xl, borderRadius: radius.sm, width: "100%", alignItems: "center" },
   btnText: { color: "#001122", fontWeight: "900", letterSpacing: 2, fontSize: 15 },
 });

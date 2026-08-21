@@ -7,26 +7,19 @@ import { syncHealth } from "@/src/lib/health";
 export function HealthCard({ token, onChange }: { token: string | null; onChange?: () => void }) {
   const [steps, setSteps] = useState(0);
   const [goal, setGoal] = useState(10000);
-  const [hr, setHr] = useState<{ resting_bpm?: number | null; avg_bpm?: number | null }>({});
-  const [sprints, setSprints] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [stepsInput, setStepsInput] = useState("");
+  const [curInput, setCurInput] = useState("");
   const [restInput, setRestInput] = useState("");
   const [avgInput, setAvgInput] = useState("");
 
   const load = async () => {
     try {
-      const [s, h, sp] = await Promise.all([
-        apiFetch(token, "/api/steps/today"),
-        apiFetch(token, "/api/heart-rate/today"),
-        apiFetch(token, "/api/sprint/me"),
-      ]);
+      const s = await apiFetch(token, "/api/steps/today");
       setSteps(s.steps || 0); setGoal(s.goal || 10000);
-      setHr({ resting_bpm: h.resting_bpm, avg_bpm: h.avg_bpm });
-      setSprints(sp.sprints || {});
     } catch {}
     setLoading(false);
   };
@@ -36,10 +29,11 @@ export function HealthCard({ token, onChange }: { token: string | null; onChange
     try {
       if (stepsInput.trim()) await apiFetch(token, "/api/steps/log", { method: "POST", body: JSON.stringify({ steps: parseInt(stepsInput, 10) || 0 }) });
       const hrBody: any = {};
+      if (curInput.trim()) hrBody.current_bpm = parseInt(curInput, 10);
       if (restInput.trim()) hrBody.resting_bpm = parseInt(restInput, 10);
       if (avgInput.trim()) hrBody.avg_bpm = parseInt(avgInput, 10);
       if (Object.keys(hrBody).length) await apiFetch(token, "/api/heart-rate/log", { method: "POST", body: JSON.stringify(hrBody) });
-      setEditOpen(false); setStepsInput(""); setRestInput(""); setAvgInput("");
+      setEditOpen(false); setStepsInput(""); setCurInput(""); setRestInput(""); setAvgInput("");
       setMsg("Saved.");
       await load(); onChange?.();
     } catch (e: any) { setMsg(e.message); }
@@ -75,16 +69,6 @@ export function HealthCard({ token, onChange }: { token: string | null; onChange
       </View>
       <View style={styles.track}><View style={[styles.fill, { width: `${Math.max(2, pct * 100)}%` }]} /></View>
 
-      <View style={styles.hrRow}>
-        <View style={styles.hrCell}><Text style={styles.hrLabel}>❤ RESTING</Text><Text style={styles.hrVal}>{hr.resting_bpm != null ? `${hr.resting_bpm}` : "—"}<Text style={styles.hrUnit}> bpm</Text></Text></View>
-        <View style={styles.hrCell}><Text style={styles.hrLabel}>♥ AVG HR</Text><Text style={styles.hrVal}>{hr.avg_bpm != null ? `${hr.avg_bpm}` : "—"}<Text style={styles.hrUnit}> bpm</Text></Text></View>
-      </View>
-
-      <View style={styles.hrRow}>
-        <View style={styles.hrCell}><Text style={styles.hrLabel}>⚡ 40-YARD</Text><Text style={styles.hrVal}>{sprints["40yd"] != null ? `${sprints["40yd"].toFixed(2)}` : "—"}<Text style={styles.hrUnit}> s</Text></Text></View>
-        <View style={styles.hrCell}><Text style={styles.hrLabel}>⚡ 100M</Text><Text style={styles.hrVal}>{sprints["100m"] != null ? `${sprints["100m"].toFixed(2)}` : "—"}<Text style={styles.hrUnit}> s</Text></Text></View>
-      </View>
-
       {msg && <Text testID="health-msg" style={styles.msg}>{msg}</Text>}
 
       <View style={styles.btnRow}>
@@ -102,6 +86,8 @@ export function HealthCard({ token, onChange }: { token: string | null; onChange
             <Text style={styles.modalTitle}>LOG CONDITIONING</Text>
             <Text style={styles.inLabel}>STEPS TODAY</Text>
             <TextInput testID="input-steps" value={stepsInput} onChangeText={setStepsInput} keyboardType="number-pad" placeholder="e.g. 8500" placeholderTextColor={colors.textDim} style={styles.input} />
+            <Text style={styles.inLabel}>CURRENT HR (bpm)</Text>
+            <TextInput testID="input-current" value={curInput} onChangeText={setCurInput} keyboardType="number-pad" placeholder="e.g. 72" placeholderTextColor={colors.textDim} style={styles.input} />
             <Text style={styles.inLabel}>RESTING HR (bpm)</Text>
             <TextInput testID="input-resting" value={restInput} onChangeText={setRestInput} keyboardType="number-pad" placeholder="e.g. 58" placeholderTextColor={colors.textDim} style={styles.input} />
             <Text style={styles.inLabel}>AVG HR (bpm)</Text>

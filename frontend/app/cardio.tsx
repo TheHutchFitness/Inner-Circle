@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, Platform, Linking, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Pressable, Platform, Linking, ActivityIndicator, Modal, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
@@ -22,6 +22,19 @@ function haversine(a: any, b: any) {
   return 2 * R * Math.asin(Math.sqrt(x));
 }
 
+// Duration seconds -> H:MM:SS / M:SS
+function fmtDur(s: number) {
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+}
+function fmtPace(paceMinPerKm: number) {
+  if (!(paceMinPerKm > 0) || paceMinPerKm >= 99) return "--:--";
+  return `${Math.floor(paceMinPerKm)}:${String(Math.round((paceMinPerKm % 1) * 60)).padStart(2, "0")}`;
+}
+const PR_KEYS = ["1K", "5K", "10K", "HALF"] as const;
+const PR_LABEL: Record<string, string> = { "1K": "1K", "5K": "5K", "10K": "10K", HALF: "HALF" };
+
 export default function Cardio() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -38,7 +51,10 @@ export default function Cardio() {
   const [region, setRegion] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [screen, setScreen] = useState<"gps" | "sprint">("gps");
+  const [screen, setScreen] = useState<"gps" | "history" | "sprint">("gps");
+  const [history, setHistory] = useState<any[]>([]);
+  const [prs, setPrs] = useState<Record<string, number>>({});
+  const [summary, setSummary] = useState<any | null>(null);
   const [sprintType, setSprintType] = useState<"40yd" | "100m">("40yd");
   const [sprintRunning, setSprintRunning] = useState(false);
   const [sprintMs, setSprintMs] = useState(0);
@@ -52,6 +68,30 @@ export default function Cardio() {
   useEffect(() => {
     (async () => { try { const r = await apiFetch(token, "/api/sprint/me"); setBests(r.sprints || {}); } catch {} })();
   }, [token]);
+
+  const loadHistory = async () => {
+    try {
+      const [h, p] = await Promise.all([apiFetch(token, "/api/cardio/history"), apiFetch(token, "/api/cardio/prs")]);
+      setHistory(h || []); setPrs(p.prs || {});
+    } catch {}
+  };
+  useEffect(() => { loadHistory(); }, [token]);
+
+  // Mobile: open the live map immediately if location is already granted (we prompt at login).
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    (async () => {
+      try {
+        const cur = await Location.getForegroundPermissionsAsync();
+        if (cur.status === "granted") {
+          setPerm("granted");
+          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          setRegion({ latitude: loc.coords.latitude, longitude: loc.coords.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 });
+        }
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!sprintRunning) return;
@@ -136,6 +176,7 @@ export default function Cardio() {
     setSaving(true);
     try {
       const paceMinKm = distanceKm > 0 ? (elapsed / 60) / distanceKm : 0;
+      const finishedRoute = route.slice();
       const res = await apiFetch(token, "/api/cardio/log", {
         method: "POST",
         body: JSON.stringify({
@@ -149,8 +190,16 @@ export default function Cardio() {
         }),
       });
       await refresh();
-      setMsg(`Saved! +${res.xp_gained} XP`);
+      // Post-run summary screen (route snapshot + stats + any new PRs).
+      setSummary({
+        activity, distanceKm, elapsed, elevation, temp,
+        route: finishedRoute,
+        region: region ? { ...region } : null,
+        xp: res.xp_gained,
+        new_prs: res.new_prs || [],
+      });
       setRoute([]); setDistanceKm(0); setElapsed(0); setElevation(0);
+      loadHistory();
     } catch (e: any) { setMsg(e.message); }
     setSaving(false);
   };
@@ -176,14 +225,46 @@ export default function Cardio() {
 
       <View style={styles.screenRow}>
         <Pressable testID="cardio-mode-gps" onPress={() => setScreen("gps")} style={[styles.screenBtn, screen === "gps" && styles.screenBtnActive]}>
-          <Text style={[styles.screenText, screen === "gps" && styles.screenTextActive]}>📍 GPS TRACK</Text>
+          <Text style={[styles.screenText, screen === "gps" && styles.screenTextActive]}>📍 TRACK</Text>
+        </Pressable>
+        <Pressable testID="cardio-mode-history" onPress={() => setScreen("history")} style={[styles.screenBtn, screen === "history" && styles.screenBtnActive]}>
+          <Text style={[styles.screenText, screen === "history" && styles.screenTextActive]}>🏅 HISTORY</Text>
         </Pressable>
         <Pressable testID="cardio-mode-sprint" onPress={() => setScreen("sprint")} style={[styles.screenBtn, screen === "sprint" && styles.screenBtnActive]}>
-          <Text style={[styles.screenText, screen === "sprint" && styles.screenTextActive]}>⚡ SPRINT TEST</Text>
+          <Text style={[styles.screenText, screen === "sprint" && styles.screenTextActive]}>⚡ SPRINT</Text>
         </Pressable>
       </View>
 
-      {screen === "sprint" ? (
+      {screen === "history" ? (
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.xl }}>
+          <Text style={styles.histHead}>PERSONAL BESTS</Text>
+          <View style={styles.prRow}>
+            {PR_KEYS.map((k) => (
+              <View key={k} testID={`pr-${k}`} style={styles.prCard}>
+                <Text style={styles.prDist}>{PR_LABEL[k]}</Text>
+                <Text style={styles.prTime}>{prs[k] != null ? fmtDur(prs[k]) : "—"}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={[styles.histHead, { marginTop: spacing.lg }]}>RECENT ACTIVITIES</Text>
+          {history.length === 0 ? (
+            <Text style={styles.histEmpty}>No runs or rides logged yet. Start a GPS activity to build your history.</Text>
+          ) : (
+            history.map((r) => {
+              const km = unit === "km" ? r.distance_km : r.distance_km * 0.621371;
+              return (
+                <View key={r.cardio_id} testID={`hist-${r.cardio_id}`} style={styles.histRow}>
+                  <Text style={styles.histIcon}>{r.activity_type === "bike" ? "🚴" : "🏃"}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.histDist}>{km.toFixed(2)} {unit} · {fmtDur(r.duration_s)}</Text>
+                    <Text style={styles.histMeta}>{fmtPace(r.avg_pace_min_km)} /{unit} · {Math.round(r.elevation_gain_m || 0)} m gain · {new Date(r.logged_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+      ) : screen === "sprint" ? (
         <View style={styles.sprintWrap}>
           <View style={styles.sprintTypeRow}>
             {(["40yd", "100m"] as const).map((t) => (
@@ -277,6 +358,43 @@ export default function Cardio() {
       </View>
       </>
       )}
+
+      <Modal visible={!!summary} transparent animationType="slide" onRequestClose={() => setSummary(null)}>
+        {summary && (
+          <View style={styles.sumOverlay}>
+            <View style={styles.sumCard}>
+              <Text style={styles.sumTitle}>{summary.activity === "bike" ? "🚴 RIDE COMPLETE" : "🏃 RUN COMPLETE"}</Text>
+              <View style={styles.sumMap}>
+                {summary.region && summary.route?.length > 1 ? (
+                  <CardioMap region={summary.region} route={summary.route} />
+                ) : (
+                  <View style={styles.sumMapEmpty}><Text style={styles.permText}>Route too short to map</Text></View>
+                )}
+              </View>
+              {summary.new_prs?.length > 0 && (
+                <View style={styles.sumPrWrap}>
+                  {summary.new_prs.map((p: any) => (
+                    <View key={p.label} style={styles.sumPrBadge}>
+                      <Text style={styles.sumPrText}>🏅 NEW {PR_LABEL[p.label] || p.label} PR · {fmtDur(p.seconds)}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              <View style={styles.sumStatsRow}>
+                <View style={styles.sumStat}><Text style={styles.sumStatV}>{(unit === "km" ? summary.distanceKm : summary.distanceKm * 0.621371).toFixed(2)}</Text><Text style={styles.sumStatL}>{unit.toUpperCase()}</Text></View>
+                <View style={styles.sumStat}><Text style={styles.sumStatV}>{fmtDur(summary.elapsed)}</Text><Text style={styles.sumStatL}>TIME</Text></View>
+                <View style={styles.sumStat}><Text style={styles.sumStatV}>{fmtPace(summary.distanceKm > 0 ? (summary.elapsed / 60) / (unit === "km" ? summary.distanceKm : summary.distanceKm * 0.621371) : 0)}</Text><Text style={styles.sumStatL}>PACE /{unit}</Text></View>
+              </View>
+              <View style={styles.sumStatsRow}>
+                <View style={styles.sumStat}><Text style={styles.sumStatV}>{unit === "km" ? `${Math.round(summary.elevation)}` : `${Math.round(summary.elevation * 3.281)}`}</Text><Text style={styles.sumStatL}>{unit === "km" ? "M GAIN" : "FT GAIN"}</Text></View>
+                <View style={styles.sumStat}><Text style={styles.sumStatV}>+{summary.xp}</Text><Text style={styles.sumStatL}>XP</Text></View>
+                <View style={styles.sumStat}><Text style={styles.sumStatV}>{summary.temp != null ? `${Math.round(unit === "km" ? summary.temp : summary.temp * 9 / 5 + 32)}°` : "--"}</Text><Text style={styles.sumStatL}>TEMP</Text></View>
+              </View>
+              <Pressable testID="summary-done" onPress={() => setSummary(null)} style={styles.sumDone}><Text style={styles.sumDoneText}>DONE</Text></Pressable>
+            </View>
+          </View>
+        )}
+      </Modal>
     </View>
   );
 }
@@ -292,6 +410,30 @@ function Stat({ label, value, big }: { label: string; value: string; big?: boole
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  histHead: { color: colors.textDim, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginBottom: spacing.sm },
+  prRow: { flexDirection: "row", gap: spacing.sm },
+  prCard: { flex: 1, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.md, alignItems: "center" },
+  prDist: { color: colors.brandPrimary, fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  prTime: { color: colors.text, fontSize: 15, fontWeight: "900", marginTop: 4, fontVariant: ["tabular-nums"] },
+  histEmpty: { color: colors.textDim, fontSize: 13, lineHeight: 19, textAlign: "center", paddingVertical: spacing.lg },
+  histRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  histIcon: { fontSize: 22 },
+  histDist: { color: colors.text, fontSize: 15, fontWeight: "900" },
+  histMeta: { color: colors.textDim, fontSize: 11, marginTop: 3, fontWeight: "700" },
+  sumOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", justifyContent: "flex-end" },
+  sumCard: { backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.lg, paddingBottom: spacing.xl, gap: spacing.md },
+  sumTitle: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 2, textAlign: "center" },
+  sumMap: { height: 200, borderRadius: radius.md, overflow: "hidden", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  sumMapEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
+  sumPrWrap: { gap: spacing.sm },
+  sumPrBadge: { backgroundColor: "rgba(255,184,0,0.12)", borderWidth: 1, borderColor: colors.warning, borderRadius: radius.sm, paddingVertical: 10, alignItems: "center" },
+  sumPrText: { color: colors.warning, fontWeight: "900", letterSpacing: 1, fontSize: 13 },
+  sumStatsRow: { flexDirection: "row", justifyContent: "space-around" },
+  sumStat: { alignItems: "center", flex: 1 },
+  sumStatV: { color: colors.text, fontSize: 22, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  sumStatL: { color: colors.textDim, fontSize: 10, fontWeight: "800", letterSpacing: 1, marginTop: 2 },
+  sumDone: { backgroundColor: colors.brandPrimary, borderRadius: radius.sm, paddingVertical: 14, alignItems: "center", marginTop: spacing.sm },
+  sumDoneText: { color: "#001122", fontWeight: "900", letterSpacing: 2, fontSize: 14 },
   back: { color: colors.brandPrimary, fontWeight: "800", letterSpacing: 2 },
   title: { color: colors.text, fontWeight: "900", letterSpacing: 4, fontSize: 18 },
   unitBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: radius.sm },

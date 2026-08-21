@@ -233,6 +233,36 @@ async def admin_unban(payload: dict, user=Depends(get_current_user)):
     return await _member_brief(fresh)
 
 
+@api_router.post("/admin/members/{user_id}/delete")
+async def admin_delete_member(user_id: str, user=Depends(get_current_user)):
+    """Permanently delete a member and their data. Cannot delete admins or yourself."""
+    _require_admin(user)
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="Member not found")
+    if target.get("is_admin"):
+        raise HTTPException(status_code=400, detail="Cannot delete an admin account")
+    if user_id == user["user_id"]:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    # Remove the account and its owned data.
+    await db.users.delete_one({"user_id": user_id})
+    await db.user_sessions.delete_many({"user_id": user_id})
+    for coll in ("workouts", "nutrition_logs", "chat_messages", "chat_media",
+                 "inperson_messages", "inperson_programs", "inperson_bookings",
+                 "inperson_attendance", "quest_claims", "set_presets", "verified_purchases"):
+        try:
+            await db[coll].delete_many({"user_id": user_id})
+        except Exception:
+            pass
+    try:
+        await db.inperson_messages.delete_many({"client_id": user_id})
+    except Exception:
+        pass
+    # Pull them from any clan rosters.
+    await db.groups.update_many({}, {"$pull": {"members": user_id, "officers": user_id, "pending": user_id}})
+    return {"ok": True, "deleted": user_id}
+
+
 # ---------- Featured / Spotlight members on Home ----------
 @api_router.get("/admin/sms-status")
 async def admin_sms_status(user=Depends(get_current_user)):

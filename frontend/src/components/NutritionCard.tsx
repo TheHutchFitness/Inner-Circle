@@ -83,6 +83,13 @@ const FOODS: { name: string; serving: string; grams: number; calories: number; p
 
 
 const RECENT_KEY = "hic_recent_foods";
+const DIET_KEY = "hic_diet_pref";
+const NON_VEG = new Set(["Chicken Breast", "Ground Beef 85/15", "Salmon", "Ribeye Steak", "Turkey Breast", "Pork Chop", "Tilapia", "Shrimp", "Bacon", "Tuna (canned)"]);
+function matchesDiet(f: { name: string; carbs: number; custom?: boolean }, diet: string): boolean {
+  if (diet === "veg") return f.custom ? true : !NON_VEG.has(f.name);
+  if (diet === "keto") return (f.carbs ?? 0) <= 10;
+  return true;
+}
 type RecentFood = { name: string; grams: number; calories: number; protein: number; carbs: number; fats: number };
 
 export function NutritionCard() {
@@ -111,7 +118,11 @@ export function NutritionCard() {
   const [recents, setRecents] = useState<RecentFood[]>([]);
   const [water, setWater] = useState(0);
   const [waterGoal, setWaterGoal] = useState(3000);
+  const [waterStreak, setWaterStreak] = useState(0);
+  const [streakMsg, setStreakMsg] = useState<string | null>(null);
   const [goalWater, setGoalWater] = useState("");
+  const [manualOpen, setManualOpen] = useState(false);
+  const [diet, setDiet] = useState<"normal" | "veg" | "keto">("normal");
 
   useEffect(() => {
     (async () => {
@@ -119,12 +130,14 @@ export function NutritionCard() {
         const r = await apiFetch(token, "/api/nutrition/today");
         setVals({ calories: String(r.calories || ""), protein: String(r.protein || ""), carbs: String(r.carbs || ""), fats: String(r.fats || "") });
         setWater(r.water_ml || 0);
+        setWaterStreak(r.water_streak || 0);
       } catch {}
       try { const s = await apiFetch(token, "/api/supplements"); setSupps(s.supplements || []); } catch {}
       try { const m = await apiFetch(token, "/api/nutrition/meals"); setMeals(m.meals || []); } catch {}
       try { const cfd = await apiFetch(token, "/api/nutrition/foods"); setCustomFoods(cfd.foods || []); } catch {}
       try { const g = await apiFetch(token, "/api/nutrition/goals"); setGoals({ calories: g.calories || 0, protein: g.protein || 0 }); setGoalCal(g.calories ? String(g.calories) : ""); setGoalPro(g.protein ? String(g.protein) : ""); setWaterGoal(g.water_goal || 3000); setGoalWater(String(g.water_goal || 3000)); } catch {}
       try { const raw = await AsyncStorage.getItem(RECENT_KEY); if (raw) setRecents(JSON.parse(raw)); } catch {}
+      try { const dp = await AsyncStorage.getItem(DIET_KEY); if (dp === "veg" || dp === "keto" || dp === "normal") setDiet(dp); } catch {}
     })();
   }, [token]);
 
@@ -198,10 +211,17 @@ export function NutritionCard() {
     try { await apiFetch(token, "/api/nutrition/goals", { method: "POST", body: JSON.stringify({ ...g, water_goal: wg }) }); } catch {}
   };
 
-  const addWater = (delta: number) => {
+  const addWater = async (delta: number) => {
     const next = Math.max(0, Math.min(20000, water + delta));
     setWater(next);
-    apiFetch(token, "/api/nutrition/water", { method: "POST", body: JSON.stringify({ ml: next }) }).catch(() => {});
+    try {
+      const res = await apiFetch(token, "/api/nutrition/water", { method: "POST", body: JSON.stringify({ ml: next }) });
+      setWaterStreak(res.water_streak || 0);
+      if (res.new_badge === "7") setStreakMsg("🏆 7-DAY WATER STREAK! Badge earned");
+      else if (res.new_badge === "3") setStreakMsg("🔥 3-DAY WATER STREAK! Badge earned");
+      else if (res.goal_met && delta > 0) setStreakMsg("💧 Water goal hit for today!");
+      else setStreakMsg(null);
+    } catch {}
   };
 
   const addCustomFood = async () => {
@@ -293,10 +313,16 @@ export function NutritionCard() {
 
         {tab === "macros" ? (
           <>
-            <View style={styles.goalsBox}>
-              <View style={styles.ringsRow}>
-                <MacroRing label="CALORIES" value={parseInt(vals.calories || "0", 10) || 0} goal={goals.calories} unit="kcal" color={colors.success} />
-                <MacroRing label="PROTEIN" value={parseInt(vals.protein || "0", 10) || 0} goal={goals.protein} unit="g" color={colors.brandPrimary} />
+            <View style={styles.macroWaterRow}>
+            <View style={styles.hero}>
+              <Text style={styles.heroTop}>TODAY</Text>
+              <Text style={styles.heroSub}>CALORIES</Text>
+              <Text testID="cal-hero" style={styles.heroBig}>{parseInt(vals.calories || "0", 10) || 0}</Text>
+              <Text style={styles.heroGoal}>of {goals.calories || "—"}</Text>
+              <View style={styles.macroRingRow}>
+                <MacroRing label="carbs" value={parseInt(vals.carbs || "0", 10) || 0} goal={goals.calories ? Math.round((goals.calories * 0.45) / 4) : 0} unit="g" color="#34D399" size={58} />
+                <MacroRing label="protein" value={parseInt(vals.protein || "0", 10) || 0} goal={goals.protein} unit="g" color={colors.brandPrimary} size={58} />
+                <MacroRing label="fat" value={parseInt(vals.fats || "0", 10) || 0} goal={goals.calories ? Math.round((goals.calories * 0.25) / 9) : 0} unit="g" color="#C084FC" size={58} />
               </View>
               {goalsOpen ? (
                 <View style={styles.goalEditRow}>
@@ -307,21 +333,30 @@ export function NutritionCard() {
                 </View>
               ) : (
                 <Pressable testID="goal-edit" onPress={() => setGoalsOpen(true)} style={styles.goalEditToggle}>
-                  <Text style={styles.goalEditText}>🎯 {goals.calories || goals.protein ? "EDIT DAILY GOALS" : "SET DAILY GOALS"}</Text>
+                  <Text style={styles.goalEditText}>🎯 {goals.calories || goals.protein ? "EDIT GOALS" : "SET GOALS"}</Text>
                 </Pressable>
               )}
             </View>
             <View style={styles.waterBox}>
-              <MacroRing label="WATER" value={water} goal={waterGoal} unit="ml" color="#38BDF8" size={72} />
+              <MacroRing label="WATER" value={water} goal={waterGoal} unit="ml" color="#38BDF8" size={62} />
               <View style={styles.waterRight}>
-                <Text style={styles.waterHint}>💧 {(water / 1000).toFixed(2)} L{waterGoal ? ` of ${(waterGoal / 1000).toFixed(1)} L` : ""}</Text>
+                <View style={styles.waterHintRow}>
+                  <Text style={styles.waterHint}>💧 {(water / 1000).toFixed(2)} L</Text>
+                  {waterStreak > 0 && <Text testID="water-streak" style={styles.waterStreak}>🔥 {waterStreak}d</Text>}
+                </View>
                 <View style={styles.waterBtns}>
                   <Pressable testID="water-plus-250" onPress={() => addWater(250)} style={styles.waterBtn}><Text style={styles.waterBtnT}>＋250</Text></Pressable>
                   <Pressable testID="water-plus-500" onPress={() => addWater(500)} style={styles.waterBtn}><Text style={styles.waterBtnT}>＋500</Text></Pressable>
-                  <Pressable testID="water-minus-250" onPress={() => addWater(-250)} style={styles.waterBtnDim}><Text style={styles.waterBtnDimT}>−250</Text></Pressable>
                 </View>
+                <Pressable testID="water-minus-250" onPress={() => addWater(-250)} style={styles.waterBtnDim}><Text style={styles.waterBtnDimT}>−250</Text></Pressable>
+                {!!streakMsg && <Text style={styles.waterStreakMsg}>{streakMsg}</Text>}
               </View>
             </View>
+            </View>
+            <Pressable testID="manual-toggle" onPress={() => setManualOpen((o) => !o)} style={styles.manualToggle}>
+              <Text style={styles.manualToggleText}>{manualOpen ? "▲ HIDE MANUAL ENTRY" : "✎ ADJUST MACROS MANUALLY"}</Text>
+            </Pressable>
+            {manualOpen && (
             <View style={styles.grid}>
               {FIELDS.map((f) => (
                 <View key={f.key} style={styles.cell}>
@@ -342,6 +377,7 @@ export function NutritionCard() {
                 </View>
               ))}
             </View>
+            )}
             {meals.length > 0 && (
               <View style={styles.mealsWrap}>
                 <Text style={styles.mealsLabel}>MY MEALS · set portion & tap to log</Text>
@@ -407,6 +443,18 @@ export function NutritionCard() {
             {lastFood && !foodOpen && <Text style={styles.lastFood}>Added {lastFood} ✓ — totals updated</Text>}
             {foodOpen && (
               <View style={styles.foodDropdown}>
+                <View style={styles.dietRow}>
+                  {(["normal", "veg", "keto"] as const).map((d) => (
+                    <Pressable
+                      key={d}
+                      testID={`diet-${d}`}
+                      onPress={() => { setDiet(d); AsyncStorage.setItem(DIET_KEY, d).catch(() => {}); }}
+                      style={[styles.dietPill, diet === d && styles.dietPillOn]}
+                    >
+                      <Text style={[styles.dietPillText, diet === d && styles.dietPillTextOn]}>{d === "normal" ? "🍽 NORMAL" : d === "veg" ? "🥗 VEGETARIAN" : "🥑 KETO"}</Text>
+                    </Pressable>
+                  ))}
+                </View>
                 <TextInput
                   testID="food-search"
                   value={foodQuery}
@@ -429,7 +477,7 @@ export function NutritionCard() {
                 ) : (
                   <Pressable testID="cf-add" onPress={() => setCfOpen(true)} style={styles.cfToggle}><Text style={styles.cfToggleText}>＋ ADD CUSTOM FOOD</Text></Pressable>
                 )}
-                {[...customFoods.map((c) => ({ ...c, custom: true, serving: "custom" })), ...FOODS].filter((f) => !foodQuery.trim() || f.name.toLowerCase().includes(foodQuery.trim().toLowerCase())).map((f) => {
+                {[...customFoods.map((c) => ({ ...c, custom: true, serving: "custom" })), ...FOODS].filter((f) => matchesDiet(f, diet) && (!foodQuery.trim() || f.name.toLowerCase().includes(foodQuery.trim().toLowerCase()))).map((f) => {
                   const g = foodQty[f.name] ?? f.grams;
                   const fac = g / f.grams;
                   return (
@@ -508,6 +556,11 @@ const styles = StyleSheet.create({
   unit: { color: colors.textDim, fontSize: 11, fontWeight: "700", marginLeft: 4 },
   saveBtn: { marginTop: spacing.md, paddingVertical: 13, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success },
   addFoodBtn: { marginTop: spacing.md, paddingVertical: 11, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.success, backgroundColor: "rgba(52,211,153,0.08)" },
+  dietRow: { flexDirection: "row", gap: 6, marginBottom: spacing.sm },
+  dietPill: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  dietPillOn: { borderColor: colors.success, backgroundColor: "rgba(52,211,153,0.15)" },
+  dietPillText: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
+  dietPillTextOn: { color: colors.success },
   addFoodText: { color: colors.success, fontWeight: "900", letterSpacing: 1, fontSize: 11 },
   lastFood: { color: colors.success, fontSize: 11, fontWeight: "700", textAlign: "center", marginTop: 6 },
   recentWrap: { marginTop: spacing.md },
@@ -519,13 +572,25 @@ const styles = StyleSheet.create({
   foodSearch: { color: colors.text, fontSize: 13, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface2 },
   mealsWrap: { marginTop: spacing.md },
   goalsBox: { marginBottom: spacing.md, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
-  waterBox: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.md, padding: spacing.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: "#38BDF8", backgroundColor: "rgba(56,189,248,0.07)" },
-  waterRight: { flex: 1, gap: spacing.sm },
+  hero: { flex: 1.35, alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
+  macroWaterRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md, alignItems: "stretch" },
+  heroTop: { color: colors.text, fontSize: 13, fontWeight: "900", letterSpacing: 2 },
+  heroSub: { color: colors.textDim, fontSize: 11, fontWeight: "800", letterSpacing: 2, marginTop: 2 },
+  heroBig: { color: colors.success, fontSize: 46, fontWeight: "900", lineHeight: 50, fontVariant: ["tabular-nums"], marginTop: 2 },
+  heroGoal: { color: colors.textDim, fontSize: 12, fontWeight: "700", marginBottom: spacing.md },
+  macroRingRow: { flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.sm },
+  manualToggle: { alignItems: "center", paddingVertical: 10, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, marginBottom: spacing.md },
+  manualToggleText: { color: colors.textMid, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  waterBox: { flex: 1, alignItems: "center", gap: spacing.sm, padding: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: "#38BDF8", backgroundColor: "rgba(56,189,248,0.07)" },
+  waterRight: { alignSelf: "stretch", gap: spacing.sm, alignItems: "center" },
+  waterHintRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   waterHint: { color: "#7DD3FC", fontSize: 12, fontWeight: "800" },
-  waterBtns: { flexDirection: "row", gap: spacing.sm },
-  waterBtn: { flex: 1, paddingVertical: 9, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: "#38BDF8", backgroundColor: "rgba(56,189,248,0.12)" },
-  waterBtnT: { color: "#38BDF8", fontWeight: "900", fontSize: 12, letterSpacing: 0.5 },
-  waterBtnDim: { paddingVertical: 9, paddingHorizontal: 12, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  waterStreak: { color: colors.warning, fontSize: 12, fontWeight: "900", letterSpacing: 0.5 },
+  waterStreakMsg: { color: colors.warning, fontSize: 11, fontWeight: "800", marginTop: 2 },
+  waterBtns: { flexDirection: "row", gap: spacing.sm, alignSelf: "stretch" },
+  waterBtn: { flex: 1, paddingVertical: 8, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: "#38BDF8", backgroundColor: "rgba(56,189,248,0.12)" },
+  waterBtnT: { color: "#38BDF8", fontWeight: "900", fontSize: 11, letterSpacing: 0.5 },
+  waterBtnDim: { paddingVertical: 7, paddingHorizontal: 12, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, alignSelf: "stretch" },
   waterBtnDimT: { color: colors.textDim, fontWeight: "900", fontSize: 12 },
   ringsRow: { flexDirection: "row", justifyContent: "space-around", paddingVertical: spacing.sm },
   goalEditToggle: { paddingVertical: 8, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },

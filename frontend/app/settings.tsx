@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, KeyboardAvoidingView, Platform, Linking } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
@@ -19,6 +20,11 @@ export default function Settings() {
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState("");
   const [deleting, setDeleting] = useState(false);
+  const [diet, setDiet] = useState<"normal" | "veg" | "keto">("normal");
+  useEffect(() => {
+    (async () => { try { const dp = await AsyncStorage.getItem("hic_diet_pref"); if (dp === "veg" || dp === "keto" || dp === "normal") setDiet(dp); } catch {} })();
+  }, []);
+  const setDietPref = (d: "normal" | "veg" | "keto") => { setDiet(d); AsyncStorage.setItem("hic_diet_pref", d).catch(() => {}); };
 
   const deleteAccount = async () => {
     if (confirmDelete.trim().toUpperCase() !== "DELETE" || deleting) return;
@@ -96,6 +102,16 @@ export default function Settings() {
           {["male","female","other"].map((o) => (
             <Pressable testID={`s-sex-${o}`} key={o} onPress={() => setSex(o)} style={[styles.chip, sex === o && styles.chipActive]}>
               <Text style={[styles.chipText, sex === o && styles.chipTextActive]}>{o.toUpperCase()}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={styles.label}>DIET PREFERENCE</Text>
+        <Text style={styles.helper}>Filters the food picker in Diet & Health to foods that fit your diet.</Text>
+        <View style={styles.rowChips}>
+          {(["normal", "veg", "keto"] as const).map((d) => (
+            <Pressable testID={`s-diet-${d}`} key={d} onPress={() => setDietPref(d)} style={[styles.chip, diet === d && styles.chipActive]}>
+              <Text style={[styles.chipText, diet === d && styles.chipTextActive]}>{d === "normal" ? "NORMAL" : d === "veg" ? "VEGETARIAN" : "KETO"}</Text>
             </Pressable>
           ))}
         </View>

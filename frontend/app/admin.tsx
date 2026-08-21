@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Switch, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Switch, ActivityIndicator, Platform, Alert } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -182,6 +182,25 @@ export default function Admin() {
   };
   const unban = async (m: any) => {
     try { patchMember(await apiFetch(token, "/api/admin/unban", { method: "POST", body: JSON.stringify({ user_id: m.user_id }) })); flash("Unbanned ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const doDelete = async (m: any) => {
+    try {
+      await apiFetch(token, `/api/admin/members/${m.user_id}/delete`, { method: "POST" });
+      setMembers((list) => list.filter((x) => x.user_id !== m.user_id));
+      flash("Member deleted ✓");
+    } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const deleteMember = (m: any) => {
+    const title = `Permanently delete ${m.display_name}?`;
+    const body = "This removes their account and all their data. This cannot be undone.";
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`${title}\n\n${body}`)) doDelete(m);
+      return;
+    }
+    Alert.alert(title, body, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => doDelete(m) },
+    ]);
   };
 
   const toggleRed = async (on: boolean) => {
@@ -484,6 +503,11 @@ export default function Admin() {
               <TextInput value={reasons[m.user_id] || ""} onChangeText={(t) => setReasons((r) => ({ ...r, [m.user_id]: t }))} placeholder="Reason to feature on Home…" placeholderTextColor={colors.textDim} style={st.reasonInput} />
               <Pressable testID={`feature-${m.user_id}`} onPress={() => feature(m)} style={st.featBtn}><Text style={st.featBtnText}>★ FEATURE</Text></Pressable>
             </View>
+
+            <Text style={st.miniLabel}>DANGER ZONE</Text>
+            <Pressable testID={`delete-member-${m.user_id}`} onPress={() => deleteMember(m)} style={st.deleteBtn}>
+              <Text style={st.deleteBtnText}>🗑 DELETE MEMBER PERMANENTLY</Text>
+            </Pressable>
           </View>
         ))}
         {msg && <Text style={st.msg}>{msg}</Text>}
@@ -494,6 +518,8 @@ export default function Admin() {
 
 const st = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.surface },
+  deleteBtn: { marginTop: 4, paddingVertical: 11, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.error, backgroundColor: "rgba(255,45,85,0.1)" },
+  deleteBtnText: { color: colors.error, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   locked: { color: colors.error, fontWeight: "900", letterSpacing: 3, fontSize: 20 },
   backBtn: { marginTop: spacing.lg, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm },
   backText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2 },

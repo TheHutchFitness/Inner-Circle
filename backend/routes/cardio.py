@@ -20,13 +20,30 @@ async def log_cardio(inp: CardioLog, user=Depends(get_current_user)):
         "logged_at": datetime.now(timezone.utc),
     }
     await db.cardio.insert_one(doc)
+    # Personal records: best (average-pace) time to cover standard distances (run only).
+    new_prs = []
+    if inp.activity_type == "run" and inp.duration_s > 0 and inp.distance_km > 0:
+        prs = dict(user.get("cardio_prs") or {})
+        for label, d in (("1K", 1.0), ("5K", 5.0), ("10K", 10.0), ("HALF", 21.0975)):
+            if inp.distance_km + 1e-6 >= d:
+                est = round(inp.duration_s * (d / inp.distance_km))
+                if prs.get(label) is None or est < prs[label]:
+                    prs[label] = est
+                    new_prs.append({"label": label, "seconds": est})
+        if new_prs:
+            await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"cardio_prs": prs}})
     xp_gain = int(30 + inp.distance_km * 10)
     await award_xp(user["user_id"], xp_gain)
     fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
     fresh["rank"] = rank_from_xp(fresh["xp"])
     doc.pop("_id", None)
     doc["logged_at"] = doc["logged_at"].isoformat()
-    return {"cardio": doc, "user": fresh, "xp_gained": xp_gain}
+    return {"cardio": doc, "user": fresh, "xp_gained": xp_gain, "new_prs": new_prs}
+
+
+@api_router.get("/cardio/prs")
+async def cardio_prs(user=Depends(get_current_user)):
+    return {"prs": user.get("cardio_prs") or {}}
 
 
 @api_router.get("/cardio/history")
@@ -119,19 +136,19 @@ async def steps_today(user=Depends(get_current_user)):
 @api_router.post("/heart-rate/log")
 async def log_heart_rate(inp: HeartRateLog, user=Depends(get_current_user)):
     day = inp.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    fields = {k: v for k, v in {"resting_bpm": inp.resting_bpm, "avg_bpm": inp.avg_bpm, "max_bpm": inp.max_bpm}.items() if v is not None}
+    fields = {k: v for k, v in {"current_bpm": inp.current_bpm, "resting_bpm": inp.resting_bpm, "avg_bpm": inp.avg_bpm, "max_bpm": inp.max_bpm}.items() if v is not None}
     if not fields:
         raise HTTPException(status_code=400, detail="No heart-rate values provided")
     fields["updated_at"] = datetime.now(timezone.utc)
     await db.heart_rate.update_one({"user_id": user["user_id"], "date": day}, {"$set": fields}, upsert=True)
-    return {"date": day, "resting_bpm": inp.resting_bpm, "avg_bpm": inp.avg_bpm, "max_bpm": inp.max_bpm}
+    return {"date": day, "current_bpm": inp.current_bpm, "resting_bpm": inp.resting_bpm, "avg_bpm": inp.avg_bpm, "max_bpm": inp.max_bpm}
 
 
 @api_router.get("/heart-rate/today")
 async def heart_rate_today(user=Depends(get_current_user)):
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     row = await db.heart_rate.find_one({"user_id": user["user_id"], "date": day}, {"_id": 0, "updated_at": 0})
-    return row or {"date": day, "resting_bpm": None, "avg_bpm": None, "max_bpm": None}
+    return row or {"date": day, "current_bpm": None, "resting_bpm": None, "avg_bpm": None, "max_bpm": None}
 
 
 @api_router.get("/active-count")

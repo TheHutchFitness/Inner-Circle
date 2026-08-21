@@ -562,3 +562,18 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Per user request, removed the is_admin exclusion from founders_list query, founder_spots count, and creators query in routes/payments.py (bots + test/example emails still excluded). Verified in preview: founders list now includes "The Hutch" (owner/admin).
 - Created a throwaway PRODUCTION account diag_1787260262@gmail.com (display "DiagCheck") to test; no delete-user endpoint exists so it remains and will show as a founder in prod until removed.
 - NOTE: backend change — user must REDEPLOY for production to reflect it.
+
+## Big batch (2026-08) — verified
+- HeroIntro launch animation lengthened (signup 4.6s→6s, login 1.6s→2.4s).
+- Founders: admins/owner now INCLUDED (founder_status + founders_list + spots + creators). Permanent 'founder' badge granted idempotently in profile_me. FounderWelcome popup now reaches admins; added "★ FOUNDER BADGE UNLOCKED" line.
+- Water Streak: nutrition/water computes consecutive-day streak + awards badges water_streak_3 / water_streak_7; nutrition/today returns water_streak; UI shows 🔥 Xd + celebratory msg. (backend tested 23/23)
+- Admin Delete Member: POST /api/admin/members/{id}/delete (admin-only, blocks admins/self, wipes owned data + pulls from clans). Frontend DANGER ZONE button in admin member card with confirm. (backend tested)
+- Gym Maps: auto-locate on open (mobile centers map immediately if granted; web auto-loads nearby list); web now renders a nearby LIST instead of native map. LocationPrimer: one-time first-login location permission prompt (native), mounted via LocationGate in _layout after founder welcome.
+- Heart rate: added current_bpm to model + log + today.
+- Diet & Health redesign: removed CONDITIONING/HealthCard + 40/100yd boxes; top ECG HeartRateStrip shows CURRENT/RESTING/AVG bpm + steps counter with [⌁ SYNC] and [✎ ENTER] buttons (sync + manual entry modal moved into the strip). Nutrition: clean "Calories hero + carbs/protein/fat rings" (left) with Water tracker beside it (right); manual macro grid collapsed behind a toggle.
+- Diet type filter: Normal / Vegetarian / Keto toggle in food picker (veg excludes meat/fish; keto = carbs<=10g), persisted in AsyncStorage (hic_diet_pref); also a DIET PREFERENCE toggle in settings.
+- Cardio: distance PRs (1K/5K/10K/HALF) computed on /api/cardio/log (returns new_prs); GET /api/cardio/prs; new HISTORY tab (personal bests cards + recent activities list, Strava-style); post-run summary Modal with route map snapshot + stats + new-PR badges; map opens immediately on mobile when granted. (backend tested)
+
+## QUEUED (requested, NOT yet built)
+- Judge section redesign: declutter, more professional, easy navigation for new members.
+- Timers tab in Cardio: a stopwatch (separate from sprint test) + an interval/HIIT timer, in a new "TIMERS" tab.

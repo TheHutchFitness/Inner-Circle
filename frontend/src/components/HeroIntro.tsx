@@ -12,7 +12,7 @@ const { width, height } = Dimensions.get("window");
 
 export function HeroIntro({ user, mode, onDone }: { user: any; mode: "signup" | "login"; onDone: () => void }) {
   const isSignup = mode === "signup";
-  const total = isSignup ? 4600 : 1600;
+  const total = isSignup ? 6000 : 2400;
   const rank = user?.rank || "Beginner";
   const rankColor = RANK_COLORS[rank] || "#00E5FF";
   const portrait = avatarImage(user?.avatar_id, user?.sex);
@@ -33,7 +33,7 @@ export function HeroIntro({ user, mode, onDone }: { user: any; mode: "signup" | 
 
   useEffect(() => {
     portraitOpacity.value = withTiming(1, { duration: isSignup ? 700 : 350 });
-    portraitScale.value = withTiming(1, { duration: isSignup ? 2600 : 900, easing: Easing.out(Easing.cubic) });
+    portraitScale.value = withTiming(1, { duration: isSignup ? 3200 : 1100, easing: Easing.out(Easing.cubic) });
     glow.value = withRepeat(withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.ease) }), -1, true);
     sweep.value = withRepeat(withTiming(height, { duration: 1400, easing: Easing.linear }), -1, false);
     titleO.value = withDelay(isSignup ? 500 : 200, withTiming(1, { duration: 500 }));
@@ -45,7 +45,7 @@ export function HeroIntro({ user, mode, onDone }: { user: any; mode: "signup" | 
         withTiming(1, { duration: 220, easing: Easing.out(Easing.back(2)) }),
       ));
       flashO.value = withDelay(2200, withSequence(withTiming(0.9, { duration: 90 }), withTiming(0, { duration: 400 })));
-      xp.value = withDelay(2600, withTiming(1, { duration: 1400, easing: Easing.out(Easing.cubic) }));
+      xp.value = withDelay(2600, withTiming(1, { duration: 1800, easing: Easing.out(Easing.cubic) }));
     } else {
       stamp.value = withDelay(500, withSequence(
         withTiming(1.3, { duration: 140 }),

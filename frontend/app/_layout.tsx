@@ -15,6 +15,7 @@ import { HeroIntro } from "@/src/components/HeroIntro";
 import { AppModeIntro } from "@/src/components/AppModeIntro";
 import { OnboardingTour, TOUR_VERSION } from "@/src/components/OnboardingTour";
 import { FounderWelcome } from "@/src/components/FounderWelcome";
+import { LocationPrimer } from "@/src/components/LocationPrimer";
 import { ClanInviteGate } from "@/src/components/ClanInviteGate";
 import { AppModeSwitch } from "@/src/components/AppModeSwitch";
 import { PushManager } from "@/src/lib/push";
@@ -76,6 +77,15 @@ function FounderGate() {
   return <FounderWelcome />;
 }
 
+// One-time location primer, after the founder welcome so prompts don't stack.
+function LocationGate() {
+  const { user, intro, loading } = useAuth();
+  if (loading || !user || intro) return null;
+  if (user.mode_selected !== true || !tourComplete(user)) return null;
+  if (user.is_founder && user.founder_welcomed !== true) return null;
+  return <LocationPrimer />;
+}
+
 // Keeps the red palette in sync with the logged-in athlete's Enhanced status.
 // Web reloads once (fast, safe) so every StyleSheet re-evaluates red; native
 // applies the palette in-memory (new screens render red) to avoid reload loops.
@@ -130,6 +140,7 @@ export default function RootLayout() {
               <ModeGate />
               <TourGate />
               <FounderGate />
+              <LocationGate />
               <ClanInviteGate />
               <PushManager />
               </UnitsProvider>

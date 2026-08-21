@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Linking, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Linking, ScrollView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
@@ -72,7 +72,7 @@ export default function GymsMapScreen() {
     setBusyId(null);
   };
 
-  const applyLocation = async () => {
+  const applyLocation = async (silent = false) => {
     setLocating(true);
     try {
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -84,10 +84,23 @@ export default function GymsMapScreen() {
         setRealGyms((nd.gyms || []).map((g: any) => ({ ...g, external: true, source: "google" })));
       } catch {}
     } catch {
-      Alert.alert("Location unavailable", "We couldn't read your location just now. Please try again.");
+      if (!silent) Alert.alert("Location unavailable", "We couldn't read your location just now. Please try again.");
     }
     setLocating(false);
   };
+
+  // Auto-locate on open: if location is already granted (or on web, where the browser
+  // prompts inline) load the nearby gyms immediately so the list/map is useful at once.
+  useEffect(() => {
+    (async () => {
+      try {
+        const cur = await Location.getForegroundPermissionsAsync();
+        if (cur.status === "granted") { await applyLocation(true); return; }
+        if (Platform.OS === "web" && cur.canAskAgain) await applyLocation(true);
+      } catch {}
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const nearMe = async () => {
     // Contextual permission flow — only asked when the user taps "Near Me".
@@ -193,6 +206,26 @@ export default function GymsMapScreen() {
           <View style={styles.center}><ActivityIndicator color={colors.brandPrimary} size="large" /></View>
         ) : display.length === 0 ? (
           <View style={styles.center}><Text style={styles.empty}>No gyms on the map yet. Locations are added by the team.</Text></View>
+        ) : Platform.OS === "web" ? (
+          <ScrollView contentContainerStyle={[{ padding: spacing.lg, paddingBottom: (userLoc && nearest ? 170 : insets.bottom + spacing.lg) }, webCenter(isDesktop)]}>
+            <Text style={styles.boardHead}>{userLoc ? "GYMS NEAR YOU" : "ALL GYMS"}</Text>
+            <View style={isDesktop ? styles.boardGrid : undefined}>
+              {display.map((g, i) => (
+                <View key={String(g.id || g.place_id || i)} testID={`gym-row-${i}`} style={[styles.gymRow, isDesktop && styles.boardRowGrid]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.boardName} numberOfLines={1}>{g.external ? "📍 " : g.verified ? "✓ " : ""}{g.name}</Text>
+                    <Text style={styles.boardMeta} numberOfLines={2}>
+                      {g._dist != null ? distLabel(g._dist) + " · " : ""}
+                      {g.external ? `Google Maps gym${g.rating ? ` · ★ ${g.rating}` : ""}` : `${g.members || 0} member${g.members === 1 ? "" : "s"}`}
+                      {g.address ? ` · ${g.address}` : ""}
+                    </Text>
+                  </View>
+                  {checkedToday.has(g.id) && <Text style={styles.webDone}>✓ TODAY</Text>}
+                </View>
+              ))}
+            </View>
+            {!userLoc && <Text style={styles.webHint}>Tap “📍 NEAR ME” to sort by the gyms closest to you.</Text>}
+          </ScrollView>
         ) : (
           <GymsMap gyms={display} userLoc={userLoc} />
         )}
@@ -246,6 +279,9 @@ const styles = StyleSheet.create({
   boardMeta: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   boardCount: { color: colors.brandPrimary, fontWeight: "900", fontSize: 18, fontVariant: ["tabular-nums"] },
   boardCountLbl: { color: colors.textDim, fontSize: 10, fontWeight: "700" },
+  gymRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
+  webDone: { color: colors.brandPrimary, fontWeight: "900", fontSize: 11, letterSpacing: 1 },
+  webHint: { color: colors.textDim, fontSize: 12, textAlign: "center", marginTop: spacing.md, lineHeight: 18 },
   body: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   empty: { color: colors.textDim, textAlign: "center", lineHeight: 20 },

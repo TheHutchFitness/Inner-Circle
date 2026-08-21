@@ -3,8 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing } from "@/src/lib/theme";
-import { HudSectionHeader } from "@/src/components/Hud";
-import { HealthCard } from "@/src/components/HealthCard";
+import { HeartRateStrip } from "@/src/components/HeartRateStrip";
 import { NutritionCard } from "@/src/components/NutritionCard";
 
 export default function DietHealth() {
@@ -22,8 +21,7 @@ export default function DietHealth() {
         <View style={{ width: 60 }} />
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + spacing.xl }}>
-        <HudSectionHeader label="CONDITIONING" />
-        <HealthCard token={token} />
+        <HeartRateStrip token={token} />
         <NutritionCard />
       </ScrollView>
     </View>

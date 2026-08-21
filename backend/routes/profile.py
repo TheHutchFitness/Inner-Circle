@@ -11,6 +11,10 @@ async def profile_me(user=Depends(get_current_user)):
     user["rank"] = rank_from_xp(user["xp"])
     user.update(await founder_status(user))
     user["is_creator"] = bool(user.get("social_tiktok") or user.get("social_instagram") or user.get("social_youtube"))
+    # Founders carry a permanent "founder" badge (granted once, idempotent).
+    if user.get("is_founder") and "founder" not in (user.get("badges") or []):
+        await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"badges": "founder"}})
+        user.setdefault("badges", []).append("founder")
     return user
 
 

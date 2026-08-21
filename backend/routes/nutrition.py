@@ -1,4 +1,6 @@
 # ruff: noqa: F403, F405
+from datetime import timedelta
+
 from shared import *  # noqa: F401,F403
 
 
@@ -6,20 +8,49 @@ from shared import *  # noqa: F401,F403
 async def nutrition_today(user=Depends(get_current_user)):
     d = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     row = await db.nutrition_logs.find_one({"user_id": user["user_id"], "date": d}, {"_id": 0, "user_id": 0, "updated_at": 0})
-    return row or {"date": d, "calories": 0, "protein": 0, "carbs": 0, "fats": 0, "water_ml": 0}
+    row = row or {"date": d, "calories": 0, "protein": 0, "carbs": 0, "fats": 0, "water_ml": 0}
+    # Water goal streak only counts if the last goal-met day is today or yesterday.
+    streak = int(user.get("water_streak", 0) or 0)
+    sdate = user.get("water_streak_date")
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    if sdate not in (d, yesterday):
+        streak = 0
+    row["water_streak"] = streak
+    return row
 
 
 @api_router.post("/nutrition/water")
 async def nutrition_water(payload: dict = Body(default={}), user=Depends(get_current_user)):
-    d = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc)
+    d = now.strftime("%Y-%m-%d")
+    yesterday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     ml = max(0, min(20000, int((payload or {}).get("ml", 0) or 0)))
     await db.nutrition_logs.update_one(
         {"user_id": user["user_id"], "date": d},
-        {"$set": {"water_ml": ml, "updated_at": datetime.now(timezone.utc)},
+        {"$set": {"water_ml": ml, "updated_at": now},
          "$setOnInsert": {"user_id": user["user_id"], "date": d}},
         upsert=True,
     )
-    return {"date": d, "water_ml": ml}
+    # Streak: award the day once intake reaches the goal.
+    goal = int((user.get("macro_goals") or {}).get("water_goal", 3000) or 0)
+    goal_met = goal > 0 and ml >= goal
+    streak = int(user.get("water_streak", 0) or 0)
+    sdate = user.get("water_streak_date")
+    new_badge = None
+    if goal_met and sdate != d:  # first time today crossing the goal
+        streak = streak + 1 if sdate == yesterday else 1
+        updates = {"water_streak": streak, "water_streak_date": d}
+        badges = set(user.get("badges", []) or [])
+        if streak >= 3 and "water_streak_3" not in badges:
+            new_badge = "3"
+            await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"badges": "water_streak_3"}})
+        if streak >= 7 and "water_streak_7" not in badges:
+            new_badge = "7"
+            await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"badges": "water_streak_7"}})
+        await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+    elif not sdate or sdate not in (d, yesterday):
+        streak = 0
+    return {"date": d, "water_ml": ml, "goal_met": goal_met, "water_streak": streak, "new_badge": new_badge}
 
 
 @api_router.post("/nutrition/today")

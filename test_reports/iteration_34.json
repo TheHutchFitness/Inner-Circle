@@ -1,0 +1,31 @@
+{
+  "summary": "Iter 34 backend batch tested end-to-end via public EXPO_PUBLIC_BACKEND_URL. All 23 tests PASSED (100%). Verified: (1) POST /api/nutrition/water returns {date, water_ml, goal_met, water_streak, new_badge}; clamps ml to 0..20000; goal_met flips correctly when ml>=water_goal; streak >=1 after first-time same-day goal-met; new_badge is null|'3'|'7'. (2) GET /api/nutrition/today now includes water_ml and water_streak. (3) GET/POST /api/nutrition/goals includes water_goal (default 3000) and POST preserves existing water_goal when the field is omitted. (4) POST /api/heart-rate/log accepts current_bpm (with/without other fields) and GET /api/heart-rate/today returns current_bpm. Empty body -> 400. (5) GET /api/founders returns 200, includes the owner-admin (previously excluded), does not crash on hardened level_from_xp; GET /api/profile/me idempotently adds 'founder' badge for is_founder users. (6) GET /api/founders/spots public, includes admin in taken count. (7) POST /api/admin/members/{uid}/delete: 403 for non-admin (bot1), 400 for self-delete, 400 for admin target, 404 for unknown; admin path successfully deleted a throwaway QA account (email TEST_iter34_*@qa-example.com), invalidated its session, and a second delete returned 404. (8) GET /api/gyms/nearby returns proper shape and cached:true on 2nd identical call; auth required.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter34_features.py",
+    "/app/test_reports/pytest/pytest_iter34.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/nutrition.py POST /nutrition/water: when goal was already met earlier today (sdate == d), the returned water_streak comes from the in-memory user object loaded at request start, which is fine here, but note the endpoint never re-reads the user after the $addToSet/$set updates for the badge case — the response 'water_streak' still reflects the new value because it's computed locally. No functional bug, but consider re-fetching to keep response and DB truly in lock-step.",
+    "routes/nutrition.py nutrition_today: streak reset happens client-side only (line 16-17), not persisted. If a user skips >1 day the DB still shows the stale streak; only next goal-met write correctly resets. Cosmetic — /today response is correct.",
+    "routes/admin.py admin_delete_member: order of guards puts self-check AFTER is_admin-check, so an admin trying to delete themselves returns 400 with 'Cannot delete an admin account' (not 'You cannot delete your own account'). Message-order mismatch only; both are 400. Consider swapping the two checks so self-delete surfaces the correct message.",
+    "routes/profile.py gyms_nearby: cache_key includes radius, but the request-batch spec says 'per rounded coord'. Passing a different radius bypasses cache — acceptable but worth documenting."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only run)"},
+  "seed_data_creation": "Created and cleaned up a throwaway registered member (TEST_iter34_<hex>@qa-example.com, display TEST_Iter34Del) purely to exercise admin delete. Deleted at end of test. No bot / owner / real accounts touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reusable pytest file: /app/backend/tests/test_iter34_features.py. Uses EXPO_PUBLIC_BACKEND_URL from env. Note: water_streak persists across runs on bot1@circle.ai; tests assert >= 1 (not ==1) after goal-met. GOOGLE_PLACES_API_KEY is configured in backend/.env — gyms_nearby returns real data; if it ever becomes unconfigured, those tests skip cleanly. Admin login uses owner the9hutch@gmail.com from /app/memory/test_credentials.md.",
+  "rca_of_issue": "N/A — no failures."
+}
