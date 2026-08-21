@@ -18,6 +18,7 @@ from routes import (  # noqa: F401
     judge,
     leaderboard,
     misc,
+    notifications,
     nutrition,
     payments,
     presets,

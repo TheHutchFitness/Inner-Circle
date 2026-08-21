@@ -83,6 +83,7 @@ export default function Dashboard() {
   const [spotId, setSpotId] = useState<string | null>(null);
   const [champion, setChampion] = useState<any>(null);
   const [ipUnread, setIpUnread] = useState(0);
+  const [notifUnread, setNotifUnread] = useState(0);
   const [digest, setDigest] = useState<any>(null);
   useEffect(() => {
     (async () => {
@@ -98,6 +99,17 @@ export default function Dashboard() {
       } catch {}
     })();
   }, [token]);
+
+  // Refresh the notifications bell badge whenever the home tab regains focus.
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      apiFetch(token, "/api/notifications/unread-count")
+        .then((r) => { if (alive) setNotifUnread(r?.count || 0); })
+        .catch(() => {});
+      return () => { alive = false; };
+    }, [token])
+  );
 
   // Refresh the Spotlight whenever Home regains focus (e.g. after an admin
   // features a member and navigates back), so it never shows stale data.
@@ -165,6 +177,12 @@ export default function Dashboard() {
         </Pressable>
         <Pressable testID="open-my-gyms" onPress={() => router.push("/my-gyms")} style={styles.hudBtn}>
           <Text style={styles.hudBtnText}>🏋 GYMS</Text>
+        </Pressable>
+        <Pressable testID="open-notifications" onPress={() => { setNotifUnread(0); router.push("/notifications"); }} style={styles.hudBtn} hitSlop={6}>
+          <Text style={styles.hudBtnText}>🔔</Text>
+          {notifUnread > 0 && (
+            <View style={styles.bellDot}><Text style={styles.bellDotText}>{notifUnread > 9 ? "9+" : notifUnread}</Text></View>
+          )}
         </Pressable>
       </View>
       <View style={styles.header}>
@@ -424,6 +442,10 @@ const styles = StyleSheet.create({
   hudBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, backgroundColor: "rgba(0,42,85,0.5)" },
   hudBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 11 },
   header: { paddingHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md },
+  bellBtn: { position: "absolute", right: spacing.lg, width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: "rgba(0,42,85,0.5)" },
+  bellIcon: { fontSize: 18 },
+  bellDot: { position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: colors.error, alignItems: "center", justifyContent: "center" },
+  bellDotText: { color: "#fff", fontSize: 10, fontWeight: "900" },
   digestCard: { flexDirection: "row", alignItems: "center", marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
   digestUp: { borderColor: colors.success, backgroundColor: "rgba(0,229,180,0.06)" },
   digestDown: { borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.06)" },

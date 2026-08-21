@@ -41,6 +41,7 @@ const BOARDS = [
   { key: "deadlift", label: "🏋 DEADLIFT", desc: "Deadlift PR" },
   { key: "ratio", label: "BW RATIO", desc: "Total / Bodyweight" },
   { key: "defender", label: "🛡 DEFENDERS", desc: "Leads defended (shields earned)" },
+  { key: "critics_week", label: "🎖 CRITICS", desc: "Most-liked critiques this week" },
   { key: "season", label: "🔥 SEASON", desc: "Bosses beaten this season · vaults soon" },
 ];
 

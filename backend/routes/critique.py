@@ -330,11 +330,11 @@ async def critique_comment_like(room: str, post_id: str, comment_id: str, user=D
     if liked:
         await db.critique_comments.update_one({"comment_id": comment_id}, {"$pull": {"likes": uid}, "$inc": {"like_count": -1}})
         if c.get("user_id") != uid:
-            await remove_critic_like(c["user_id"])
+            await remove_critic_like(c["user_id"], uid, comment_id)
     else:
         await db.critique_comments.update_one({"comment_id": comment_id}, {"$addToSet": {"likes": uid}, "$inc": {"like_count": 1}})
         if c.get("user_id") != uid:
-            await add_critic_like(c["user_id"])
+            await add_critic_like(c["user_id"], uid, user.get("display_name", "Someone"), comment_id)
     fresh = await db.critique_comments.find_one({"comment_id": comment_id}, {"_id": 0, "like_count": 1})
     return {"liked": not liked, "like_count": max(0, (fresh or {}).get("like_count", 0))}
 

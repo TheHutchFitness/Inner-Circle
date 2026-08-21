@@ -67,6 +67,21 @@ async def leaderboard(board_type: str, filter: str = "all", gym: str = "", user=
             u["metric_label"] = "Shields"
         users = [u for u in users if u["metric"] > 0]
         users.sort(key=lambda x: x["metric"], reverse=True)
+    elif board_type == "critics_week":
+        # Top Critics of the Week: most critique-likes received in the last 7 days.
+        since = datetime.now(timezone.utc) - timedelta(days=7)
+        pipeline = [
+            {"$match": {"created_at": {"$gte": since}}},
+            {"$group": {"_id": "$author_id", "n": {"$sum": 1}}},
+        ]
+        counts = {}
+        async for row in db.critique_likes.aggregate(pipeline):
+            counts[row["_id"]] = row["n"]
+        for u in users:
+            u["metric"] = counts.get(u["user_id"], 0)
+            u["metric_label"] = "Likes / wk"
+        users = [u for u in users if u["metric"] > 0]
+        users.sort(key=lambda x: x["metric"], reverse=True)
     else:
         raise HTTPException(status_code=400, detail="Invalid board type")
     # SECURITY: never return raw user docs (they hold email/phone/apple_sub/etc.).

@@ -1222,8 +1222,9 @@ async def reward_peer_critique(user_id: str) -> int:
     return CRITIQUE_XP
 
 
-async def add_critic_like(author_id: str) -> None:
-    """A critic's comment got a fresh like: reward them + progress the Top Critic badge."""
+async def add_critic_like(author_id: str, liker_id: str, liker_name: str, comment_id: str) -> None:
+    """A critic's comment got a fresh like: reward them, progress the Top Critic
+    badge, log a weekly-leaderboard event, and notify them instantly."""
     await award_xp(author_id, CRITIQUE_LIKE_XP)
     u = await db.users.find_one_and_update(
         {"user_id": author_id},
@@ -1235,14 +1236,42 @@ async def add_critic_like(author_id: str) -> None:
             {"user_id": author_id},
             {"$set": {"top_critic": True}, "$addToSet": {"badges": "top_critic"}},
         )
+    # Weekly Top Critics leaderboard event (one row per like, removed on unlike).
+    await db.critique_likes.update_one(
+        {"comment_id": comment_id, "liker_id": liker_id},
+        {"$set": {"author_id": author_id, "created_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    await push_notification(
+        author_id,
+        "critique_like",
+        f"🔥 {liker_name} liked your critique  ·  +{CRITIQUE_LIKE_XP} XP",
+    )
 
 
-async def remove_critic_like(author_id: str) -> None:
-    """A like was removed from a critic's comment: roll back the like tally (not XP)."""
+async def remove_critic_like(author_id: str, liker_id: str, comment_id: str) -> None:
+    """A like was removed from a critic's comment: roll back the tally (not XP)."""
     await db.users.update_one(
         {"user_id": author_id, "critic_likes": {"$gt": 0}},
         {"$inc": {"critic_likes": -1}},
     )
+    await db.critique_likes.delete_one({"comment_id": comment_id, "liker_id": liker_id})
+
+
+async def push_notification(user_id: str, type_: str, text: str, ref: str = "") -> None:
+    """Create an in-app notification (bell inbox). Best-effort; never blocks."""
+    try:
+        await db.notifications.insert_one({
+            "notif_id": new_id("ntf"),
+            "user_id": user_id,
+            "type": type_,
+            "text": text,
+            "ref": ref,
+            "read": False,
+            "created_at": datetime.now(timezone.utc),
+        })
+    except Exception:
+        pass
 
 
 
