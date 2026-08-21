@@ -449,6 +449,7 @@ export default function Journey() {
   const [peekUser, setPeekUser] = useState<string | null>(null);
   const [rivalSheet, setRivalSheet] = useState<any>(null);
   const [races, setRaces] = useState<any[]>([]);
+  const [raceHistory, setRaceHistory] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -495,6 +496,7 @@ export default function Journey() {
       } catch {}
       try { setClanRank(await apiFetch(token, "/api/journey/clans")); } catch {}
       try { const rr = await apiFetch(token, "/api/journey/races"); setRaces(rr.races || []); } catch {}
+      try { const rh = await apiFetch(token, "/api/journey/races/history"); setRaceHistory(rh.history || []); } catch {}
     } catch {}
     setLoading(false);
   }, [token]);
@@ -723,9 +725,23 @@ export default function Journey() {
                   <Text style={styles.raceFlag}>🏁</Text>
                 </View>
                 <Text style={[styles.raceLabel, r.nudge && { color: colors.warning, fontWeight: "800" }]}>{label}</Text>
+                {r.shield_awarded && <Text style={styles.shieldNote}>🛡 LEAD DEFENDED · +{r.shield_xp} XP</Text>}
               </View>
             );
           })}
+        </View>
+      )}
+
+      {raceHistory.length > 0 && (
+        <View style={styles.raceWrap}>
+          <Text style={styles.raceHeader}>📜 PAST RACES</Text>
+          {raceHistory.slice(0, 6).map((h) => (
+            <View key={h.id} style={styles.histRow}>
+              <Text style={[styles.histIcon, { color: h.won ? colors.success : colors.error }]}>{h.won ? "🏆" : "☠"}</Text>
+              <Text style={styles.histText} numberOfLines={1}>{h.won ? `Caught ${h.other_name}` : `${h.other_name} caught you`}</Text>
+              <Text style={[styles.histResult, { color: h.won ? colors.success : colors.error }]}>{h.won ? "WON" : "LOST"}</Text>
+            </View>
+          ))}
         </View>
       )}
 
@@ -1005,6 +1021,11 @@ const styles = StyleSheet.create({
   raceFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 5, minWidth: 4 },
   raceFlag: { position: "absolute", right: 2, fontSize: 9 },
   raceLabel: { color: colors.textMid, fontSize: 10, fontWeight: "700", marginTop: 5 },
+  shieldNote: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
+  histRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.06)" },
+  histIcon: { fontSize: 13, width: 22 },
+  histText: { color: colors.textMid, fontSize: 12, fontWeight: "700", flex: 1 },
+  histResult: { fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   secondaryBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.border },
   neighborDot: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface2, borderWidth: 2, borderColor: colors.textDim, alignItems: "center", justifyContent: "center" },
   neighborDotAhead: { borderColor: colors.error },

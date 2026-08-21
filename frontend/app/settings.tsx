@@ -145,6 +145,10 @@ export default function Settings() {
           </>
         )}
 
+        <Text style={[styles.h1, { marginTop: spacing.xl }]}>MY STATS</Text>
+        <Text style={styles.helper}>Re-log your Bench/Squat/Deadlift/OHP and run times to update your player stats and climb the percentile.</Text>
+        <NavButton testID="retest-maxes" onPress={() => router.push("/baseline")} icon="🏋️" label="RETEST MY MAXES" tone="blue" style={{ marginTop: spacing.sm }} />
+
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>APP TOUR</Text>
         <Text style={styles.helper}>Re-watch the quick intro to Quests, the Armory and Clans.</Text>
         <NavButton testID="replay-tour" onPress={replayTour} icon="🧭" label="REPLAY INTRO TOUR" tone="blue" style={{ marginTop: spacing.sm }} />

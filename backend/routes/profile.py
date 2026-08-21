@@ -57,11 +57,17 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
         "deadlift": max(0, int(inp.deadlift or 0)),
         "ohp": max(0, int(inp.ohp or 0)),
     }
+    # A blank/0 field keeps the existing PR (so a retest never zeroes a lift you skip).
+    old_prs = user.get("prs", {}) or {}
+    for k in prs:
+        if prs[k] <= 0:
+            prs[k] = int(old_prs.get(k, 0) or 0)
     badges = set(user.get("badges", []) or [])
     for lk, w in prs.items():
         for m in milestones_for(w):
             badges.add(f"{lk}_{m}")
-    logged_anything = any(prs.values()) or (inp.t_5k or 0) > 0 or (inp.t_10k or 0) > 0 or (inp.t_100m or 0) > 0
+    provided = any(v > 0 for v in [inp.bench or 0, inp.squat or 0, inp.deadlift or 0, inp.ohp or 0, inp.t_5k or 0, inp.t_10k or 0, inp.t_100m or 0])
+    logged_anything = provided
     # One-time calibration bonus for logging real baseline stats.
     reward_xp = BASELINE_REWARD_XP if (logged_anything and not already) else 0
     if reward_xp:

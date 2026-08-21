@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
@@ -19,9 +20,10 @@ function parseTime(v: string): number {
 
 // First-signup capture of starting lifts + run bests. Skippable.
 // Writes baseline_set:true so it only appears once.
-export function BaselineStats() {
+export function BaselineStats({ manual = false }: { manual?: boolean }) {
   const insets = useSafeAreaInsets();
   const { token, refresh } = useAuth();
+  const router = useRouter();
   const [busy, setBusy] = useState<"save" | "skip" | null>(null);
   const [reward, setReward] = useState<number | null>(null);
   const [recap, setRecap] = useState<any>(null);
@@ -56,10 +58,11 @@ export function BaselineStats() {
       if (!skip && (res?.reward_xp > 0 || res?.recap)) {
         setReward(res.reward_xp || 0);
         setRecap(res.recap || null);
-        setTimeout(() => { refresh(); }, 2400);
+        setTimeout(async () => { await refresh(); if (manual) router.back(); }, 2400);
         return;
       }
       await refresh();
+      if (manual) router.back();
     } catch {
       setBusy(null);
     }
@@ -101,9 +104,14 @@ export function BaselineStats() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={[styles.root, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <Text style={styles.eyebrow}>⌁ CALIBRATE YOUR VESSEL</Text>
-        <Text style={styles.title}>YOUR STARTING{"\n"}STATS</Text>
-        <Text style={styles.sub}>Log your current bests so your player stats, rank and combat power start from where you really are. Every athlete begins different. You can skip any field.</Text>
+        {manual && (
+          <Pressable testID="baseline-back" onPress={() => router.back()} style={{ marginBottom: spacing.sm }}>
+            <Text style={{ color: colors.brandPrimary, fontWeight: "800", letterSpacing: 2 }}>← BACK</Text>
+          </Pressable>
+        )}
+        <Text style={styles.eyebrow}>⌁ {manual ? "RETEST YOUR MAXES" : "CALIBRATE YOUR VESSEL"}</Text>
+        <Text style={styles.title}>{manual ? "UPDATE YOUR\nSTATS" : "YOUR STARTING\nSTATS"}</Text>
+        <Text style={styles.sub}>{manual ? "Log your latest bests to update your player stats and watch your percentile climb. Leave any field blank to keep it." : "Log your current bests so your player stats, rank and combat power start from where you really are. Every athlete begins different. You can skip any field."}</Text>
 
         <LinearGradient colors={[colors.brandTertiary, colors.surface2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
           <Text style={styles.cardTag}>◆ THE BIG FOUR</Text>

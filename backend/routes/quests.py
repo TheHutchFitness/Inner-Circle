@@ -321,6 +321,7 @@ async def journey_races(user=Depends(get_current_user)):
         progress = 1.0 if overtaken else max(0.0, min(1.0, (gap_start - gap_now) / gap_start))
         won_by_me = False
         nudge = False
+        shield_awarded = False
         if overtaken:
             winner_id = uid if led_now else other_id
             # Guarded single-writer completion so the winner is rewarded exactly once.
@@ -339,7 +340,23 @@ async def journey_races(user=Depends(get_current_user)):
             last = seen.get(uid)
             if led_now and last is not None and gap_now <= last - RACE_NUDGE_STEP:
                 nudge = True
-            await db.rival_challenges.update_one({"_id": r["_id"]}, {"$set": {f"seen_gap.{uid}": gap_now}})
+            upd = {"$set": {f"seen_gap.{uid}": gap_now}}
+            if nudge:
+                upd["$inc"] = {f"defends.{uid}": 1}
+            await db.rival_challenges.update_one({"_id": r["_id"]}, upd)
+            # Streak Shield: defend your lead through SHIELD_STREAK nudges -> XP + badge (once).
+            if nudge:
+                fresh = await db.rival_challenges.find_one({"_id": r["_id"]}, {"_id": 0, "defends": 1, "shield_rewarded": 1})
+                cnt = ((fresh or {}).get("defends", {}) or {}).get(uid, 0)
+                if cnt >= SHIELD_STREAK and uid not in ((fresh or {}).get("shield_rewarded", []) or []):
+                    res2 = await db.rival_challenges.update_one(
+                        {"_id": r["_id"], "shield_rewarded": {"$ne": uid}},
+                        {"$addToSet": {"shield_rewarded": uid}},
+                    )
+                    if res2.modified_count == 1:
+                        await award_xp(uid, SHIELD_XP)
+                        await db.users.update_one({"user_id": uid}, {"$addToSet": {"badges": "lead_defender"}})
+                        shield_awarded = True
         out.append({
             "id": str(r.get("_id")),
             "other_user_id": other_id,
@@ -355,8 +372,31 @@ async def journey_races(user=Depends(get_current_user)):
             "won_by_me": won_by_me,
             "reward_xp": RACE_WINNER_XP if won_by_me else 0,
             "nudge": nudge,
+            "shield_awarded": shield_awarded,
+            "shield_xp": SHIELD_XP if shield_awarded else 0,
         })
     return {"races": out}
+
+
+@api_router.get("/journey/races/history")
+async def journey_races_history(user=Depends(get_current_user)):
+    """Completed rival races for the caller — who they caught and who caught them."""
+    uid = user["user_id"]
+    rows = await db.rival_challenges.find(
+        {"status": "complete", "$or": [{"from_user_id": uid}, {"to_user_id": uid}]}
+    ).sort("completed_at", -1).to_list(30)
+    out = []
+    for r in rows:
+        other_id = r["to_user_id"] if r["from_user_id"] == uid else r["from_user_id"]
+        other = await db.users.find_one({"user_id": other_id}, {"_id": 0, "display_name": 1})
+        ca = r.get("completed_at")
+        out.append({
+            "id": str(r.get("_id")),
+            "other_name": (other or {}).get("display_name") or "Rival",
+            "won": r.get("winner_id") == uid,
+            "completed_at": ca.isoformat() if isinstance(ca, datetime) else None,
+        })
+    return {"history": out}
 
 
 @api_router.post("/quests/claim")
