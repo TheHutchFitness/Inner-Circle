@@ -20,7 +20,7 @@ function parseTime(v: string): number {
 
 // First-signup capture of starting lifts + run bests. Skippable.
 // Writes baseline_set:true so it only appears once.
-export function BaselineStats({ manual = false }: { manual?: boolean }) {
+export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; onSkip?: () => void }) {
   const insets = useSafeAreaInsets();
   const { token, refresh } = useAuth();
   const router = useRouter();
@@ -63,6 +63,7 @@ export function BaselineStats({ manual = false }: { manual?: boolean }) {
       }
       await refresh();
       if (manual) router.back();
+      else if (skip) onSkip?.();
     } catch {
       setBusy(null);
     }

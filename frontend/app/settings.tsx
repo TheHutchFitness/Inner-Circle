@@ -24,6 +24,11 @@ export default function Settings() {
   const [confirmDelete, setConfirmDelete] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [diet, setDiet] = useState<"normal" | "veg" | "keto">("normal");
+  const [bench, setBench] = useState(String(user?.prs?.bench || ""));
+  const [squat, setSquat] = useState(String(user?.prs?.squat || ""));
+  const [deadlift, setDeadlift] = useState(String(user?.prs?.deadlift || ""));
+  const [ohp, setOhp] = useState(String(user?.prs?.ohp || ""));
+  const [savingLifts, setSavingLifts] = useState(false);
   useEffect(() => {
     (async () => { try { const dp = await AsyncStorage.getItem("hic_diet_pref"); if (dp === "veg" || dp === "keto" || dp === "normal") setDiet(dp); } catch {} })();
   }, []);
@@ -49,6 +54,25 @@ export default function Settings() {
       setMsg("Profile saved.");
     } catch (e: any) { setMsg(e.message); }
   };
+
+  const saveLifts = async () => {
+    setSavingLifts(true);
+    try {
+      await apiFetch(token, "/api/onboarding/baseline", {
+        method: "POST",
+        body: JSON.stringify({
+          bench: parseFloat(bench) || 0,
+          squat: parseFloat(squat) || 0,
+          deadlift: parseFloat(deadlift) || 0,
+          ohp: parseFloat(ohp) || 0,
+        }),
+      });
+      await refresh();
+      setMsg("Big 4 lifts saved.");
+    } catch (e: any) { setMsg(e.message || "Couldn't save lifts."); }
+    finally { setSavingLifts(false); }
+  };
+
 
   const verifySkool = async () => {
     try {
@@ -145,9 +169,29 @@ export default function Settings() {
           </>
         )}
 
-        <Text style={[styles.h1, { marginTop: spacing.xl }]}>MY STATS</Text>
-        <Text style={styles.helper}>Re-log your Bench/Squat/Deadlift/OHP and run times to update your player stats and climb the percentile.</Text>
-        <NavButton testID="retest-maxes" onPress={() => router.push("/baseline")} icon="🏋️" label="RETEST MY MAXES" tone="blue" style={{ marginTop: spacing.sm }} />
+        <Text style={[styles.h1, { marginTop: spacing.xl }]}>MY BIG 4 LIFTS</Text>
+        <Text style={styles.helper}>Your Bench, Squat, Deadlift and Overhead Press (lb). These set your player stats, rank and combat power. Leave a field blank to keep its current value.</Text>
+        <View style={styles.liftGrid}>
+          <View style={styles.liftCell}>
+            <Text style={styles.label}>BENCH</Text>
+            <TextInput testID="s-bench" value={bench} onChangeText={setBench} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textDim} style={styles.input} />
+          </View>
+          <View style={styles.liftCell}>
+            <Text style={styles.label}>SQUAT</Text>
+            <TextInput testID="s-squat" value={squat} onChangeText={setSquat} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textDim} style={styles.input} />
+          </View>
+          <View style={styles.liftCell}>
+            <Text style={styles.label}>DEADLIFT</Text>
+            <TextInput testID="s-deadlift" value={deadlift} onChangeText={setDeadlift} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textDim} style={styles.input} />
+          </View>
+          <View style={styles.liftCell}>
+            <Text style={styles.label}>OHP</Text>
+            <TextInput testID="s-ohp" value={ohp} onChangeText={setOhp} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textDim} style={styles.input} />
+          </View>
+        </View>
+        <NeonButton testID="save-lifts" onPress={saveLifts} label={savingLifts ? "SAVING…" : "SAVE MY LIFTS"} style={{ marginTop: 8 }} />
+        <NavButton testID="retest-maxes" onPress={() => router.push("/baseline")} icon="🏃" label="FULL RETEST (INCL. RUN TIMES)" tone="blue" style={{ marginTop: spacing.sm }} />
+
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>APP TOUR</Text>
         <Text style={styles.helper}>Re-watch the quick intro to Quests, the Armory and Clans.</Text>
@@ -226,6 +270,8 @@ const styles = StyleSheet.create({
   primary: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm },
   primaryText: { color: "#001122", fontWeight: "900", letterSpacing: 3 },
   helper: { color: colors.textDim, marginBottom: spacing.sm, lineHeight: 19 },
+  liftGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  liftCell: { width: "48%" },
   msg: { color: colors.brandPrimary, marginTop: spacing.md, textAlign: "center", letterSpacing: 2 },
   dangerBtn: { marginTop: spacing.md, paddingVertical: spacing.md, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.error, backgroundColor: "rgba(255,59,48,0.08)" },
   dangerBtnDisabled: { borderColor: colors.border, backgroundColor: colors.surface2 },

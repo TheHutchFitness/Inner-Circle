@@ -27,10 +27,15 @@ export default function Paywall() {
 
   const [plan, setPlan] = useState<"monthly" | "annual">("monthly");
   const pkg = plan === "annual" ? annualPkg : monthlyPkg;
-  const price = pkg?.product.priceString || (plan === "annual" ? "$90.00" : "$9.00");
+  // The Circle sells at $9/mo and $90/yr. We show these set prices directly so the
+  // paywall is always correct even while a store's cached offering lags; the actual
+  // charge still comes from the real store product passed to purchasePackage().
+  const MONTHLY_PRICE = "$9.00";
+  const ANNUAL_PRICE = "$90.00";
+  const price = plan === "annual" ? ANNUAL_PRICE : MONTHLY_PRICE;
 
-  const monthlyAmount = monthlyPkg?.product.price ?? 9;
-  const annualAmount = annualPkg?.product.price ?? 90;
+  const monthlyAmount = 9;
+  const annualAmount = 90;
   const savingsPct = monthlyAmount > 0 ? Math.max(0, Math.round((1 - annualAmount / (monthlyAmount * 12)) * 100)) : 0;
   const annualPerMonth = (annualAmount / 12).toFixed(2);
 
@@ -77,13 +82,13 @@ export default function Paywall() {
         <View style={styles.planRow}>
           <Pressable testID="plan-monthly" onPress={() => setPlan("monthly")} style={[styles.planCard, plan === "monthly" && styles.planCardActive]}>
             <Text style={[styles.planLabel, plan === "monthly" && styles.planLabelActive]}>MONTHLY</Text>
-            <Text style={styles.planPrice}>{monthlyPkg?.product.priceString || "$9.00"}</Text>
+            <Text style={styles.planPrice}>{MONTHLY_PRICE}</Text>
             <Text style={styles.planPer}>per month</Text>
           </Pressable>
           <Pressable testID="plan-annual" onPress={() => setPlan("annual")} style={[styles.planCard, plan === "annual" && styles.planCardActive]}>
             {savingsPct > 0 && <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>SAVE {savingsPct}%</Text></View>}
             <Text style={[styles.planLabel, plan === "annual" && styles.planLabelActive]}>ANNUAL</Text>
-            <Text style={styles.planPrice}>{annualPkg?.product.priceString || "$90.00"}</Text>
+            <Text style={styles.planPrice}>{ANNUAL_PRICE}</Text>
             <Text style={styles.planPer}>${annualPerMonth}/mo · billed yearly</Text>
           </Pressable>
         </View>

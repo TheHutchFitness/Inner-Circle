@@ -29,6 +29,7 @@ import { useResponsive } from "@/src/lib/responsive";
 import { PetCompanion } from "@/src/components/PetCompanion";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { MemberSheet } from "@/src/components/MemberSheet";
+import { WeeklyDigestCard } from "@/src/components/WeeklyDigestCard";
 import { initSfx, playSfx, isSfxEnabled, setSfxEnabled, startZoneMusic, stopMusic } from "@/src/lib/sfx";
 import { Chronicle, SystemWindow, StoryBook, type StoryCtx, type SysMsg } from "@/src/components/JourneyStory";
 import { JourneyIntro } from "@/src/components/JourneyIntro";
@@ -700,6 +701,8 @@ export default function Journey() {
           <Text style={styles.challengeBannerText}>🔥 {data.challenges[0].from_name} {data.challenges.length > 1 ? `+${data.challenges.length - 1} more ` : ""}challenged you to catch them!</Text>
         </View>
       )}
+
+      <WeeklyDigestCard />
 
       {races.length > 0 && (
         <View style={styles.raceWrap}>

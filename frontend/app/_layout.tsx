@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LogBox, StatusBar, View, StyleSheet, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -62,28 +62,26 @@ function ModeGate() {
 function tourComplete(user: any) {
   return user?.tour_seen === true && (user?.tour_version || 0) >= TOUR_VERSION;
 }
-// New members log their starting lifts + run times once (after mode pick, before
-// the tour). Skipped for admins/bots and anyone who already has PRs on file.
+// Members log their Big-4 lifts (and optional run times). Anyone WITHOUT any Big-4
+// PR on file is asked on app open (new signups and members who skipped at setup).
+// Skipping dismisses it for the session; it re-asks on the next login. Admins/bots skip.
 function needsBaseline(user: any) {
-  if (!user || user.baseline_set === true || user.is_admin || user.is_bot) return false;
+  if (!user || user.is_admin || user.is_bot) return false;
   const p = user.prs || {};
   const total = (p.bench || 0) + (p.squat || 0) + (p.deadlift || 0) + (p.ohp || 0);
   return total === 0;
 }
-function BaselineGate() {
+// Single coupled gate: Big-4 baseline prompt first, then the onboarding tour.
+function OnboardingGates() {
   const { user, intro, loading } = useAuth();
+  const [baselineDismissed, setBaselineDismissed] = useState(false);
   if (loading || !user || intro) return null;
   if (user.mode_selected !== true) return null;
-  if (!needsBaseline(user)) return null;
-  return <BaselineStats />;
-}
-function TourGate() {
-  const { user, intro, loading } = useAuth();
-  if (loading || !user || intro) return null;
-  if (user.mode_selected !== true) return null;
-  if (needsBaseline(user)) return null;
-  if (tourComplete(user)) return null;
-  return <OnboardingTour />;
+  if (!baselineDismissed && needsBaseline(user)) {
+    return <BaselineStats onSkip={() => setBaselineDismissed(true)} />;
+  }
+  if (!tourComplete(user)) return <OnboardingTour />;
+  return null;
 }
 
 
@@ -166,8 +164,7 @@ export default function RootLayout() {
               <EnhancedSync />
               <IntroGate />
               <ModeGate />
-              <BaselineGate />
-              <TourGate />
+              <OnboardingGates />
               <FounderGate />
               <DietGate />
               <LocationGate />

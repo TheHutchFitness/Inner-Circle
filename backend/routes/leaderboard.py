@@ -11,6 +11,7 @@ async def leaderboard(board_type: str, filter: str = "all", gym: str = "", user=
     elif filter == "natural":
         q = {"enhanced": {"$ne": True}, "is_admin": {"$ne": True}, "is_bot": {"$ne": True}}
     q["leaderboard_hidden"] = {"$ne": True}
+    q.update(NOT_TEST_EMAIL)  # never surface QA/test accounts on public boards
     users = await db.users.find(q, {"_id": 0, "password_hash": 0}).to_list(1000)
     # Gym-only ranking: keep athletes whose gym matches (case-insensitive)
     if gym.strip():

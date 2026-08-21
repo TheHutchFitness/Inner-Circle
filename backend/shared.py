@@ -1824,7 +1824,7 @@ def shield_tier_for(count: int):
     return None
 # Keep obvious test/QA accounts (…@test.com, …@example.com) out of the public
 # Founders list and its counts, without deleting them (some are used for QA login).
-NOT_TEST_EMAIL = {"email": {"$not": {"$regex": r"@(?:test|example)\.com$", "$options": "i"}}}
+NOT_TEST_EMAIL = {"email": {"$not": {"$regex": r"@(?:test|example|qa)\.com$", "$options": "i"}}}
 
 
 
