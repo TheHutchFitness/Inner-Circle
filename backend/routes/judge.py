@@ -47,9 +47,11 @@ async def judge_submit(file: UploadFile = File(...), caption: Optional[str] = Fo
             file_contents=[img],
         ))
         critique = _parse_judge_json(resp)
+        await mark_ai_ok()
     except Exception:
         logger.exception("Judge AI critique failed")
         critique = None
+        await mark_ai_outage("judge")
 
     sub_id = new_id("judge")
     doc = {

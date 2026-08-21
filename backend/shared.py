@@ -1161,6 +1161,44 @@ class FavouriteIn(BaseModel):
 
 
 
+# ---- AI health tracking (so the app can show a clear "AI unavailable" banner) ----
+def _aware_dt(dt):
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+async def mark_ai_outage(reason: str = "") -> None:
+    """Record that an AI (LLM) call just failed — used to surface an outage banner."""
+    await db.app_state.update_one(
+        {"key": "ai_health"},
+        {"$set": {"last_fail_at": datetime.now(timezone.utc), "reason": str(reason)[:200]}},
+        upsert=True,
+    )
+
+
+async def mark_ai_ok() -> None:
+    """Record a successful AI call — clears the outage banner."""
+    await db.app_state.update_one(
+        {"key": "ai_health"},
+        {"$set": {"last_ok_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+
+
+async def ai_is_degraded() -> bool:
+    """True if the last AI call failed within 15 min and no success has happened since."""
+    doc = await db.app_state.find_one({"key": "ai_health"}) or {}
+    lf = _aware_dt(doc.get("last_fail_at"))
+    lo = _aware_dt(doc.get("last_ok_at"))
+    if not lf:
+        return False
+    if (datetime.now(timezone.utc) - lf) > timedelta(minutes=15):
+        return False
+    return lo is None or lf > lo
+
+
+
 # ---- AI usage cap (per-user, per-day) to prevent LLM cost abuse ----
 # Daily quota per AI feature. Admins bypass. Keyed by user_id so it works across
 # devices/sessions. Backed by the same MongoDB fixed-window limiter as auth.

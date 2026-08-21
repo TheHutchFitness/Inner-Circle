@@ -12,6 +12,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { VerifyPanel } from "@/src/components/VerifyPanel";
 import { MemberSheet } from "@/src/components/MemberSheet";
+import { AiStatusBanner } from "@/src/components/AiStatusBanner";
 import { colors, spacing, radius, RANK_COLORS, avatarFor } from "@/src/lib/theme";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -28,7 +29,7 @@ function scoreColor(v: number) {
 
 function Critique({ c }: { c: any }) {
   if (!c) {
-    return <Text style={st.pending}>The Judge couldn&apos;t score this one — try a clearer, well-lit physique photo.</Text>;
+    return <Text style={st.pending}>No AI verdict on this one yet — tap 💬 below to critique it yourself.</Text>;
   }
   return (
     <View style={st.critique}>
@@ -273,6 +274,8 @@ export default function Judge() {
         <Text style={st.eyebrow}>▚ POSING DAIS //</Text>
         <Text style={st.h1}>THE JUDGE</Text>
         <Text style={st.helper}>Submit your physique. Get scored by the AI head judge. Members critique too.</Text>
+
+        <AiStatusBanner label="AI scoring" />
 
         {!isVerified && (
           <Pressable testID="judge-verify-nudge" onPress={() => setVerifyOpen(true)} style={st.nudge}>

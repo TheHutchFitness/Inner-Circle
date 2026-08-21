@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform, Keyboard, InputAccessoryView, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform, Keyboard, InputAccessoryView, TouchableOpacity, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -147,6 +147,39 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
     preview = { pct: Math.round((below / n) * 100), pos: above + 1, n };
   }
 
+  // Animate the percentage counting up/down when it changes, with a small pop
+  // when it improves — so climbing feels rewarding.
+  const targetPct = preview ? preview.pct : null;
+  const [displayPct, setDisplayPct] = useState(0);
+  const displayRef = useRef(0);
+  const popAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (targetPct == null) return;
+    const start = displayRef.current;
+    const end = targetPct;
+    if (start === end) return;
+    if (end > start) {
+      popAnim.setValue(1);
+      Animated.sequence([
+        Animated.spring(popAnim, { toValue: 1.18, useNativeDriver: true, speed: 20, bounciness: 14 }),
+        Animated.spring(popAnim, { toValue: 1, useNativeDriver: true, speed: 16, bounciness: 10 }),
+      ]).start();
+    }
+    const dur = 600;
+    const t0 = Date.now();
+    let raf = 0;
+    const tick = () => {
+      const p = Math.min(1, (Date.now() - t0) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const val = Math.round(start + (end - start) * eased);
+      displayRef.current = val;
+      setDisplayPct(val);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [targetPct, popAnim]);
+
   // Toggle lb⇄kg right here and convert whatever lifts are already typed.
   const changeUnit = (next: "lb" | "kg") => {
     if (next === unit) return;
@@ -244,7 +277,9 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
           <View testID="percentile-preview" style={styles.preview}>
             <Text style={styles.previewGlyph}>📈</Text>
             <View style={{ flex: 1 }}>
-              <Text style={styles.previewBig}>Stronger than {preview.pct}% of The Circle</Text>
+              <Text style={styles.previewBig}>
+                Stronger than <Animated.Text style={{ transform: [{ scale: popAnim }] }}>{displayPct}%</Animated.Text> of The Circle
+              </Text>
               <Text style={styles.previewSub}>projected #{preview.pos} of {preview.n} · {previewTotalLb} lb Big-4 total</Text>
             </View>
           </View>

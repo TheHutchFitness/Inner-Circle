@@ -129,6 +129,12 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
     return {"ok": True, "reward_xp": reward_xp, "recap": recap}
 
 
+@api_router.get("/ai/status")
+async def ai_status(user=Depends(get_current_user)):
+    """Whether the AI (LLM) is currently degraded, so rooms can show a banner."""
+    return {"degraded": await ai_is_degraded()}
+
+
 @api_router.get("/onboarding/big4-distribution")
 async def big4_distribution(user=Depends(get_current_user)):
     """Sorted Big-4 totals (lb) of all members so the stats screen can show a

@@ -168,8 +168,10 @@ async def coach_send(inp: CoachMessageIn, user=Depends(get_current_user)):
             system_message=sys,
         ).with_model("openai", "gpt-5.4")
         reply_text = await chat.send_message(UserMessage(text=text))
+        await mark_ai_ok()
     except Exception:
         logger.exception("AI Coach failed")
+        await mark_ai_outage("coach")
         raise HTTPException(status_code=502, detail="Coach is catching their breath — try again in a moment.")
 
     reply = {

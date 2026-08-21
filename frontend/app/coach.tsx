@@ -8,6 +8,7 @@ import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { CircleIconButton } from "@/src/components/CircleIconButton";
 import { VoiceButton } from "@/src/components/VoiceButton";
+import { AiStatusBanner } from "@/src/components/AiStatusBanner";
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { colors, spacing, radius } from "@/src/lib/theme";
 
@@ -93,6 +94,7 @@ export default function Coach() {
       </View>
 
       <ScrollView ref={scrollRef} contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.lg }}>
+        <AiStatusBanner label="AI Coach" peerReview={false} />
         {loaded && messages.length === 0 && (
           <View style={styles.welcome}>
             <Text style={styles.welcomeIcon}>🧠</Text>

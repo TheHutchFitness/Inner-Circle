@@ -150,9 +150,11 @@ async def critique_submit(
             )
         resp = await chat.send_message(msg)
         critique = _parse_critique_json(resp)
+        await mark_ai_ok()
     except Exception:
         logger.exception("Critique AI failed")
         critique = None
+        await mark_ai_outage("critique")
 
     post_id = new_id(cfg["prefix"])
     doc = {

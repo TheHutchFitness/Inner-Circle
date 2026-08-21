@@ -12,6 +12,7 @@ import { VerifyPanel } from "@/src/components/VerifyPanel";
 import { MemberSheet } from "@/src/components/MemberSheet";
 import { SpotlightMedia } from "@/src/components/SpotlightMedia";
 import { NeonButton } from "@/src/components/NeonButton";
+import { AiStatusBanner } from "@/src/components/AiStatusBanner";
 import { colors, spacing, radius, RANK_COLORS, avatarFor } from "@/src/lib/theme";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -218,6 +219,8 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
         <Text style={st.h1}>{cfg.title}</Text>
         <Text style={st.helper}>{cfg.helper}</Text>
 
+        <AiStatusBanner label="AI critique" />
+
         <View style={st.pickRow}>
           <Pressable testID={`${cfg.room}-pick-video`} onPress={() => pick("video")} style={[st.pickBtn, { borderColor: cfg.accent }]}>
             <Text style={[st.pickText, { color: cfg.accent }]}>🎬 UPLOAD VIDEO</Text>
@@ -297,7 +300,7 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
                   {!!c.programming && <Text style={st.coachNext}>▶ {c.programming}</Text>}
                 </View>
               ) : (
-                <Text style={st.coachPending}>Coach is reviewing… pull to refresh in a moment.</Text>
+                <Text style={st.coachPending}>No AI verdict on this one yet — tap 💬 to critique it yourself.</Text>
               )}
 
               <View style={st.actions}>
