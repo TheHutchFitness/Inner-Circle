@@ -43,11 +43,13 @@ class BaselineInput(BaseModel):
 @api_router.post("/onboarding/baseline")
 async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)):
     """One-time signup capture of starting lifts + run times so every member
-    begins with different base STR/PWR/SPD/END stats. Skippable."""
+    begins with different base STR/PWR/SPD/END stats. Skippable. Logging real
+    baseline lifts (not skip) grants a one-time XP + 'calibrated' badge bonus."""
     uid = user["user_id"]
+    already = bool(user.get("baseline_set"))
     if inp.skip:
         await db.users.update_one({"user_id": uid}, {"$set": {"baseline_set": True}})
-        return {"ok": True, "skipped": True}
+        return {"ok": True, "skipped": True, "reward_xp": 0}
 
     prs = {
         "bench": max(0, int(inp.bench or 0)),
@@ -59,6 +61,11 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
     for lk, w in prs.items():
         for m in milestones_for(w):
             badges.add(f"{lk}_{m}")
+    logged_anything = any(prs.values()) or (inp.t_5k or 0) > 0 or (inp.t_10k or 0) > 0 or (inp.t_100m or 0) > 0
+    # One-time calibration bonus for logging real baseline stats.
+    reward_xp = BASELINE_REWARD_XP if (logged_anything and not already) else 0
+    if reward_xp:
+        badges.add("calibrated")
     setdoc = {"prs": prs, "baseline_set": True, "badges": list(badges)}
 
     sprints = dict(user.get("sprints", {}) or {})
@@ -66,6 +73,8 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
         sprints["100m"] = round(float(inp.t_100m), 2)
         setdoc["sprints"] = sprints
     await db.users.update_one({"user_id": uid}, {"$set": setdoc})
+    if reward_xp:
+        await award_xp(uid, reward_xp)
 
     # Seed cardio bests (feed the ENDURANCE attribute) for 5k / 10k.
     await db.cardio.delete_many({"user_id": uid, "baseline": True})
@@ -79,7 +88,7 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
                 "avg_speed_kmh": round(km / (secs / 3600), 2) if secs else 0,
                 "route": [], "logged_at": datetime.now(timezone.utc), "baseline": True,
             })
-    return {"ok": True}
+    return {"ok": True, "reward_xp": reward_xp}
 
 
 async def _compute_gym_rank(target: dict) -> dict:

@@ -23,6 +23,7 @@ export function BaselineStats() {
   const insets = useSafeAreaInsets();
   const { token, refresh } = useAuth();
   const [busy, setBusy] = useState<"save" | "skip" | null>(null);
+  const [reward, setReward] = useState<number | null>(null);
 
   const [bench, setBench] = useState("");
   const [squat, setSquat] = useState("");
@@ -35,7 +36,7 @@ export function BaselineStats() {
   const submit = async (skip: boolean) => {
     setBusy(skip ? "skip" : "save");
     try {
-      await apiFetch(token, "/api/onboarding/baseline", {
+      const res = await apiFetch(token, "/api/onboarding/baseline", {
         method: "POST",
         body: JSON.stringify(
           skip
@@ -51,6 +52,11 @@ export function BaselineStats() {
               }
         ),
       });
+      if (!skip && res?.reward_xp > 0) {
+        setReward(res.reward_xp);
+        setTimeout(() => { refresh(); }, 1600);
+        return;
+      }
       await refresh();
     } catch {
       setBusy(null);
@@ -119,6 +125,17 @@ export function BaselineStats() {
           {busy === "skip" ? <ActivityIndicator color={colors.textDim} /> : <Text style={styles.skipText}>SKIP FOR NOW</Text>}
         </Pressable>
       </ScrollView>
+
+      {reward !== null && (
+        <View style={styles.rewardOverlay} pointerEvents="none">
+          <View style={styles.rewardCard}>
+            <Text style={styles.rewardGlyph}>⚡</Text>
+            <Text style={styles.rewardTitle}>CALIBRATED</Text>
+            <Text style={styles.rewardXp}>+{reward} XP</Text>
+            <Text style={styles.rewardSub}>Your vessel is charted. Now go earn the rest.</Text>
+          </View>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -141,4 +158,10 @@ const styles = StyleSheet.create({
   primaryText: { color: "#001122", fontWeight: "900", letterSpacing: 2, fontSize: 14 },
   skip: { marginTop: spacing.md, alignItems: "center", padding: spacing.md },
   skipText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2, fontSize: 12 },
+  rewardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(2,4,8,0.92)", alignItems: "center", justifyContent: "center", zIndex: 950 },
+  rewardCard: { alignItems: "center", padding: spacing.xl, borderRadius: radius.lg, borderWidth: 1.5, borderColor: colors.brandPrimary, backgroundColor: colors.surface2, minWidth: 240 },
+  rewardGlyph: { fontSize: 52 },
+  rewardTitle: { color: colors.brandPrimary, fontSize: 15, fontWeight: "900", letterSpacing: 4, marginTop: spacing.sm },
+  rewardXp: { color: colors.text, fontSize: 40, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
+  rewardSub: { color: colors.textDim, fontSize: 12, textAlign: "center", marginTop: spacing.sm, lineHeight: 17 },
 });

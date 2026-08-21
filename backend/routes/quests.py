@@ -265,14 +265,80 @@ async def journey_similar(lift: str, value: float, user=Depends(get_current_user
 async def journey_challenge(inp: ChallengeIn, user=Depends(get_current_user)):
     if inp.to_user_id == user["user_id"]:
         raise HTTPException(status_code=400, detail="Can't challenge yourself")
-    target = await db.users.find_one({"user_id": inp.to_user_id}, {"_id": 0, "display_name": 1})
+    target = await db.users.find_one({"user_id": inp.to_user_id}, {"_id": 0, "display_name": 1, "xp": 1})
     if not target:
         raise HTTPException(status_code=404, detail="Rival not found")
-    await db.rival_challenges.insert_one({
-        "from_user_id": user["user_id"], "from_name": user.get("display_name") or "A rival",
-        "to_user_id": inp.to_user_id, "created_at": datetime.now(timezone.utc), "seen": False,
-    })
+    uid = user["user_id"]
+    pair = sorted([uid, inp.to_user_id])
+    now = datetime.now(timezone.utc)
+    # Upsert a single ACTIVE race per pair. Start-XP snapshot (keyed by user id) is
+    # set only on first insert so the "catch me" gap has a stable origin.
+    await db.rival_challenges.update_one(
+        {"pair": pair, "status": "active"},
+        {
+            "$set": {
+                "from_user_id": uid, "from_name": user.get("display_name") or "A rival",
+                "to_user_id": inp.to_user_id, "to_name": target.get("display_name") or "Rival",
+                "seen": False, "created_at": now,
+            },
+            "$setOnInsert": {
+                "pair": pair, "status": "active",
+                "starts": {uid: int(user.get("xp", 0)), inp.to_user_id: int(target.get("xp", 0))},
+            },
+        },
+        upsert=True,
+    )
     return {"ok": True, "to_name": target.get("display_name") or "Rival"}
+
+
+@api_router.get("/journey/races")
+async def journey_races(user=Depends(get_current_user)):
+    """Active 'catch me' races for the caller — a live gap bar both racers can watch."""
+    uid = user["user_id"]
+    my_xp = int(user.get("xp", 0))
+    races = await db.rival_challenges.find(
+        {"status": "active", "$or": [{"from_user_id": uid}, {"to_user_id": uid}]}
+    ).sort("created_at", -1).to_list(8)
+    out = []
+    for r in races:
+        other_id = r["to_user_id"] if r["from_user_id"] == uid else r["from_user_id"]
+        other = await db.users.find_one(
+            {"user_id": other_id},
+            {"_id": 0, "display_name": 1, "xp": 1, "sex": 1, "avatar_id": 1,
+             "equipped_skin": 1, "equipped_hair": 1, "equipped_beard": 1, "enhanced": 1},
+        )
+        if not other:
+            continue
+        starts = r.get("starts", {}) or {}
+        my_start = int(starts.get(uid, my_xp))
+        other_start = int(starts.get(other_id, other.get("xp", 0)))
+        other_xp = int(other.get("xp", 0))
+        gap_start = abs(my_start - other_start) or 1
+        gap_now = abs(my_xp - other_xp)
+        led_start = my_start >= other_start
+        led_now = my_xp >= other_xp
+        overtaken = led_start != led_now
+        progress = 1.0 if overtaken else max(0.0, min(1.0, (gap_start - gap_now) / gap_start))
+        if overtaken:
+            await db.rival_challenges.update_one(
+                {"_id": r["_id"]},
+                {"$set": {"status": "complete", "winner_id": uid if led_now else other_id,
+                          "completed_at": datetime.now(timezone.utc)}},
+            )
+        out.append({
+            "id": str(r.get("_id")),
+            "other_user_id": other_id,
+            "other_name": other.get("display_name") or "Rival",
+            "other_enhanced": bool(other.get("enhanced")),
+            "other_xp": other_xp,
+            "my_xp": my_xp,
+            "i_lead": led_now,
+            "gap": gap_now,
+            "gap_start": gap_start,
+            "progress": round(progress, 3),
+            "overtaken": overtaken,
+        })
+    return {"races": out}
 
 
 @api_router.post("/quests/claim")

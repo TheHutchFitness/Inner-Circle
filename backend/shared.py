@@ -1805,6 +1805,7 @@ async def ensure_owner_admin(user):
 
 # ---------- Founders (first 100 members + development backers) ----------
 FOUNDER_LIMIT = 100
+BASELINE_REWARD_XP = 150  # one-time bonus for logging real baseline lifts at signup
 # Keep obvious test/QA accounts (…@test.com, …@example.com) out of the public
 # Founders list and its counts, without deleting them (some are used for QA login).
 NOT_TEST_EMAIL = {"email": {"$not": {"$regex": r"@(?:test|example)\.com$", "$options": "i"}}}

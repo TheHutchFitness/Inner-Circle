@@ -448,6 +448,7 @@ export default function Journey() {
   const [taunt, setTaunt] = useState<{ id: string; text: string } | null>(null);
   const [peekUser, setPeekUser] = useState<string | null>(null);
   const [rivalSheet, setRivalSheet] = useState<any>(null);
+  const [races, setRaces] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -493,6 +494,7 @@ export default function Journey() {
         }
       } catch {}
       try { setClanRank(await apiFetch(token, "/api/journey/clans")); } catch {}
+      try { const rr = await apiFetch(token, "/api/journey/races"); setRaces(rr.races || []); } catch {}
     } catch {}
     setLoading(false);
   }, [token]);
@@ -526,6 +528,7 @@ export default function Journey() {
     try {
       const r = await apiFetch(token, "/api/journey/challenge", { method: "POST", body: JSON.stringify({ to_user_id: nb.user_id }) });
       flash(`⚔ Challenge sent to ${r?.to_name || nb.name}!`);
+      try { const rr = await apiFetch(token, "/api/journey/races"); setRaces(rr.races || []); } catch {}
     } catch { flash("Couldn't send challenge"); }
   };
 
@@ -693,6 +696,31 @@ export default function Journey() {
       {(data?.challenges?.length || 0) > 0 && (
         <View style={[styles.challengeBanner, { borderColor: accent }]}>
           <Text style={styles.challengeBannerText}>🔥 {data.challenges[0].from_name} {data.challenges.length > 1 ? `+${data.challenges.length - 1} more ` : ""}challenged you to catch them!</Text>
+        </View>
+      )}
+
+      {races.length > 0 && (
+        <View style={styles.raceWrap}>
+          <Text style={styles.raceHeader}>⚔ ACTIVE RACES</Text>
+          {races.map((r) => {
+            const behind = !r.i_lead && !r.overtaken;
+            const label = r.overtaken
+              ? (r.i_lead ? `You caught ${r.other_name}!` : `${r.other_name} caught you!`)
+              : (r.i_lead ? `You lead by ${r.gap} XP` : `${r.gap} XP behind ${r.other_name}`);
+            return (
+              <View key={r.id} style={[styles.raceCard, r.overtaken && { borderColor: colors.success }]}>
+                <View style={styles.raceRow}>
+                  <Text style={styles.raceVs} numberOfLines={1}>YOU <Text style={styles.raceVsDim}>vs</Text> {r.other_enhanced ? "☣ " : ""}{r.other_name}</Text>
+                  <Text style={[styles.raceStatus, { color: r.overtaken ? colors.success : behind ? accent : colors.textDim }]}>{r.overtaken ? "🏁 DONE" : behind ? "CLOSING" : "AHEAD"}</Text>
+                </View>
+                <View style={styles.raceTrack}>
+                  <View style={[styles.raceFill, { width: `${Math.round(r.progress * 100)}%`, backgroundColor: r.overtaken ? colors.success : accent }]} />
+                  <Text style={styles.raceFlag}>🏁</Text>
+                </View>
+                <Text style={styles.raceLabel}>{label}</Text>
+              </View>
+            );
+          })}
         </View>
       )}
 
@@ -961,6 +989,17 @@ const styles = StyleSheet.create({
   tauntText: { color: colors.text, fontSize: 10, fontWeight: "700", textAlign: "center" },
   challengeBanner: { marginHorizontal: spacing.lg, marginBottom: spacing.xs, padding: spacing.sm, borderWidth: 1, borderRadius: radius.sm, backgroundColor: "rgba(0,0,0,0.4)" },
   challengeBannerText: { color: colors.text, fontSize: 11, fontWeight: "700", textAlign: "center" },
+  raceWrap: { marginHorizontal: spacing.lg, marginBottom: spacing.sm },
+  raceHeader: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 6 },
+  raceCard: { backgroundColor: "rgba(0,0,0,0.5)", borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm, padding: spacing.sm, marginBottom: 6 },
+  raceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  raceVs: { color: colors.text, fontSize: 12, fontWeight: "800", flex: 1, marginRight: 8 },
+  raceVsDim: { color: colors.textDim, fontWeight: "700" },
+  raceStatus: { fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  raceTrack: { height: 10, borderRadius: 5, backgroundColor: colors.surface3, overflow: "hidden", justifyContent: "center" },
+  raceFill: { position: "absolute", left: 0, top: 0, bottom: 0, borderRadius: 5, minWidth: 4 },
+  raceFlag: { position: "absolute", right: 2, fontSize: 9 },
+  raceLabel: { color: colors.textMid, fontSize: 10, fontWeight: "700", marginTop: 5 },
   secondaryBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.border },
   neighborDot: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface2, borderWidth: 2, borderColor: colors.textDim, alignItems: "center", justifyContent: "center" },
   neighborDotAhead: { borderColor: colors.error },
