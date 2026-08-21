@@ -1806,6 +1806,8 @@ async def ensure_owner_admin(user):
 # ---------- Founders (first 100 members + development backers) ----------
 FOUNDER_LIMIT = 100
 BASELINE_REWARD_XP = 150  # one-time bonus for logging real baseline lifts at signup
+RACE_WINNER_XP = 200      # awarded to the winner when a rival race is won (overtake)
+RACE_NUDGE_STEP = 20      # min XP the gap must shrink to trigger a "rival closing" nudge
 # Keep obvious test/QA accounts (…@test.com, …@example.com) out of the public
 # Founders list and its counts, without deleting them (some are used for QA login).
 NOT_TEST_EMAIL = {"email": {"$not": {"$regex": r"@(?:test|example)\.com$", "$options": "i"}}}

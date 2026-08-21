@@ -88,7 +88,20 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
                 "avg_speed_kmh": round(km / (secs / 3600), 2) if secs else 0,
                 "route": [], "logged_at": datetime.now(timezone.utc), "baseline": True,
             })
-    return {"ok": True, "reward_xp": reward_xp}
+    # Recap: where this member's starting Big-4 total ranks vs the pack.
+    recap = None
+    if logged_anything:
+        my_total = sum(prs.values())
+        totals = []
+        async for u in db.users.find({"is_admin": {"$ne": True}}, {"_id": 0, "prs": 1}):
+            p = u.get("prs", {}) or {}
+            totals.append(sum(v for v in p.values() if isinstance(v, (int, float))))
+        n = len(totals) or 1
+        below = sum(1 for t in totals if t <= my_total)
+        percentile = round(below / n * 100)
+        position = sum(1 for t in totals if t > my_total) + 1
+        recap = {"percentile": percentile, "position": position, "total_members": n, "big4": my_total}
+    return {"ok": True, "reward_xp": reward_xp, "recap": recap}
 
 
 async def _compute_gym_rank(target: dict) -> dict:

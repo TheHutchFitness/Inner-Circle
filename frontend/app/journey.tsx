@@ -705,19 +705,24 @@ export default function Journey() {
           {races.map((r) => {
             const behind = !r.i_lead && !r.overtaken;
             const label = r.overtaken
-              ? (r.i_lead ? `You caught ${r.other_name}!` : `${r.other_name} caught you!`)
+              ? (r.won_by_me ? `🏆 You caught ${r.other_name}! +${r.reward_xp} XP` : `${r.other_name} caught you — defend next time`)
+              : r.nudge
+              ? `⚠ ${r.other_name} is closing — only ${r.gap} XP behind!`
               : (r.i_lead ? `You lead by ${r.gap} XP` : `${r.gap} XP behind ${r.other_name}`);
+            const statusColor = r.overtaken ? (r.won_by_me ? colors.success : colors.error) : r.nudge ? colors.warning : behind ? accent : colors.textDim;
+            const statusText = r.overtaken ? (r.won_by_me ? "🏆 WON" : "🏁 LOST") : r.nudge ? "⚠ CLOSING" : behind ? "CLOSING" : "AHEAD";
+            const borderCol = r.overtaken ? (r.won_by_me ? colors.success : colors.error) : r.nudge ? colors.warning : colors.borderStrong;
             return (
-              <View key={r.id} style={[styles.raceCard, r.overtaken && { borderColor: colors.success }]}>
+              <View key={r.id} style={[styles.raceCard, { borderColor: borderCol }]}>
                 <View style={styles.raceRow}>
                   <Text style={styles.raceVs} numberOfLines={1}>YOU <Text style={styles.raceVsDim}>vs</Text> {r.other_enhanced ? "☣ " : ""}{r.other_name}</Text>
-                  <Text style={[styles.raceStatus, { color: r.overtaken ? colors.success : behind ? accent : colors.textDim }]}>{r.overtaken ? "🏁 DONE" : behind ? "CLOSING" : "AHEAD"}</Text>
+                  <Text style={[styles.raceStatus, { color: statusColor }]}>{statusText}</Text>
                 </View>
                 <View style={styles.raceTrack}>
-                  <View style={[styles.raceFill, { width: `${Math.round(r.progress * 100)}%`, backgroundColor: r.overtaken ? colors.success : accent }]} />
+                  <View style={[styles.raceFill, { width: `${Math.round(r.progress * 100)}%`, backgroundColor: r.overtaken ? (r.won_by_me ? colors.success : colors.error) : r.nudge ? colors.warning : accent }]} />
                   <Text style={styles.raceFlag}>🏁</Text>
                 </View>
-                <Text style={styles.raceLabel}>{label}</Text>
+                <Text style={[styles.raceLabel, r.nudge && { color: colors.warning, fontWeight: "800" }]}>{label}</Text>
               </View>
             );
           })}

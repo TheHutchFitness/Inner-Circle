@@ -319,12 +319,27 @@ async def journey_races(user=Depends(get_current_user)):
         led_now = my_xp >= other_xp
         overtaken = led_start != led_now
         progress = 1.0 if overtaken else max(0.0, min(1.0, (gap_start - gap_now) / gap_start))
+        won_by_me = False
+        nudge = False
         if overtaken:
-            await db.rival_challenges.update_one(
-                {"_id": r["_id"]},
-                {"$set": {"status": "complete", "winner_id": uid if led_now else other_id,
-                          "completed_at": datetime.now(timezone.utc)}},
+            winner_id = uid if led_now else other_id
+            # Guarded single-writer completion so the winner is rewarded exactly once.
+            res = await db.rival_challenges.update_one(
+                {"_id": r["_id"], "status": "active"},
+                {"$set": {"status": "complete", "winner_id": winner_id,
+                          "rewarded": True, "completed_at": datetime.now(timezone.utc)}},
             )
+            if res.modified_count == 1:
+                await award_xp(winner_id, RACE_WINNER_XP)
+                await db.users.update_one({"user_id": winner_id}, {"$addToSet": {"badges": "race_winner"}})
+            won_by_me = led_now
+        else:
+            # "Rival closing in" nudge: fires when YOUR lead shrank since you last looked.
+            seen = r.get("seen_gap", {}) or {}
+            last = seen.get(uid)
+            if led_now and last is not None and gap_now <= last - RACE_NUDGE_STEP:
+                nudge = True
+            await db.rival_challenges.update_one({"_id": r["_id"]}, {"$set": {f"seen_gap.{uid}": gap_now}})
         out.append({
             "id": str(r.get("_id")),
             "other_user_id": other_id,
@@ -337,6 +352,9 @@ async def journey_races(user=Depends(get_current_user)):
             "gap_start": gap_start,
             "progress": round(progress, 3),
             "overtaken": overtaken,
+            "won_by_me": won_by_me,
+            "reward_xp": RACE_WINNER_XP if won_by_me else 0,
+            "nudge": nudge,
         })
     return {"races": out}
 

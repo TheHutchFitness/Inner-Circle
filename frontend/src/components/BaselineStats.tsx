@@ -24,6 +24,7 @@ export function BaselineStats() {
   const { token, refresh } = useAuth();
   const [busy, setBusy] = useState<"save" | "skip" | null>(null);
   const [reward, setReward] = useState<number | null>(null);
+  const [recap, setRecap] = useState<any>(null);
 
   const [bench, setBench] = useState("");
   const [squat, setSquat] = useState("");
@@ -52,9 +53,10 @@ export function BaselineStats() {
               }
         ),
       });
-      if (!skip && res?.reward_xp > 0) {
-        setReward(res.reward_xp);
-        setTimeout(() => { refresh(); }, 1600);
+      if (!skip && (res?.reward_xp > 0 || res?.recap)) {
+        setReward(res.reward_xp || 0);
+        setRecap(res.recap || null);
+        setTimeout(() => { refresh(); }, 2400);
         return;
       }
       await refresh();
@@ -131,8 +133,15 @@ export function BaselineStats() {
           <View style={styles.rewardCard}>
             <Text style={styles.rewardGlyph}>⚡</Text>
             <Text style={styles.rewardTitle}>CALIBRATED</Text>
-            <Text style={styles.rewardXp}>+{reward} XP</Text>
-            <Text style={styles.rewardSub}>Your vessel is charted. Now go earn the rest.</Text>
+            {reward > 0 && <Text style={styles.rewardXp}>+{reward} XP</Text>}
+            {recap ? (
+              <>
+                <Text style={styles.recapBig}>Stronger than {recap.percentile}%</Text>
+                <Text style={styles.recapSub}>of The Circle · you enter at #{recap.position} of {recap.total_members}</Text>
+              </>
+            ) : (
+              <Text style={styles.rewardSub}>Your vessel is charted. Now go earn the rest.</Text>
+            )}
           </View>
         </View>
       )}
@@ -164,4 +173,6 @@ const styles = StyleSheet.create({
   rewardTitle: { color: colors.brandPrimary, fontSize: 15, fontWeight: "900", letterSpacing: 4, marginTop: spacing.sm },
   rewardXp: { color: colors.text, fontSize: 40, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
   rewardSub: { color: colors.textDim, fontSize: 12, textAlign: "center", marginTop: spacing.sm, lineHeight: 17 },
+  recapBig: { color: colors.success, fontSize: 20, fontWeight: "900", letterSpacing: 1, marginTop: spacing.sm, textAlign: "center" },
+  recapSub: { color: colors.textMid, fontSize: 12, textAlign: "center", marginTop: 4, lineHeight: 17 },
 });
