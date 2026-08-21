@@ -115,8 +115,17 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
             trend = {"first": True}
         recap = {"percentile": percentile, "position": position, "total_members": n,
                  "big4": my_total, "trend": trend}
-        await db.users.update_one({"user_id": uid},
-                                  {"$set": {"baseline_percentile": percentile, "baseline_big4": my_total}})
+        await db.users.update_one(
+            {"user_id": uid},
+            {
+                "$set": {"baseline_percentile": percentile, "baseline_big4": my_total},
+                "$push": {"percentile_history": {
+                    "$each": [{"p": percentile, "big4": my_total,
+                               "at": datetime.now(timezone.utc).isoformat()}],
+                    "$slice": -12,
+                }},
+            },
+        )
     return {"ok": True, "reward_xp": reward_xp, "recap": recap}
 
 

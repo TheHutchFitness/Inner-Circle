@@ -1810,6 +1810,18 @@ RACE_WINNER_XP = 200      # awarded to the winner when a rival race is won (over
 RACE_NUDGE_STEP = 20      # min XP the gap must shrink to trigger a "rival closing" nudge
 SHIELD_STREAK = 3         # nudges survived while still leading to earn a lead-defender shield
 SHIELD_XP = 120           # awarded once per race for defending a lead through SHIELD_STREAK nudges
+
+
+def shield_tier_for(count: int):
+    """Lead-defender tier from lifetime shields earned. None below 1."""
+    c = int(count or 0)
+    if c >= 6:
+        return "gold"
+    if c >= 3:
+        return "silver"
+    if c >= 1:
+        return "bronze"
+    return None
 # Keep obvious test/QA accounts (…@test.com, …@example.com) out of the public
 # Founders list and its counts, without deleting them (some are used for QA login).
 NOT_TEST_EMAIL = {"email": {"$not": {"$regex": r"@(?:test|example)\.com$", "$options": "i"}}}

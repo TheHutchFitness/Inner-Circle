@@ -78,6 +78,7 @@ async def leaderboard(board_type: str, filter: str = "all", gym: str = "", user=
             "metric_label": u.get("metric_label", ""),
             "enhanced": bool(u.get("enhanced")),
             "founder_backer": bool(u.get("founder_backer")),
+            "shield_tier": shield_tier_for(u.get("shield_count", 0)),
             "skool_verified": bool(u.get("skool_verified")),
             "loadout": u.get("loadout"),
             "photo_media_id": u.get("photo_media_id"),

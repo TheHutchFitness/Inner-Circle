@@ -386,6 +386,7 @@ export default function Leaderboards() {
                   <View style={{ flex: 1 }}>
                     <View style={styles.rowNameRow}>
                       <Text style={[styles.rowName, r.founder_backer && { color: colors.warning }]}>{r.display_name}</Text>
+                      {r.shield_tier && <Text style={{ fontSize: 13, color: r.shield_tier === "gold" ? "#FFD24A" : r.shield_tier === "silver" ? "#CBD5E1" : "#E08A4B" }}>🛡</Text>}
                       {r.founder_backer && <View style={styles.backerPill}><Text style={styles.backerPillText}>★ BACKER</Text></View>}
                     </View>
                     <Text style={[styles.rowSub, { color: RANK_COLORS[r.rank] }]}>{r.rank}{loadoutTitle(r.loadout) ? ` · ${loadoutTitle(r.loadout)}` : ""}</Text>

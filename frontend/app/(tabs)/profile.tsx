@@ -20,6 +20,7 @@ import { FoundingRibbon, CreatorBadge, SeasonChampBadge } from "@/src/components
 import { PetCompanion } from "@/src/components/PetCompanion";
 import { NeonButton } from "@/src/components/NeonButton";
 import { NavButton } from "@/src/components/NavButton";
+import { PercentileTrend } from "@/src/components/PercentileTrend";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { GymWatermark } from "@/src/components/GymWatermark";
@@ -99,6 +100,9 @@ export default function Profile() {
   };
   const tierColor = CLASS_TIER_COLORS[attrs?.class_tier] || rankColor;
   const totalLift = (user.prs?.bench || 0) + (user.prs?.squat || 0) + (user.prs?.deadlift || 0) + (user.prs?.ohp || 0);
+  const sc = user.shield_count || 0;
+  const shieldTier = sc >= 6 ? "gold" : sc >= 3 ? "silver" : sc >= 1 ? "bronze" : null;
+  const shieldTierColor = (t: string) => (t === "gold" ? "#FFD24A" : t === "silver" ? "#CBD5E1" : "#E08A4B");
 
   const pickAvatar = async (avatar_id: string) => {
     try {
@@ -218,6 +222,7 @@ export default function Profile() {
                   {isSubscribed && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ PREMIUM</Text></View>}
                   {user.skool_verified && <View style={[styles.pill, { backgroundColor: colors.success }]}><Text style={styles.pillText}>✓ SKOOL</Text></View>}
                   {user.founder_backer && <View style={[styles.pill, { backgroundColor: colors.warning }]}><Text style={styles.pillText}>★ FOUNDING BACKER</Text></View>}
+                  {shieldTier && <View style={[styles.pill, { backgroundColor: shieldTierColor(shieldTier) }]}><Text style={[styles.pillText, { color: "#05060A" }]}>🛡 {shieldTier.toUpperCase()} DEFENDER</Text></View>}
                 </View>
                 {/* mini stat bars */}
                 <View style={styles.barsRow}>
@@ -256,6 +261,7 @@ export default function Profile() {
           </View>
         )}
         {user.is_founder && <FoundingRibbon number={user.founder_number} />}
+        <PercentileTrend data={user.percentile_history} />
         <SeasonChampBadge seasons={user.season_champ_titles} />
         {(user.social_tiktok || user.social_instagram || user.social_youtube) && (
           <View style={styles.creatorWrap}><CreatorBadge /></View>
