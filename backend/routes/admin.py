@@ -41,6 +41,7 @@ async def _member_brief(u: dict) -> dict:
     return {
         "user_id": u.get("user_id"),
         "display_name": u.get("display_name", "Athlete"),
+        "full_name": u.get("full_name", "") or "",
         "avatar_id": u.get("avatar_id", "avatar_white"),
         "sex": u.get("sex", "male"),
         "xp": u.get("xp", 0),
@@ -85,11 +86,86 @@ async def admin_inperson(payload: dict, user=Depends(get_current_user)):
 async def admin_members(q: str = "", enhanced_only: bool = False, user=Depends(get_current_user)):
     _require_admin(user)
     query = {"is_bot": {"$ne": True}, "is_admin": {"$ne": True}}
+    ands = []
     if q.strip():
-        query["display_name"] = {"$regex": re.escape(q.strip()), "$options": "i"}
+        ands.append({"$or": [
+            {"display_name": {"$regex": re.escape(q.strip()), "$options": "i"}},
+            {"full_name": {"$regex": re.escape(q.strip()), "$options": "i"}},
+        ]})
     if enhanced_only:
-        query["$or"] = [{"enhanced": True}, {"enhanced_access": True}]
+        ands.append({"$or": [{"enhanced": True}, {"enhanced_access": True}]})
+    if ands:
+        query["$and"] = ands
     rows = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(100)
+    return [await _member_brief(u) for u in rows]
+
+
+_PURGE_TEST_EMAIL = {"$regex": r"@(test|example)\.(com|org|net)$", "$options": "i"}
+_PURGE_NAME = {"$regex": "test", "$options": "i"}
+_PURGE_USER_COLLECTIONS = [
+    "workouts", "cardio", "sprints", "steps", "heart_rate", "nutrition_logs",
+    "monthly_programs", "ai_programs", "set_presets", "personal_quests", "quest_claims",
+    "ped_regimens", "custom_program_requests", "rival_challenges", "coach_messages",
+    "coach_plans", "coach_tts", "store_purchases", "verified_purchases",
+    "inperson_messages", "inperson_bookings", "inperson_attendance", "inperson_programs",
+    "judge_submissions", "judge_comments", "chat_messages", "featured_members",
+    "critique_posts", "critique_comments", "custom_foods", "nutrition", "room_awards",
+]
+
+
+@api_router.get("/admin/purge-preview")
+async def purge_preview(user=Depends(get_current_user)):
+    """Count the test data that a purge would remove (bots + @test/@example accounts, test-named clans/gyms)."""
+    _require_admin(user)
+    return {
+        "bots": await db.users.count_documents({"is_bot": True}),
+        "test_users": await db.users.count_documents({"email": _PURGE_TEST_EMAIL, "is_admin": {"$ne": True}}),
+        "test_clans": await db.groups.count_documents({"name_lower": _PURGE_NAME}),
+        "test_gyms": await db.gyms.count_documents({"name_lower": _PURGE_NAME}),
+    }
+
+
+@api_router.post("/admin/purge-test-data")
+async def purge_test_data(user=Depends(get_current_user)):
+    """Wipe bots, leftover @test/@example accounts (never admins), and test-named clans/gyms + their data."""
+    _require_admin(user)
+    targets = await db.users.find(
+        {"$or": [{"is_bot": True}, {"email": _PURGE_TEST_EMAIL}], "is_admin": {"$ne": True}},
+        {"_id": 0, "user_id": 1},
+    ).to_list(5000)
+    uids = [t["user_id"] for t in targets if t.get("user_id")]
+    deleted = {"users": 0, "clans": 0, "gyms": 0, "records": 0}
+
+    if uids:
+        for coll in _PURGE_USER_COLLECTIONS:
+            try:
+                r = await db[coll].delete_many({"user_id": {"$in": uids}})
+                deleted["records"] += r.deleted_count
+            except Exception:
+                pass
+        # sessions + featured + critique likes referencing these users
+        try: await db.user_sessions.delete_many({"user_id": {"$in": uids}})
+        except Exception: pass
+        # pull them out of any clan membership
+        try: await db.groups.update_many({}, {"$pull": {"members": {"$in": uids}, "pending": {"$in": uids}, "officers": {"$in": uids}}})
+        except Exception: pass
+        res = await db.users.delete_many({"user_id": {"$in": uids}})
+        deleted["users"] = res.deleted_count
+
+    # test-named clans (+ their chat)
+    clans = await db.groups.find({"name_lower": _PURGE_NAME}, {"_id": 0, "id": 1}).to_list(1000)
+    for c in clans:
+        await db.chat_messages.delete_many({"room": f"group:{c['id']}"})
+    cres = await db.groups.delete_many({"name_lower": _PURGE_NAME})
+    deleted["clans"] = cres.deleted_count
+
+    # test-named gyms
+    gres = await db.gyms.delete_many({"name_lower": _PURGE_NAME})
+    deleted["gyms"] = gres.deleted_count
+
+    return {"ok": True, "deleted": deleted}
+
+
     return {"members": [await _member_brief(r) for r in rows], "badge_options": ADMIN_BADGE_OPTIONS}
 
 

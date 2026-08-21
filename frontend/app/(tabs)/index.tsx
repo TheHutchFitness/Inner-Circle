@@ -14,7 +14,7 @@ import { MemberSheet } from "@/src/components/MemberSheet";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
-import { GymWatermark, GymBadge } from "@/src/components/GymWatermark";
+import { GymWatermark } from "@/src/components/GymWatermark";
 import { isLite } from "@/src/lib/mode";
 import { SpotlightMedia } from "@/src/components/SpotlightMedia";
 
@@ -76,6 +76,8 @@ export default function Dashboard() {
   }, [token, user?.enhanced, user?.enhanced_access]);
 
   const [featured, setFeatured] = useState<any[]>([]);
+  const [questReady, setQuestReady] = useState(0);
+  const [questPopupDismissed, setQuestPopupDismissed] = useState(false);
   const [spotId, setSpotId] = useState<string | null>(null);
   const [champion, setChampion] = useState<any>(null);
   const [ipUnread, setIpUnread] = useState(0);
@@ -102,6 +104,11 @@ export default function Dashboard() {
       let active = true;
       (async () => {
         try { const r = await apiFetch(token, "/api/featured"); if (active) setFeatured(r.featured || []); } catch {}
+        try {
+          const j = await apiFetch(token, "/api/journey");
+          const ready = (j?.nodes || []).filter((n: any) => n.complete && !n.claimed).length;
+          if (active) { setQuestReady(ready); if (ready > 0) setQuestPopupDismissed(false); }
+        } catch {}
       })();
       return () => { active = false; };
     }, [token])
@@ -135,14 +142,26 @@ export default function Dashboard() {
         style={StyleSheet.absoluteFill}
       />
       <GymWatermark />
+      {questReady > 0 && !questPopupDismissed && (
+        <View style={[styles.questPop, { top: insets.top + 8 }]} testID="quest-ready-pop">
+          <Pressable onPress={() => { setQuestPopupDismissed(true); router.push("/journey"); }}>
+            <Text style={styles.questPopText}>⚔ {questReady} quest{questReady > 1 ? "s" : ""} ready to claim</Text>
+          </Pressable>
+          <Pressable testID="quest-ready-dismiss" onPress={() => setQuestPopupDismissed(true)} hitSlop={8}>
+            <Text style={styles.questPopX}>✕</Text>
+          </Pressable>
+        </View>
+      )}
       <ScrollView style={styles.root} contentContainerStyle={[{ paddingTop: insets.top + spacing.md, paddingBottom: 100 }, webCenter(isDesktop)]}>
       <View style={styles.topBar}>
         <Pressable testID="open-clans" onPress={() => router.push("/clans")} style={styles.hudBtn}>
           <Text style={styles.hudBtnText}>🛡 CLANS</Text>
         </Pressable>
-        <GymBadge />
-        <Pressable testID="open-progression" onPress={() => router.push("/progression")} style={styles.hudBtn}>
-          <Text style={styles.hudBtnText}>◈ RANKS</Text>
+        <Pressable testID="open-progression" onPress={() => router.push("/progression")} style={[styles.hudBtn, styles.hudBtnCenter]}>
+          <Text style={styles.hudBtnText}>◈ RANK</Text>
+        </Pressable>
+        <Pressable testID="open-my-gyms" onPress={() => router.push("/my-gyms")} style={styles.hudBtn}>
+          <Text style={styles.hudBtnText}>🏋 GYMS</Text>
         </Pressable>
       </View>
       <View style={styles.header}>
@@ -392,6 +411,10 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: "transparent" },
   bgArt: { position: "absolute", top: 0, left: 0, right: 0, height: 520 },
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: "rgba(0,85,255,0.35)" },
+  hudBtnCenter: { borderColor: colors.brandPrimary, backgroundColor: "rgba(0,85,255,0.28)" },
+  questPop: { position: "absolute", right: 12, zIndex: 80, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(255,122,24,0.95)", borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 9, shadowColor: "#FF7A18", shadowOpacity: 0.6, shadowRadius: 10, shadowOffset: { width: 0, height: 0 }, elevation: 8 },
+  questPopText: { color: "#fff", fontWeight: "900", fontSize: 12, letterSpacing: 0.5 },
+  questPopX: { color: "rgba(255,255,255,0.85)", fontWeight: "900", fontSize: 13 },
   hudBtn: { borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: spacing.md, minHeight: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.sm, backgroundColor: "rgba(0,42,85,0.5)" },
   hudBtnText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 11 },
   header: { paddingHorizontal: spacing.lg, marginTop: spacing.md, marginBottom: spacing.md },

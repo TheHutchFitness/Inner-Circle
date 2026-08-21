@@ -756,3 +756,80 @@ async def inperson_booking_accept(booking_id: str, user=Depends(get_current_user
     fresh = await db.inperson_bookings.find_one({"id": booking_id}, {"_id": 0})
     return _booking_public(fresh)
 
+
+
+# ---- Gym memberships: a member can belong to up to 5 gyms ----
+MAX_GYMS = 5
+
+
+async def _gyms_payload(user: dict) -> dict:
+    gyms = user.get("gyms")
+    if not gyms:
+        gyms = [user["inperson_gym"]] if (user.get("inperson_gym") or "").strip() else []
+    primary = (user.get("inperson_gym") or "").strip().lower()
+    out = []
+    for name in gyms:
+        g = await db.gyms.find_one({"name_lower": name.lower()},
+                                   {"_id": 0, "name": 1, "coaching_enabled": 1, "verified": 1, "logo_media_id": 1})
+        out.append({
+            "name": g["name"] if g else name,
+            "coaching_enabled": bool(g and g.get("coaching_enabled")),
+            "verified": bool(g and g.get("verified")),
+            "logo_media_id": g.get("logo_media_id") if g else None,
+            "primary": name.lower() == primary,
+        })
+    return {"gyms": out, "max": MAX_GYMS}
+
+
+@api_router.get("/gyms/mine")
+async def gyms_mine(user=Depends(get_current_user)):
+    return await _gyms_payload(user)
+
+
+@api_router.post("/gyms/mine")
+async def gyms_add(inp: dict = Body(...), user=Depends(get_current_user)):
+    name = (inp.get("name") or "").strip()[:60]
+    if not name:
+        raise HTTPException(status_code=400, detail="Enter a gym name")
+    gyms = user.get("gyms")
+    if not gyms:
+        gyms = [user["inperson_gym"]] if (user.get("inperson_gym") or "").strip() else []
+    if any(g.lower() == name.lower() for g in gyms):
+        raise HTTPException(status_code=400, detail="You're already a member of this gym")
+    if len(gyms) >= MAX_GYMS:
+        raise HTTPException(status_code=400, detail=f"You can join up to {MAX_GYMS} gyms")
+    await ensure_gym(name)
+    gyms.append(name)
+    updates = {"gyms": gyms}
+    if not (user.get("inperson_gym") or "").strip():
+        updates["inperson_gym"] = name
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return await _gyms_payload(fresh)
+
+
+@api_router.delete("/gyms/mine")
+async def gyms_remove(name: str, user=Depends(get_current_user)):
+    target = (name or "").strip()
+    gyms = user.get("gyms")
+    if not gyms:
+        gyms = [user["inperson_gym"]] if (user.get("inperson_gym") or "").strip() else []
+    gyms = [g for g in gyms if g.lower() != target.lower()]
+    updates: dict = {"gyms": gyms}
+    if (user.get("inperson_gym") or "").strip().lower() == target.lower():
+        updates["inperson_gym"] = gyms[0] if gyms else ""
+        updates["inperson_request"] = False
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": updates})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return await _gyms_payload(fresh)
+
+
+@api_router.post("/gyms/mine/primary")
+async def gyms_set_primary(inp: dict = Body(...), user=Depends(get_current_user)):
+    name = (inp.get("name") or "").strip()
+    gyms = user.get("gyms") or ([user["inperson_gym"]] if (user.get("inperson_gym") or "").strip() else [])
+    if not any(g.lower() == name.lower() for g in gyms):
+        raise HTTPException(status_code=400, detail="Join that gym first")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"inperson_gym": name}})
+    fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return await _gyms_payload(fresh)

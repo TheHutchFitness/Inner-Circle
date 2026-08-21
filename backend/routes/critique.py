@@ -182,10 +182,48 @@ async def critique_submit(
     return doc
 
 
+_ROOM_PRIZE = {
+    "pr": {"badge": "pr_champion", "xp": 300, "label": "PR Champion"},
+    "form": {"badge": "form_master", "xp": 300, "label": "Form Master"},
+}
+
+
+async def _award_prev_week_winner(room: str):
+    """Idempotently award last week's most-liked post author a badge + XP bonus."""
+    now = datetime.now(timezone.utc)
+    prev_start = now - timedelta(days=14)
+    prev_end = now - timedelta(days=7)
+    iso = prev_end.isocalendar()
+    week_key = f"{iso[0]}-W{iso[1]:02d}"
+    if await db.room_awards.find_one({"room": room, "week_key": week_key}):
+        return
+    top = await db.critique_posts.find(
+        {"room": room, "created_at": {"$gte": prev_start, "$lt": prev_end}, "like_count": {"$gt": 0}}, {"_id": 0}
+    ).sort("like_count", -1).limit(1).to_list(1)
+    # record the week as processed even if there was no winner (avoids re-scanning)
+    await db.room_awards.insert_one({
+        "room": room, "week_key": week_key, "created_at": now,
+        "winner_id": top[0]["user_id"] if top else None,
+    })
+    if not top:
+        return
+    prize = _ROOM_PRIZE.get(room)
+    if not prize:
+        return
+    await db.users.update_one(
+        {"user_id": top[0]["user_id"]},
+        {"$addToSet": {"badges": prize["badge"]}, "$inc": {"xp": prize["xp"]}},
+    )
+
+
 @api_router.get("/rooms/{room}/leaderboard")
 async def critique_leaderboard(room: str, user=Depends(get_current_user)):
     """Weekly board: most-liked posts in this room over the last 7 days."""
     _room_or_404(room)
+    try:
+        await _award_prev_week_winner(room)
+    except Exception:
+        logger.exception("room prize award failed")
     week_ago = datetime.now(timezone.utc) - timedelta(days=7)
     rows = await db.critique_posts.find(
         {"room": room, "created_at": {"$gte": week_ago}}, {"_id": 0, "likes": 0}
@@ -196,7 +234,8 @@ async def critique_leaderboard(room: str, user=Depends(get_current_user)):
             r["created_at"] = r["created_at"].isoformat()
         r["rank_pos"] = i + 1
         out.append(r)
-    return out
+    prize = _ROOM_PRIZE.get(room, {})
+    return {"board": out, "prize_label": prize.get("label", ""), "prize_xp": prize.get("xp", 0)}
 
 
 @api_router.get("/rooms/{room}/feed")

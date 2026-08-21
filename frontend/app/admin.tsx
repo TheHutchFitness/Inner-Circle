@@ -43,7 +43,7 @@ export default function Admin() {
   const loadFeatured = async () => {
     try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
   };
-  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); loadSecurity(); loadClans(); } /* eslint-disable-line */ }, [token]);
+  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); loadSecurity(); loadClans(); loadPurge(); } /* eslint-disable-line */ }, [token]);
 
   const loadStore = async () => {
     try { setStoreItems((await apiFetch(token, "/api/admin/store")).items || []); } catch {}
@@ -137,6 +137,25 @@ export default function Admin() {
   const [clanDir, setClanDir] = useState<any[]>([]);
   const loadClans = async () => {
     try { setClanDir((await apiFetch(token, "/api/admin/groups")).groups || []); } catch {}
+  };
+  const [purge, setPurge] = useState<any>(null);
+  const [purging, setPurging] = useState(false);
+  const loadPurge = async () => { try { setPurge(await apiFetch(token, "/api/admin/purge-preview")); } catch {} };
+  const doPurge = async () => {
+    setPurging(true);
+    try {
+      const r = await apiFetch(token, "/api/admin/purge-test-data", { method: "POST" });
+      const d = r.deleted || {};
+      flash(`Purged ✓ ${d.users || 0} accounts, ${d.clans || 0} clans, ${d.gyms || 0} gyms, ${d.records || 0} records`);
+      await loadPurge(); await loadMembers(); await loadClans();
+    } catch (e: any) { flash(e?.message || "Purge failed"); }
+    setPurging(false);
+  };
+  const confirmPurge = () => {
+    const p = purge || {};
+    const body = `This permanently deletes:\n• ${p.bots || 0} bot accounts\n• ${p.test_users || 0} @test/@example accounts\n• ${p.test_clans || 0} test-named clans\n• ${p.test_gyms || 0} test-named gyms\n(plus all their chats & data). Admins are never touched. This cannot be undone.`;
+    if (Platform.OS === "web") { if (typeof window !== "undefined" && window.confirm(body)) doPurge(); return; }
+    Alert.alert("Purge test data?", body, [{ text: "Cancel", style: "cancel" }, { text: "Purge", style: "destructive", onPress: doPurge }]);
   };
   const doDeleteClan = async (c: any) => {
     try {
@@ -352,6 +371,17 @@ export default function Admin() {
         </>)}
 
         {tab === "users" && (<>
+        {/* Purge test data */}
+        <Text style={st.section}>🧹 PURGE TEST DATA</Text>
+        <View style={[st.card, { borderColor: colors.error }]}>
+          <Text style={st.cardSub}>
+            Removes bot accounts ({purge?.bots ?? "…"}), @test/@example accounts ({purge?.test_users ?? "…"}), test-named clans ({purge?.test_clans ?? "…"}) & gyms ({purge?.test_gyms ?? "…"}) and all their data. Admins are never touched.
+          </Text>
+          <Pressable testID="purge-test-data" onPress={confirmPurge} disabled={purging} style={[st.dangerBtn, purging && { opacity: 0.5 }]}>
+            <Text style={st.dangerText}>{purging ? "PURGING…" : "PURGE TEST DATA"}</Text>
+          </Pressable>
+        </View>
+
         {/* Security / login audit */}
         <View style={st.secHeadRow}>
           <Text style={st.section}>🛡 SECURITY — LOGIN ATTEMPTS</Text>
@@ -542,6 +572,7 @@ export default function Admin() {
         ) : members.map((m) => (
           <View key={m.user_id} testID={`admin-member-${m.user_id}`} style={st.mCard}>
             <Text style={st.mName}>{m.display_name} <Text style={st.mRank}>· {(m.rank || "").toUpperCase()} LV{m.level}</Text></Text>
+            {!!m.full_name && <Text style={st.mLegal}>🪪 {m.full_name}</Text>}
             <View style={st.tagRow}>
               <Pressable onPress={() => toggleSkool(m)} style={[st.tag, m.skool_verified && st.tagOn]}><Text style={[st.tagText, m.skool_verified && st.tagTextOn]}>✓ SKOOL</Text></Pressable>
               <Pressable onPress={() => toggleFounder(m)} style={[st.tag, m.founder_grant && st.tagOn]}><Text style={[st.tagText, m.founder_grant && st.tagTextOn]}>★ FOUNDER</Text></Pressable>
@@ -650,6 +681,8 @@ const st = StyleSheet.create({
   rowBetween: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   cardTitle: { color: colors.text, fontWeight: "900", letterSpacing: 1, fontSize: 14 },
   cardSub: { color: colors.textDim, fontSize: 12, marginTop: 4, lineHeight: 17 },
+  dangerBtn: { marginTop: spacing.md, borderWidth: 1, borderColor: colors.error, borderRadius: radius.sm, paddingVertical: 13, alignItems: "center", backgroundColor: "rgba(255,0,60,0.08)" },
+  dangerText: { color: colors.error, fontWeight: "900", letterSpacing: 1.5, fontSize: 13 },
   annInput: { marginTop: spacing.md, minHeight: 72, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, fontSize: 14, textAlignVertical: "top" },
   annBtn: { marginTop: spacing.sm, paddingVertical: 12, alignItems: "center", borderRadius: radius.sm, backgroundColor: colors.brandPrimary },
   annBtnText: { color: "#001122", fontWeight: "900", letterSpacing: 1.5, fontSize: 12 },
@@ -687,6 +720,7 @@ const st = StyleSheet.create({
   mCard: { padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2, marginBottom: spacing.md },
   mName: { color: colors.text, fontWeight: "900", fontSize: 15 },
   mRank: { color: colors.textDim, fontWeight: "700", fontSize: 11 },
+  mLegal: { color: colors.textMid, fontSize: 11, marginTop: 2, fontWeight: "600" },
   tagRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   tag: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3 },
   tagOn: { borderColor: colors.success, backgroundColor: "rgba(57,255,20,0.12)" },

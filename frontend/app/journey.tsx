@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator, useWindowDimensions, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,6 +14,24 @@ import { Image as ExpoImage } from "expo-image";
 
 function weaponLabel(id?: string) {
   return weaponName(id).toUpperCase();
+}
+
+function hexA(hex: string, a: number) {
+  const h = (hex || "#000000").replace("#", "");
+  const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const r = parseInt(n.slice(0, 2), 16) || 0, g = parseInt(n.slice(2, 4), 16) || 0, b = parseInt(n.slice(4, 6), 16) || 0;
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// Environmental texture per area — buildings, gyms & barbells themed to the zone name.
+function zoneDecor(name?: string): string[] {
+  const n = (name || "").toLowerCase();
+  if (/(iron|forge|steel|foundry|furnace)/.test(n)) return ["🏭", "🏋️", "🔩", "🏢", "🏋️", "⚙️", "🏭"];
+  if (/(storm|sky|thunder|peak|ridge|summit|mountain)/.test(n)) return ["🏙️", "🗼", "⚡", "🏋️", "🏢", "🌩️", "🏔️"];
+  if (/(waste|desert|dust|ash|ruin|barren|badland)/.test(n)) return ["🏚️", "🌵", "🏋️", "🪨", "🏚️", "💀", "🛢️"];
+  if (/(citadel|throne|palace|king|elite|olymp|temple|colise)/.test(n)) return ["🏛️", "👑", "🏋️", "🏰", "🏛️", "⚔️", "🗿"];
+  if (/(neon|cyber|grid|circuit|matrix|core|nexus)/.test(n)) return ["🌆", "🏙️", "🏋️", "🖥️", "🏢", "🔌", "🛰️"];
+  return ["🏋️", "🏢", "🏭", "💪", "🏋️", "🏙️", "🏢"];
 }
 import { HeroSprite } from "@/src/components/HeroSprite";
 import { useResponsive } from "@/src/lib/responsive";
@@ -511,6 +529,25 @@ export default function Journey() {
   const neighborX = (xp: number) => 70 + ((xp - minXp) / Math.max(1, maxXp - minXp)) * (contentW - 150);
 
   const points = nodes.map((_, i) => `${nodeX(i)},${nodeY(i)}`).join(" ");
+  const decor = useMemo(() => {
+    const set = zoneDecor(data?.zone?.name);
+    const count = Math.max(9, Math.round(contentW / 150));
+    const items: { emoji: string; x: number; y: number; size: number; op: number }[] = [];
+    for (let i = 0; i < count; i++) {
+      const s = Math.abs(Math.sin((i + 1) * 12.9898) * 43758.5453);
+      const j = s - Math.floor(s);
+      const s2 = Math.abs(Math.sin((i + 1) * 78.233) * 12543.123);
+      const j2 = s2 - Math.floor(s2);
+      items.push({
+        emoji: set[i % set.length],
+        x: ((i + 0.5) / count) * contentW + (j - 0.5) * 70,
+        y: 16 + j2 * (mapH - 56),
+        size: 24 + Math.floor(j * 26),
+        op: 0.05 + j2 * 0.07,
+      });
+    }
+    return items;
+  }, [data?.zone?.name, contentW, mapH]);
   const traveledPoints = nodes.slice(0, heroIndex + 1).map((_, i) => `${nodeX(i)},${nodeY(i)}`).join(" ");
   const traveledCoords = nodes.slice(0, heroIndex + 1).map((_, i) => ({ x: nodeX(i), y: nodeY(i) }));
   const activeIndex = nodes.findIndex((n) => n.complete && !n.claimed);
@@ -555,6 +592,16 @@ export default function Journey() {
       )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ width: contentW }} style={styles.mapScroll}>
         <View style={{ width: contentW, height: mapH }}>
+          <LinearGradient
+            colors={[hexA(primary, 0.28), "transparent", hexA(accent, 0.16)]}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill} pointerEvents="none"
+          />
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            {decor.map((d, i) => (
+              <Text key={`decor-${i}`} style={{ position: "absolute", left: d.x, top: d.y, fontSize: d.size, opacity: d.op }}>{d.emoji}</Text>
+            ))}
+          </View>
           <EmberField accent={accent} width={contentW} />
           <Svg width={contentW} height={mapH} style={StyleSheet.absoluteFill}>
             <AnimatedPolyline points={points} fill="none" stroke={colors.border} strokeWidth={5} strokeDasharray="2 10" strokeLinecap="round" animatedProps={dashProps} />

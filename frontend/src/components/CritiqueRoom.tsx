@@ -47,6 +47,7 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
 
   const [feed, setFeed] = useState<any[]>([]);
   const [board, setBoard] = useState<any[]>([]);
+  const [prize, setPrize] = useState<{ label: string; xp: number }>({ label: "", xp: 0 });
   const [view, setView] = useState<"feed" | "board">("feed");
   const [composerOpen, setComposerOpen] = useState(false);
   const [pending, setPending] = useState<any>(null);
@@ -66,7 +67,7 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
   const scrollRef = useRef<ScrollView>(null);
 
   const load = async () => { try { setFeed(await apiFetch(token, `/api/rooms/${cfg.room}/feed`)); } catch {} };
-  const loadBoard = async () => { try { setBoard(await apiFetch(token, `/api/rooms/${cfg.room}/leaderboard`)); } catch {} };
+  const loadBoard = async () => { try { const r = await apiFetch(token, `/api/rooms/${cfg.room}/leaderboard`); setBoard(r.board || []); setPrize({ label: r.prize_label || "", xp: r.prize_xp || 0 }); } catch {} };
   useEffect(() => { if (canAccess) { load(); loadBoard(); } /* eslint-disable-next-line */ }, [canAccess]);
 
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
@@ -216,8 +217,13 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
 
         {view === "board" ? (
           board.length === 0 ? (
-            <Text style={st.empty}>No ranked posts this week yet — most-liked posts show here.</Text>
-          ) : board.map((p) => {
+            <>
+              {!!prize.label && <Text style={[st.prizeBanner, { borderColor: cfg.accent, color: cfg.accent }]}>👑 Each week's #1 earns the "{prize.label}" badge +{prize.xp} XP</Text>}
+              <Text style={st.empty}>No ranked posts this week yet — most-liked posts show here.</Text>
+            </>
+          ) : (<>
+            {!!prize.label && <Text style={[st.prizeBanner, { borderColor: cfg.accent, color: cfg.accent }]}>👑 This week's #1 earns the "{prize.label}" badge +{prize.xp} XP</Text>}
+            {board.map((p) => {
             const rc = RANK_COLORS[p.rank] || colors.textMid;
             const medal = p.rank_pos === 1 ? "🥇" : p.rank_pos === 2 ? "🥈" : p.rank_pos === 3 ? "🥉" : `#${p.rank_pos}`;
             return (
@@ -230,7 +236,7 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
                 <Text style={[st.boardLikes, { color: cfg.accent }]}>♥ {p.like_count || 0}</Text>
               </Pressable>
             );
-          })
+          })}</>)
         ) : feed.length === 0 ? (
           <Text style={st.empty}>No posts yet — be the first to drop a lift and get critiqued.</Text>
         ) : feed.map((p) => {
@@ -367,6 +373,7 @@ const st = StyleSheet.create({
   boardRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },
   boardPos: { fontSize: 16, fontWeight: "900", minWidth: 34, textAlign: "center" },
   boardLikes: { fontWeight: "900", fontSize: 14 },
+  prizeBanner: { fontSize: 12, fontWeight: "800", borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.sm, lineHeight: 17 },
   empty: { color: colors.textDim, textAlign: "center", marginTop: spacing.xl, fontSize: 13 },
   card: { backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.md },
   cardHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
