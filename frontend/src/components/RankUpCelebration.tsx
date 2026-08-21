@@ -57,7 +57,7 @@ export function RankUpCelebration({ visible, fromRank, toRank, background, onClo
                 </View>
               </View>
             )}
-            <Text style={styles.brand}>{"HUTCH'S INNER CIRCLE"}</Text>
+            <Text style={styles.brand}>{"THE CIRCLE"}</Text>
           </LinearGradient>
           </View>
         </Animated.View>

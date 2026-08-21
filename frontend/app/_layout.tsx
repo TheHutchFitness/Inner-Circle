@@ -16,6 +16,7 @@ import { AppModeIntro } from "@/src/components/AppModeIntro";
 import { OnboardingTour, TOUR_VERSION } from "@/src/components/OnboardingTour";
 import { FounderWelcome } from "@/src/components/FounderWelcome";
 import { LocationPrimer } from "@/src/components/LocationPrimer";
+import { DietPrimer } from "@/src/components/DietPrimer";
 import { ClanInviteGate } from "@/src/components/ClanInviteGate";
 import { AppModeSwitch } from "@/src/components/AppModeSwitch";
 import { PushManager } from "@/src/lib/push";
@@ -75,6 +76,15 @@ function FounderGate() {
   if (user.mode_selected !== true || !tourComplete(user)) return null;
   if (!user.is_founder || user.founder_welcomed === true) return null;
   return <FounderWelcome />;
+}
+
+// One-time diet question for new members, after the tour so it doesn't stack with onboarding.
+function DietGate() {
+  const { user, intro, loading } = useAuth();
+  if (loading || !user || intro) return null;
+  if (user.mode_selected !== true || !tourComplete(user)) return null;
+  if (user.is_founder && user.founder_welcomed !== true) return null;
+  return <DietPrimer />;
 }
 
 // One-time location primer, after the founder welcome so prompts don't stack.
@@ -140,6 +150,7 @@ export default function RootLayout() {
               <ModeGate />
               <TourGate />
               <FounderGate />
+              <DietGate />
               <LocationGate />
               <ClanInviteGate />
               <PushManager />

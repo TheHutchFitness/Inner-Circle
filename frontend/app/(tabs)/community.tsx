@@ -54,7 +54,7 @@ export default function Community() {
         <View style={[styles.gate, { paddingTop: spacing.xl }]}>
           <Text style={styles.eyebrow}>ACCESS DENIED</Text>
           <Text style={styles.gateTitle}>CIRCLE LOCKED</Text>
-          <Text style={styles.gateSub}>The chat is exclusive to $5/mo premium members or verified Hutch&apos;s Inner Circle Skool members. Groups are open to everyone.</Text>
+          <Text style={styles.gateSub}>The chat is exclusive to $5/mo premium members or verified The Circle Skool members. Groups are open to everyone.</Text>
           <Pressable testID="gate-paywall" onPress={() => router.push("/paywall")} style={styles.gateBtn}>
             <Text style={styles.gateBtnText}>UNLOCK PREMIUM</Text>
           </Pressable>

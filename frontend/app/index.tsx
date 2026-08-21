@@ -157,6 +157,11 @@ export default function Index() {
           />
         </View>
 
+        <View style={styles.wordmarkWrap}>
+          <Text style={styles.brandMark}>WELCOME TO</Text>
+          <Text style={styles.brandBig}>THE CIRCLE</Text>
+        </View>
+
         <View style={styles.card}>
           {spots && spots.remaining > 0 && (
             <View testID="founder-banner" style={styles.founderBanner}>
@@ -307,6 +312,7 @@ const styles = StyleSheet.create({
   hero: { width: "100%", height: "100%" },
   brandMark: { color: colors.brandPrimary, fontSize: 14, letterSpacing: 6, fontWeight: "700" },
   brandBig: { color: colors.text, fontSize: 34, fontWeight: "900", letterSpacing: 3, marginTop: 4 },
+  wordmarkWrap: { alignItems: "center", marginTop: -8, marginBottom: spacing.md },
   tagline: { color: colors.textDim, letterSpacing: 4, marginTop: spacing.sm, fontSize: 12 },
   card: { marginHorizontal: spacing.lg, marginTop: spacing.sm, padding: spacing.lg, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
   founderBanner: { marginBottom: spacing.lg, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(245,197,66,0.1)" },

@@ -7,6 +7,7 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import QRCode from "react-native-qrcode-svg";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { CardioMap } from "@/src/components/CardioMap";
+import { TimersTab } from "@/src/components/TimersTab";
 
 // On web, points the QR at this same app so scanning opens it on the phone.
 const webAppUrl = (Platform.OS === "web" && typeof window !== "undefined" && window.location)
@@ -51,7 +52,7 @@ export default function Cardio() {
   const [region, setRegion] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [screen, setScreen] = useState<"gps" | "history" | "sprint">("gps");
+  const [screen, setScreen] = useState<"gps" | "history" | "timers" | "sprint">("gps");
   const [history, setHistory] = useState<any[]>([]);
   const [prs, setPrs] = useState<Record<string, number>>({});
   const [summary, setSummary] = useState<any | null>(null);
@@ -230,12 +231,19 @@ export default function Cardio() {
         <Pressable testID="cardio-mode-history" onPress={() => setScreen("history")} style={[styles.screenBtn, screen === "history" && styles.screenBtnActive]}>
           <Text style={[styles.screenText, screen === "history" && styles.screenTextActive]}>🏅 HISTORY</Text>
         </Pressable>
+        <Pressable testID="cardio-mode-timers" onPress={() => setScreen("timers")} style={[styles.screenBtn, screen === "timers" && styles.screenBtnActive]}>
+          <Text style={[styles.screenText, screen === "timers" && styles.screenTextActive]}>⏱ TIMERS</Text>
+        </Pressable>
         <Pressable testID="cardio-mode-sprint" onPress={() => setScreen("sprint")} style={[styles.screenBtn, screen === "sprint" && styles.screenBtnActive]}>
           <Text style={[styles.screenText, screen === "sprint" && styles.screenTextActive]}>⚡ SPRINT</Text>
         </Pressable>
       </View>
 
-      {screen === "history" ? (
+      {screen === "timers" ? (
+        <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.xl }}>
+          <TimersTab />
+        </ScrollView>
+      ) : screen === "history" ? (
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: insets.bottom + spacing.xl }}>
           <Text style={styles.histHead}>PERSONAL BESTS</Text>
           <View style={styles.prRow}>

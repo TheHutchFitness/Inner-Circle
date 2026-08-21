@@ -122,7 +122,7 @@ export function OnboardingTour() {
       )}
 
       <View style={styles.body}>
-        <Text style={styles.eyebrow}>{returning ? "⌁ THINGS HAVE CHANGED · UPDATED TOUR" : "⌁ WELCOME TO THE INNER CIRCLE"}</Text>
+        <Text style={styles.eyebrow}>{returning ? "⌁ THINGS HAVE CHANGED · UPDATED TOUR" : "⌁ WELCOME TO THE CIRCLE"}</Text>
 
         <LinearGradient
           colors={[colors.brandTertiary, colors.surface2]}

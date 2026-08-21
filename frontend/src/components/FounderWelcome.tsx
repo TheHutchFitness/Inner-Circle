@@ -28,7 +28,7 @@ export function FounderWelcome() {
       <LinearGradient colors={[colors.brandTertiary, colors.surface2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
         <Text style={styles.spark}>⌁</Text>
         <Text style={styles.eyebrow}>FOUNDING BETA</Text>
-        <Text style={styles.title}>WELCOME TO THE{"\n"}INNER CIRCLE</Text>
+        <Text style={styles.title}>WELCOME TO{"\n"}THE CIRCLE</Text>
         <View style={styles.numWrap}>
           <Text style={styles.numLabel}>YOU ARE FOUNDER</Text>
           <Text style={styles.num}>#{num ?? "—"}</Text>

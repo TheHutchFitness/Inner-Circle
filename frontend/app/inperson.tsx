@@ -514,7 +514,7 @@ export default function InPersonRoom() {
               {!isAdmin && (thread.checkin_streak || 0) > 0 && (
                 <View style={styles.shareWrap}>
                   <View ref={shareCardRef} collapsable={false} style={styles.shareCard}>
-                    <Text style={styles.shareBrand}>HUTCH'S INNER CIRCLE</Text>
+                    <Text style={styles.shareBrand}>THE CIRCLE</Text>
                     <Text style={styles.shareStreakBig}>🔥 {thread.checkin_streak}</Text>
                     <Text style={styles.shareWeek}>WEEK CHECK-IN STREAK</Text>
                     <Text style={styles.shareTierLine}>{streakTier(thread.checkin_streak).label(thread.checkin_streak)}</Text>

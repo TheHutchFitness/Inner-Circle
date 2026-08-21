@@ -99,7 +99,7 @@ export default function Founders() {
     if (!ref?.code) return;
     try {
       await Share.share({
-        message: `Join me in Hutch's Inner Circle 💪 Use my code ${ref.code} when you enlist and we both earn bonus XP. First 100 members get FREE Founder access.`,
+        message: `Join me in The Circle 💪 Use my code ${ref.code} when you enlist and we both earn bonus XP. First 100 members get FREE Founder access.`,
       });
     } catch {}
   };

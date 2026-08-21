@@ -377,7 +377,7 @@ export default function Profile() {
         {!!gymRank && gymRank.rank > 0 && (
           <>
             <View ref={gymCardRef} collapsable={false} style={[styles.gymRankCard, gymRank.rank === 1 && styles.gymRankCardTop]}>
-              <Text style={styles.gymRankBrand}>HUTCH'S INNER CIRCLE</Text>
+              <Text style={styles.gymRankBrand}>THE CIRCLE</Text>
               <Text style={[styles.gymRankBig, gymRank.rank === 1 && { color: colors.warning }]}>{gymRank.rank === 1 ? "🏆 #1" : `#${gymRank.rank}`}</Text>
               <Text style={styles.gymRankLabel}>{gymRank.rank === 1 ? "TOP LIFTER AT" : "RANKED AT"}</Text>
               <Text style={styles.gymRankGym}>📍 {gymRank.gym}</Text>

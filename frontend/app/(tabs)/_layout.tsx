@@ -40,7 +40,7 @@ function CustomTabBar({ state, navigation }: any) {
   if (isDesktop) {
     return (
       <View style={[styles.sidebar, { paddingTop: insets.top + 24 }]}>
-        <Text style={styles.brand}>HUTCH&apos;S{"\n"}INNER CIRCLE</Text>
+        <Text style={styles.brand}>THE{"\n"}CIRCLE</Text>
         <View style={{ height: 20 }} />
         {state.routes.map((route: any, i: number) => {
           const focused = state.index === i;

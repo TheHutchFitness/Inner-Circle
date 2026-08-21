@@ -577,3 +577,13 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## QUEUED (requested, NOT yet built)
 - Judge section redesign: declutter, more professional, easy navigation for new members.
 - Timers tab in Cardio: a stopwatch (separate from sprint test) + an interval/HIIT timer, in a new "TIMERS" tab.
+
+## Batch 2 (2026-08)
+- Cardio TIMERS tab: TimersTab component (Stopwatch with laps + Interval/HIIT timer with Work/Rest/Rounds steppers, phase countdown, vibrate on phase change). Wired as 4th tab in cardio.tsx (TRACK/HISTORY/TIMERS/SPRINT). Verified via screenshot.
+- Diet-at-signup: DietPrimer one-time modal (Normal/Vegetarian/Keto) shown to members first use (AsyncStorage diet_primer_done_v1 + hic_diet_pref); mounted via DietGate in _layout (after mode/tour/founder). Feeds the food-picker diet filter + settings toggle.
+- REBRAND to "The Circle": bulk-replaced all "Hutch's Inner Circle"/"Inner Circle" display text across app/ + src/ with "The Circle"/"THE CIRCLE". app.json expo.name -> "The Circle". Added a "WELCOME TO / THE CIRCLE" text wordmark on the login screen. NOTE: login hero (assets/images/login-bg.png) still has the OLD logo baked into the artwork — needs a new image asset to fully rebrand the login visual. Coach's name "Coach Hutch" left intact (person, not app brand).
+
+## STILL QUEUED
+- Coaching-by-gym: NEEDS clarification (how access works + how members pick gym). Asked but user pivoted.
+- Judge section cleanup (declutter for new members).
+- "Purge Test Data" admin tool (remove test groups/gyms/chats + diag prod account) — decide whether to also remove the 10 AI leaderboard bots.

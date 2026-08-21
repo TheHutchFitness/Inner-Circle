@@ -383,7 +383,7 @@ export function ReceiptCard({ receipt, onResend, resending, resendMsg }: { recei
   return (
     <View style={styles.receipt}>
       <View style={styles.receiptTop}>
-        <Text style={styles.receiptBrand}>HUTCH&apos;S INNER CIRCLE</Text>
+        <Text style={styles.receiptBrand}>THE CIRCLE</Text>
         <Text style={styles.receiptPaid}>PAID</Text>
       </View>
       <Text style={styles.receiptTitle}>RECEIPT</Text>

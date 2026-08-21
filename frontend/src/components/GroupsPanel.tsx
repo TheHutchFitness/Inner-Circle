@@ -77,7 +77,7 @@ export function GroupsPanel() {
       const r = await apiFetch(token, `/api/groups/${sel.id}/invite-code`);
       const ref = user?.user_id ? `?ref=${user.user_id}` : "";
       const url = ExpoLinking.createURL(`/clan/${r.code}${ref}`);
-      const message = `Join my clan "${r.name}" on Hutch's Inner Circle:\n${url}`;
+      const message = `Join my clan "${r.name}" on The Circle:\n${url}`;
       if (Platform.OS === "web") {
         try { await (navigator as any).clipboard.writeText(url); setMsg("Invite link copied!"); }
         catch { setMsg(url); }

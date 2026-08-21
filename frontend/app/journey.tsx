@@ -266,7 +266,7 @@ function Reward({ label, boss, accent, onClose }: { label: string; boss: boolean
         )}
         <Text style={[styles.rewardTitle, { color: accent }]}>{boss ? "☠ BOSS DEFEATED ☠" : isLoot ? "★ LOOT DROP ★" : "REWARD UNLOCKED"}</Text>
         <Text style={styles.rewardLabel}>{label}</Text>
-        <Text style={styles.rewardBrand}>{"HUTCH'S INNER CIRCLE"}</Text>
+        <Text style={styles.rewardBrand}>{"THE CIRCLE"}</Text>
        </View>
         {isLoot && <Text style={styles.lootSub}>Equip it in your Locker / Loadout</Text>}
         <Pressable testID="reward-share" onPress={shareWin} style={[styles.primaryBtn, styles.secondaryBtn, { marginBottom: spacing.sm }]}>

@@ -148,7 +148,7 @@ export function ExerciseLibraryModal({
 
   const shareDemo = async () => {
     if (!detail) return;
-    const text = `${detail.name} (${detail.category})\n\n${detail.desc || ""}\n\n— shared from Hutch's Inner Circle`;
+    const text = `${detail.name} (${detail.category})\n\n${detail.desc || ""}\n\n— shared from The Circle`;
     try {
       if (Platform.OS !== "web" && demoUri && (await Sharing.isAvailableAsync())) {
         const safe = detail.name.replace(/[^a-z0-9]/gi, "_");

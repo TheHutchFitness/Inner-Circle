@@ -56,7 +56,7 @@ export function PRCelebration({ visible, prs, user, onClose }: { visible: boolea
                   {p.previous > 0 && <Text style={styles.prDelta}>+{Math.round(p.weight - p.previous)} lb</Text>}
                 </View>
               ))}
-              <Text style={styles.brand}>{"HUTCH'S INNER CIRCLE"}</Text>
+              <Text style={styles.brand}>{"THE CIRCLE"}</Text>
             </LinearGradient>
           </View>
         </Animated.View>

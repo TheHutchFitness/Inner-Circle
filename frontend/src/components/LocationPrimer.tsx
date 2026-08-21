@@ -26,7 +26,7 @@ export function LocationPrimer() {
         }
         Alert.alert(
           "Find gyms near you",
-          "Allow location so The Inner Circle can show the gyms and training spots closest to you — and let you check in for XP.",
+          "Allow location so The Circle can show the gyms and training spots closest to you — and let you check in for XP.",
           [
             { text: "Not now", style: "cancel", onPress: () => { AsyncStorage.setItem(KEY, "1"); } },
             {

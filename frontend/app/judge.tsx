@@ -347,7 +347,7 @@ export default function Judge() {
                       onPress={() => Share.share({
                         message: `${s.display_name} scored ${s.critique.overall.toFixed(1)}/10 on The Judge 🏆\n` +
                           `Symmetry ${s.critique.symmetry} · Conditioning ${s.critique.conditioning} · Size ${s.critique.size} · Posing ${s.critique.posing}\n` +
-                          `— Hutch's Inner Circle`,
+                          `— The Circle`,
                       }).catch(() => {})}
                       style={[st.commentBtn, { paddingHorizontal: spacing.lg }]}
                     >
