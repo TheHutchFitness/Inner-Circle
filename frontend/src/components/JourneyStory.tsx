@@ -9,7 +9,7 @@ const INTRO_KEY = "hic_story_intro_v1";
 // The System — blue-glow LitRPG window kit
 const SYS = "#3AA0FF";
 
-export type StoryCtx = { name: string; level: number; rank: string; zoneIndex: number };
+export type StoryCtx = { name: string; level: number; rank: string; zoneIndex: number; enhanced?: boolean };
 
 // Six chapters, one per Journey zone tier (E -> S). Unlocks as the player ascends.
 // `body` shows once you reach the zone; `after` unlocks once you CLEAR it and move on.
@@ -110,6 +110,13 @@ export function Chronicle({ visible, onClose, ctx }: { visible: boolean; onClose
             <Text style={styles.threatKicker}>☠ THE THREAT · REGRESSION</Text>
             <Text style={styles.threatBody}>The Circle only records what you DO. Go still, skip your training, and it begins to un-write you — dragging your Combat Rating back toward Zero. And beyond the Gates, something ancient has opened its eyes. Keep climbing: an Empty Vessel that stops is an Empty Vessel that fades.</Text>
           </View>
+          {ctx.enhanced && (
+            <View style={styles.enhCard}>
+              <Text style={styles.enhKicker}>⚗ DESIGNATION · THE ENHANCED</Text>
+              <Text style={styles.enhBody}>The Circle has detected artificial Shard compounds in your blood. It does not judge — it simply records a debt.{"\n\n"}"NATURAL ADAPTATION CREATES FOUNDATION. ARTIFICIAL ADAPTATION CREATES DEBT. ALL DEBT MUST EVENTUALLY BE PAID."{"\n\n"}Your climb is faster, but borrowed. Watch for the Rings. And know this — the Black Enhancers are fragments of an ancient technology that destroyed the world before ours. Somewhere, THE ALCHEMIST is rebuilding it.</Text>
+              <Text style={styles.enhWarn}>WARNING, INITIATE · THE LAST WORLD DID NOT SURVIVE.</Text>
+            </View>
+          )}
           <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: spacing.md }} showsVerticalScrollIndicator={false}>
             {CHAPTERS.map((ch, i) => {
               const unlocked = i <= ctx.zoneIndex;
@@ -239,6 +246,10 @@ const styles = StyleSheet.create({
   threatCard: { backgroundColor: "rgba(255,42,60,0.08)", borderRadius: radius.md, borderWidth: 1, borderColor: "#FF2A3C", padding: spacing.md, marginBottom: spacing.md },
   threatKicker: { color: "#FF3B4E", fontWeight: "900", fontSize: 11, letterSpacing: 1.5, marginBottom: 5 },
   threatBody: { color: "#FFC2C8", fontSize: 12.5, lineHeight: 18 },
+  enhCard: { backgroundColor: "rgba(160,80,255,0.09)", borderRadius: radius.md, borderWidth: 1, borderColor: "#A050FF", padding: spacing.md, marginBottom: spacing.md },
+  enhKicker: { color: "#C79BFF", fontWeight: "900", fontSize: 11, letterSpacing: 1.5, marginBottom: 5 },
+  enhBody: { color: "#E6D4FF", fontSize: 12.5, lineHeight: 18 },
+  enhWarn: { color: "#FF6B78", fontSize: 11, fontWeight: "900", letterSpacing: 1, marginTop: 8 },
   afterBox: { marginTop: 10, borderLeftWidth: 2, borderLeftColor: SYS, paddingLeft: 10, backgroundColor: "rgba(58,160,255,0.06)", borderRadius: 6, paddingVertical: 8, paddingRight: 8 },
   afterTag: { color: SYS, fontWeight: "900", fontSize: 9, letterSpacing: 1.5, marginBottom: 3 },
   afterBody: { color: "#CFE8FF", fontSize: 12, lineHeight: 18, fontFamily: "monospace" as any },

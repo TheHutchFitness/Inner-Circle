@@ -402,7 +402,7 @@ export default function Dashboard() {
 
       {!lite && !isPremium && (
         <Pressable testID="open-paywall" onPress={() => router.push("/paywall")} style={styles.premiumCta}>
-          <Text style={styles.premiumCtaText}>UNLOCK PREMIUM · $5/mo</Text>
+          <Text style={styles.premiumCtaText}>UNLOCK PREMIUM · $9/mo</Text>
           <Text style={styles.premiumCtaSub}>Chatrooms + AI Programming</Text>
         </Pressable>
       )}

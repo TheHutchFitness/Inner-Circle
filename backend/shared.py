@@ -311,6 +311,7 @@ def default_user_doc(email: str, name: str, picture: str = "") -> dict:
         "xp": 0,
         "level": 1,
         "prs": {"bench": 0, "squat": 0, "deadlift": 0, "ohp": 0},
+        "baseline_set": False,
         "badges": [],
         "workouts_logged": 0,
         "streak_days": 0,
@@ -1959,67 +1960,21 @@ async def seed():
     except Exception as e:
         logger.warning(f"Object storage init failed at startup (will retry lazily): {e}")
 
-    # NOTE: demo/test human accounts are intentionally NOT seeded. Leaderboards are
-    # populated by the 10 permanent AI bot athletes below + real member signups.
-    # Seed 10 permanent "milestone" bot athletes so leaderboards are always populated
-    BOTS = [
-        {"name": "Plate Prophet", "xp": 620, "prs": {"bench": 185, "squat": 275, "deadlift": 315, "ohp": 115}, "bw": 175, "avatar": "avatar_white", "sprints": {"40yd": 5.3, "100m": 14.1}, "cardio": [("run", 5.2, 1620), ("run", 3.1, 960)]},
-        {"name": "Iron Sentinel", "xp": 1350, "prs": {"bench": 225, "squat": 315, "deadlift": 405, "ohp": 135}, "bw": 190, "avatar": "avatar_native", "sprints": {"40yd": 5.0, "100m": 13.4}, "cardio": [("bike", 22.0, 3600)]},
-        {"name": "Gravitas", "xp": 2100, "prs": {"bench": 275, "squat": 365, "deadlift": 455, "ohp": 155}, "bw": 205, "avatar": "avatar_black", "sprints": {"40yd": 4.9, "100m": 13.0}, "cardio": [("run", 10.0, 2820)]},
-        {"name": "Warhound", "xp": 2800, "prs": {"bench": 315, "squat": 405, "deadlift": 500, "ohp": 175}, "bw": 198, "avatar": "avatar_indian", "sprints": {"40yd": 4.7, "100m": 12.5}, "cardio": [("run", 8.0, 2160), ("bike", 30.0, 4500)]},
-        {"name": "Vanguard", "xp": 3600, "prs": {"bench": 335, "squat": 455, "deadlift": 545, "ohp": 185}, "bw": 210, "avatar": "avatar_asian", "sprints": {"40yd": 4.6, "100m": 12.2}, "cardio": [("run", 12.0, 3300)]},
-        {"name": "Colossus", "xp": 4500, "prs": {"bench": 365, "squat": 495, "deadlift": 585, "ohp": 205}, "bw": 235, "avatar": "avatar_native", "sprints": {"40yd": 4.9, "100m": 13.1}, "cardio": [("bike", 40.0, 5400)]},
-        {"name": "Nightfall", "xp": 5400, "prs": {"bench": 385, "squat": 515, "deadlift": 605, "ohp": 215}, "bw": 215, "avatar": "avatar_white", "sprints": {"40yd": 4.5, "100m": 11.9}, "cardio": [("run", 15.0, 3900)]},
-        {"name": "Bastion", "xp": 6600, "prs": {"bench": 405, "squat": 545, "deadlift": 635, "ohp": 225}, "bw": 228, "avatar": "avatar_asian", "sprints": {"40yd": 4.6, "100m": 12.0}, "cardio": [("run", 10.0, 2640), ("bike", 35.0, 4800)]},
-        {"name": "Overkill", "xp": 8200, "prs": {"bench": 455, "squat": 585, "deadlift": 675, "ohp": 245}, "bw": 245, "avatar": "avatar_indian", "sprints": {"40yd": 4.5, "100m": 11.7}, "cardio": [("run", 6.0, 1560)]},
-        {"name": "Apex Prime", "xp": 11000, "prs": {"bench": 495, "squat": 635, "deadlift": 725, "ohp": 275}, "bw": 250, "avatar": "avatar_asian", "sprints": {"40yd": 4.4, "100m": 11.4}, "cardio": [("run", 21.1, 5400), ("bike", 50.0, 6300)]},
-    ]
-    for i, b in enumerate(BOTS):
-        email = f"bot{i+1}@circle.ai"
-        badges = set()
-        for lk, w in b["prs"].items():
-            for m in milestones_for(w):
-                badges.add(f"{lk}_{m}")
-        canonical = {
-            "display_name": b["name"],
-            "avatar_id": b["avatar"],
-            "bodyweight_lb": b["bw"],
-            "age": 26,
-            "sex": "male",
-            "xp": b["xp"],
-            "level": level_from_xp(b["xp"]),
-            "prs": b["prs"],
-            "badges": list(badges) + ["pr_hunter"],
-            "workouts_logged": 30 + i * 4,
-            "streak_days": 6 + i,
-            "skool_verified": i % 2 == 0,
-            "active_background": "bg_default",
-            "sprints": b.get("sprints", {}),
-            "is_bot": True,
-            # Known password so the AI profiles double as deterministic test logins.
-            "password_hash": hash_password("BotPass123!"),
-        }
-        existing = await db.users.find_one({"email": email})
-        if existing:
-            uid = existing["user_id"]
-            await db.users.update_one({"email": email}, {"$set": canonical})
-        else:
-            uid = new_id("usr")
-            await db.users.insert_one({
-                "user_id": uid, "email": email, "picture": "", "password_hash": "",
-                "created_at": datetime.now(timezone.utc), **canonical,
-            })
-        # Seed bot cardio once (idempotent) so cardio boards stay populated without
-        # deleting data on every startup.
-        if await db.cardio.count_documents({"user_id": uid}) == 0:
-            for act, km, dur in b.get("cardio", []):
-                await db.cardio.insert_one({
-                    "cardio_id": new_id("cardio"), "user_id": uid, "activity_type": act,
-                    "distance_km": km, "duration_s": dur, "elevation_gain_m": 0, "temperature_c": None,
-                    "avg_pace_min_km": round((dur / 60) / km, 2) if km else 0,
-                    "avg_speed_kmh": round(km / (dur / 3600), 2) if dur else 0,
-                    "route": [], "logged_at": datetime.now(timezone.utc),
-                })
+    # No demo/test/bot accounts are seeded. For launch, remove any legacy AI bot
+    # athletes (and their data) so leaderboards show ONLY real members. Idempotent.
+    bot_ids = [u["user_id"] async for u in db.users.find({"is_bot": True}, {"_id": 0, "user_id": 1})]
+    if bot_ids:
+        await db.users.delete_many({"is_bot": True})
+        for coll in ["cardio", "workouts", "quest_claims", "steps", "chat_messages",
+                     "store_purchases", "gym_checkins", "coach_messages", "critiques",
+                     "judge_submissions", "inperson_messages", "verified_purchases",
+                     "set_presets", "supplements", "nutrition_logs", "sessions"]:
+            try:
+                await db[coll].delete_many({"user_id": {"$in": bot_ids}})
+            except Exception:
+                pass
+        logger.info(f"Purged {len(bot_ids)} bot athletes for launch")
+
 
     # (Welcome chat messages seed removed — Social Hub starts empty per owner request.)
     # ---- House store cosmetics: paid badges + titles for the current month ----

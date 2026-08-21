@@ -13,6 +13,7 @@ import { initializeRevenueCat, SubscriptionProvider, useRCIdentityBinder } from 
 import { ScanlineOverlay } from "@/src/components/ScanlineOverlay";
 import { HeroIntro } from "@/src/components/HeroIntro";
 import { AppModeIntro } from "@/src/components/AppModeIntro";
+import { BaselineStats } from "@/src/components/BaselineStats";
 import { OnboardingTour, TOUR_VERSION } from "@/src/components/OnboardingTour";
 import { FounderWelcome } from "@/src/components/FounderWelcome";
 import { LocationPrimer } from "@/src/components/LocationPrimer";
@@ -61,13 +62,30 @@ function ModeGate() {
 function tourComplete(user: any) {
   return user?.tour_seen === true && (user?.tour_version || 0) >= TOUR_VERSION;
 }
+// New members log their starting lifts + run times once (after mode pick, before
+// the tour). Skipped for admins/bots and anyone who already has PRs on file.
+function needsBaseline(user: any) {
+  if (!user || user.baseline_set === true || user.is_admin || user.is_bot) return false;
+  const p = user.prs || {};
+  const total = (p.bench || 0) + (p.squat || 0) + (p.deadlift || 0) + (p.ohp || 0);
+  return total === 0;
+}
+function BaselineGate() {
+  const { user, intro, loading } = useAuth();
+  if (loading || !user || intro) return null;
+  if (user.mode_selected !== true) return null;
+  if (!needsBaseline(user)) return null;
+  return <BaselineStats />;
+}
 function TourGate() {
   const { user, intro, loading } = useAuth();
   if (loading || !user || intro) return null;
   if (user.mode_selected !== true) return null;
+  if (needsBaseline(user)) return null;
   if (tourComplete(user)) return null;
   return <OnboardingTour />;
 }
+
 
 // One-time Founding Beta congrats (shown after the tour, once tour is done).
 function FounderGate() {
@@ -148,6 +166,7 @@ export default function RootLayout() {
               <EnhancedSync />
               <IntroGate />
               <ModeGate />
+              <BaselineGate />
               <TourGate />
               <FounderGate />
               <DietGate />

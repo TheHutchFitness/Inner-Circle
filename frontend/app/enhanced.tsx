@@ -169,6 +169,9 @@ export default function Enhanced() {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + spacing.lg, padding: spacing.lg, paddingBottom: 80 }}>
         <Pressable onPress={() => router.back()}><Text style={s.back}>← BACK</Text></Pressable>
         <Text style={s.warnBig}>☣ THE ENHANCED</Text>
+        <Pressable testID="enhanced-lore" onPress={() => router.push("/journey")} style={s.loreBanner}>
+          <Text style={s.loreText}>⚗ The Circle marks the Enhanced. Your Journey runs a different path — borrowed power, and a debt. Tap to read it.</Text>
+        </Pressable>
         <View style={s.disc}><Text style={s.discText}>{status?.disclaimer}</Text></View>
 
         <Text style={s.h2}>YOUR ACTIVE REGIMEN</Text>
@@ -262,6 +265,8 @@ const s = StyleSheet.create({
   warnBig: { color: RED, fontSize: 26, fontWeight: "900", letterSpacing: 2 },
   warn: { color: "#E8A0A8", fontSize: 12, lineHeight: 18, marginTop: spacing.sm, marginBottom: spacing.lg },
   disc: { borderWidth: 1, borderColor: RED, borderRadius: radius.sm, padding: spacing.md, marginVertical: spacing.md, backgroundColor: "rgba(255,42,60,0.08)" },
+  loreBanner: { borderWidth: 1, borderColor: "#A050FF", borderRadius: radius.sm, padding: spacing.md, marginTop: spacing.md, backgroundColor: "rgba(160,80,255,0.09)" },
+  loreText: { color: "#D9C2FF", fontSize: 12, lineHeight: 17, fontWeight: "700" },
   discText: { color: "#E8A0A8", fontSize: 11, lineHeight: 16 },
   h2: { color: "#fff", fontWeight: "900", letterSpacing: 3, fontSize: 13, marginTop: spacing.xl, marginBottom: spacing.sm },
   label: { color: "#E8A0A8", fontSize: 11, letterSpacing: 1, marginBottom: 4 },

@@ -754,3 +754,25 @@ async def admin_delete_custom(cid: str, user=Depends(get_current_user)):
     await db.custom_quests.delete_one({"id": cid})
     await db.custom_quest_state.delete_many({"custom_id": cid})
     return {"ok": True}
+
+
+# ---------- Admin: self reset / unlock (start fresh, then restore) ----------
+@api_router.post("/admin/self/xp")
+async def admin_self_xp(payload: dict, user=Depends(get_current_user)):
+    """Set your own XP — use 0 to start fresh, or a large value to unlock everything again."""
+    _require_admin(user)
+    xp = max(0, min(2_000_000, int(payload.get("xp", 0) or 0)))
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"xp": xp}})
+    return {"ok": True, "xp": xp}
+
+
+@api_router.post("/admin/self/reset")
+async def admin_self_reset(user=Depends(get_current_user)):
+    """Wipe your own progress: XP to 0, all quest claims/overrides/custom state, check-in streak."""
+    _require_admin(user)
+    uid = user["user_id"]
+    await db.users.update_one({"user_id": uid}, {"$set": {"xp": 0}, "$unset": {"checkin_streak": "", "checkin_last_day": "", "checkin_best_streak": ""}})
+    await db.quest_claims.delete_many({"user_id": uid})
+    await db.quest_overrides.delete_many({"user_id": uid})
+    await db.custom_quest_state.delete_many({"user_id": uid})
+    return {"ok": True}

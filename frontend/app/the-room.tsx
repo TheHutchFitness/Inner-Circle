@@ -2,27 +2,24 @@ import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform } fro
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/lib/auth";
-import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { ChatRoom } from "@/src/components/ChatRoom";
 
 export default function TheRoom() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { isSubscribed } = useSubscription();
   const router = useRouter();
   const canRank = ["Elite","Freak"].includes(user?.rank || "") || user?.all_rooms_access;
-  const canPremium = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
-  const canAccess = canRank && canPremium;
+  const canAccess = canRank;
 
   if (!canAccess) {
     return (
       <View style={[styles.gate, { paddingTop: insets.top + spacing.xl }]}>
         <Text style={styles.eyebrow}>RESTRICTED SECTOR</Text>
         <Text style={styles.gateTitle}>THE ROOM</Text>
-        <Text style={styles.gateSub}>{!canRank ? "Reach Elite rank (3500+ XP) to enter." : "Premium or Skool membership required."}</Text>
-        <Pressable onPress={() => canRank ? router.push("/paywall") : router.back()} style={styles.gateBtn}>
-          <Text style={styles.gateBtnText}>{canRank ? "UNLOCK PREMIUM" : "BACK"}</Text>
+        <Text style={styles.gateSub}>Reach Elite rank (3500+ XP) to enter. No membership needed — this one is earned.</Text>
+        <Pressable onPress={() => router.back()} style={styles.gateBtn}>
+          <Text style={styles.gateBtnText}>BACK</Text>
         </Pressable>
       </View>
     );

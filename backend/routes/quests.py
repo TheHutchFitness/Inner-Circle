@@ -230,6 +230,19 @@ async def journey(user=Depends(get_current_user)):
     }
 
 
+@api_router.get("/journey/clans")
+async def journey_clans(user=Depends(get_current_user)):
+    """Shared Circle ranking: clans ranked by combined XP earned from members' training."""
+    clans = await db.groups.find({}, {"_id": 0, "id": 1, "name": 1, "xp": 1, "members": 1}).to_list(1000)
+    clans = [c for c in clans if c.get("name")]
+    clans.sort(key=lambda c: int(c.get("xp", 0) or 0), reverse=True)
+    ranked = [{"id": c["id"], "name": c["name"], "xp": int(c.get("xp", 0) or 0), "members": len(c.get("members", []) or []), "rank": i + 1} for i, c in enumerate(clans)]
+    mine_ids = {c["id"] for c in await db.groups.find({"members": user["user_id"]}, {"_id": 0, "id": 1}).to_list(20)}
+    mine = [c for c in ranked if c["id"] in mine_ids][:3]
+    return {"total": len(ranked), "top": ranked[:5], "mine": mine}
+
+
+
 @api_router.get("/journey/similar")
 async def journey_similar(lift: str, value: float, user=Depends(get_current_user)):
     if lift not in ("bench", "squat", "deadlift", "ohp"):

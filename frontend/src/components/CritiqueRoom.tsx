@@ -179,7 +179,7 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
       <View style={[st.gate, { paddingTop: insets.top + spacing.xl }]}>
         <Text style={st.eyebrow}>MEMBERS ONLY</Text>
         <Text style={st.gateTitle}>{cfg.title} IS LOCKED</Text>
-        <Text style={st.gateSub}>This room is for verified Skool members or $5/mo premium athletes.</Text>
+        <Text style={st.gateSub}>This room is for verified Skool members or $9/mo premium athletes.</Text>
         <Pressable testID={`${cfg.room}-paywall`} onPress={() => router.push("/paywall")} style={st.gateBtn}>
           <Text style={st.gateBtnText}>UNLOCK PREMIUM</Text>
         </Pressable>

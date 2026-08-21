@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator, useWindowDimensions, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import Svg, { Polyline, Circle } from "react-native-svg";
 import Animated, { useSharedValue, useAnimatedStyle, useAnimatedProps, withTiming, withSequence, withDelay, withRepeat, Easing, runOnJS } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
@@ -409,10 +409,13 @@ function ZoneReveal({ zone, onClose }: { zone: any; onClose: () => void }) {
       <LinearGradient colors={[zone?.primary || "#000", "#050508"]} style={StyleSheet.absoluteFill} />
       <Animated.View style={[st, { alignItems: "center" }]}>
         <Animated.Text style={[styles.zoneRevealGlow, { color: zone?.accent }, glowSt]}>✦</Animated.Text>
-        <Text style={styles.zoneRevealKicker}>◇ THE CIRCLE · NEW REALM UNLOCKED</Text>
+        <Text style={styles.zoneRevealKicker}>◇ THE CIRCLE · RANK PROMOTION</Text>
+        <View style={[styles.rankBadge, { borderColor: zone?.accent }]}>
+          <Text style={[styles.rankBadgeText, { color: zone?.accent }]}>{zone?.tier}</Text>
+        </View>
+        <Text style={styles.rankAttained}>RANK {zone?.tier} ATTAINED</Text>
         <Text style={[styles.zoneRevealName, { color: zone?.accent }]}>{zone?.name}</Text>
-        <Text style={styles.zoneRevealTier}>TIER {zone?.tier} REACHED</Text>
-        <Text style={styles.zoneRevealLore}>The Circle records your ascent — a new rank, a new realm. Your Combat Rating climbs. Read your Chronicle (📜) for the next chapter of your story.</Text>
+        <Text style={styles.zoneRevealLore}>The Circle has re-recorded you at a higher rank. New quests, new bosses, new rivals await. Read your Chronicle (📜) for the next chapter of your story.</Text>
       </Animated.View>
       <Text style={styles.zoneRevealTap}>tap to continue</Text>
     </Pressable>
@@ -421,6 +424,11 @@ function ZoneReveal({ zone, onClose }: { zone: any; onClose: () => void }) {
 
 export default function Journey() {
   const { token, user } = useAuth();
+  const previewParam = useLocalSearchParams<{ preview?: string }>().preview;
+  // Admin non-destructive preview: force the displayed zone (art + story) without changing data.
+  const previewZone = (user?.is_admin && previewParam != null && previewParam !== "")
+    ? Math.max(0, Math.min(5, parseInt(String(previewParam), 10) || 0))
+    : null;
   const insets = useSafeAreaInsets();
   const { isDesktop } = useResponsive();
   const { width: winW } = useWindowDimensions();
@@ -434,10 +442,12 @@ export default function Journey() {
   const [zoneReveal, setZoneReveal] = useState<any>(null);
   const [chronicleOpen, setChronicleOpen] = useState(false);
   const [storybookOpen, setStorybookOpen] = useState(false);
+  const [clanRank, setClanRank] = useState<any>(null);
   const [sysWin, setSysWin] = useState<SysMsg | null>(null);
   const [sfxOn, setSfxOn] = useState(true);
   const [taunt, setTaunt] = useState<{ id: string; text: string } | null>(null);
   const [peekUser, setPeekUser] = useState<string | null>(null);
+  const [rivalSheet, setRivalSheet] = useState<any>(null);
 
   const load = useCallback(async () => {
     try {
@@ -475,6 +485,14 @@ export default function Journey() {
         }
         if (at) await AsyncStorage.setItem("hic_atrophy_lvl", String(at.level));
       } catch {}
+      // Enhanced designation — one-time in-story acknowledgement of borrowed power
+      try {
+        if (user?.enhanced && !(await AsyncStorage.getItem("hic_enh_seen"))) {
+          setSysWin({ title: "⚗ DESIGNATION: ENHANCED", lines: ["The Circle detects artificial Shard compounds.", "Adaptation is borrowed. All debt must be paid."], tone: "danger" });
+          await AsyncStorage.setItem("hic_enh_seen", "1");
+        }
+      } catch {}
+      try { setClanRank(await apiFetch(token, "/api/journey/clans")); } catch {}
     } catch {}
     setLoading(false);
   }, [token]);
@@ -504,6 +522,7 @@ export default function Journey() {
 
   const sendChallenge = async (nb: any) => {
     setTaunt(null);
+    setRivalSheet(null);
     try {
       const r = await apiFetch(token, "/api/journey/challenge", { method: "POST", body: JSON.stringify({ to_user_id: nb.user_id }) });
       flash(`⚔ Challenge sent to ${r?.to_name || nb.name}!`);
@@ -598,7 +617,7 @@ export default function Journey() {
     founder: false,
     filler: true,
   }));
-  const neighbors: any[] = [...realNeighbors, ...fillers];
+  const neighbors: any[] = [...realNeighbors, ...fillers].sort((a, b) => a.xp - b.xp);
   const claimedCount = nodes.filter((n) => n.claimed).length;
   const heroIndex = Math.min(claimedCount, Math.max(0, nodes.length - 1));
 
@@ -620,7 +639,7 @@ export default function Journey() {
 
   return (
     <View style={styles.root}>
-      <ExpoImage source={zoneImage(data?.zone?.index)} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
+      <ExpoImage source={zoneImage(previewZone ?? data?.zone?.index)} style={StyleSheet.absoluteFill} contentFit="cover" transition={300} />
       <LinearGradient colors={[hexA(primary, 0.5), "rgba(5,5,8,0.86)", "rgba(5,5,8,0.96)"]} style={StyleSheet.absoluteFill} pointerEvents="none" />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable testID="journey-back" onPress={() => router.back()} hitSlop={10}><Text style={styles.back}>‹ BACK</Text></Pressable>
@@ -660,6 +679,17 @@ export default function Journey() {
         </Pressable>
       )}
 
+      {/* Clans climb a shared Circle ranking together */}
+      {clanRank && (
+        <Pressable testID="clan-circle-rank" onPress={() => router.push("/(tabs)/community?group=1")} style={styles.clanRankWrap}>
+          {clanRank.mine?.length > 0 ? (
+            <Text style={styles.clanRankText}>🛡 {clanRank.mine[0].name} · Circle Rank <Text style={styles.clanRankNum}>#{clanRank.mine[0].rank}</Text> of {clanRank.total} · {clanRank.mine[0].xp.toLocaleString()} XP</Text>
+          ) : (
+            <Text style={styles.clanRankText}>🛡 Join a Clan to climb the Circle ranking together →</Text>
+          )}
+        </Pressable>
+      )}
+
       {(data?.challenges?.length || 0) > 0 && (
         <View style={[styles.challengeBanner, { borderColor: accent }]}>
           <Text style={styles.challengeBannerText}>🔥 {data.challenges[0].from_name} {data.challenges.length > 1 ? `+${data.challenges.length - 1} more ` : ""}challenged you to catch them!</Text>
@@ -675,7 +705,7 @@ export default function Journey() {
       )}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ width: contentW }} style={styles.mapScroll}>
         <View style={{ width: contentW, height: mapH }}>
-          <ExpoImage source={zoneImage(data?.zone?.index)} style={[StyleSheet.absoluteFill, styles.mapArt]} contentFit="cover" transition={300} />
+          <ExpoImage source={zoneImage(previewZone ?? data?.zone?.index)} style={[StyleSheet.absoluteFill, styles.mapArt]} contentFit="cover" transition={300} />
           <LinearGradient
             colors={[hexA(primary, 0.22), "rgba(5,5,8,0.42)", hexA(accent, 0.14)]}
             start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
@@ -704,37 +734,40 @@ export default function Journey() {
           {/* node touch targets + labels */}
           {nodes.map((n, i) => (
             <Pressable key={i} testID={`journey-node-${i}`} onPress={() => onNodePress(n)}
-              style={[styles.nodeHit, { left: nodeX(i) - 26, top: nodeY(i) - 26 }]}>
+              style={[styles.nodeHit, { left: nodeX(i) - 46, top: nodeY(i) - 30 }]}>
               <Text style={styles.nodeIcon}>{n.claimed ? "✓" : n.boss ? "☠" : n.complete ? "⚔" : "🔒"}</Text>
-              <Text style={styles.nodeLabel} numberOfLines={1}>{n.title}</Text>
+              <Text style={[styles.nodeScope, { color: n.boss ? colors.error : n.claimed ? colors.success : n.complete ? accent : colors.textDim }]} numberOfLines={1}>
+                {n.custom ? "CUSTOM" : (n.scope || "").toUpperCase()}{n.boss ? " · BOSS" : ""}
+              </Text>
+              <Text style={styles.nodeLabel} numberOfLines={2}>{n.title}</Text>
+              {!!(n.reward_label || n.reward_xp) && <Text style={styles.nodeReward} numberOfLines={1}>🎁 {n.reward_label || `${n.reward_xp} XP`}</Text>}
+              {Array.isArray(n.objectives) && n.objectives[0] && !n.claimed && (
+                <Text style={styles.nodeObj} numberOfLines={1}>{Math.min(n.objectives[0].current || 0, n.objectives[0].target || 1)}/{n.objectives[0].target || 1} {n.objectives[0].label || ""}</Text>
+              )}
             </Pressable>
           ))}
 
-          {/* neighbors lane */}
-          {neighbors.filter((nb) => !nb.is_me).map((nb) => (
-            <Pressable key={nb.user_id} testID={`rival-${nb.user_id}`} onPress={() => showTaunt(nb.user_id)} style={[styles.neighbor, { left: neighborX(nb.xp) - 18, top: 24 }]}>
+          {/* rivals lane — staggered into two rows so markers never overlap */}
+          {neighbors.filter((nb) => !nb.is_me).map((nb, i) => (
+            <Pressable
+              key={nb.user_id}
+              testID={`rival-${nb.user_id}`}
+              onPress={() => { showTaunt(nb.user_id); setRivalSheet(nb); }}
+              style={[styles.neighbor, { left: neighborX(nb.xp) - 22, top: 14 + (i % 2) * 60 }]}
+            >
               {taunt?.id === nb.user_id && (
                 <View style={[styles.taunt, { borderColor: accent }]}>
                   <Text style={styles.tauntText}>{taunt?.text}</Text>
-                  {nb.filler ? (
-                    <Text style={styles.npcTag}>WANDERER</Text>
-                  ) : (
-                    <View style={{ flexDirection: "row", gap: 6 }}>
-                      <Pressable testID={`peek-${nb.user_id}`} onPress={() => setPeekUser(nb.user_id)} style={[styles.challengeBtn, { borderColor: accent }]}>
-                        <Text style={[styles.challengeText, { color: accent }]}>👁 LOADOUT</Text>
-                      </Pressable>
-                      <Pressable testID={`challenge-${nb.user_id}`} onPress={() => sendChallenge(nb)} style={[styles.challengeBtn, { borderColor: accent }]}>
-                        <Text style={[styles.challengeText, { color: accent }]}>⚔ CATCH ME</Text>
-                      </Pressable>
-                    </View>
-                  )}
                 </View>
               )}
-              <View style={[styles.neighborDot, nb.filler && styles.neighborDotNpc, nb.founder && { borderColor: colors.warning }]}>
+              <View style={[styles.neighborDot, nb.filler && styles.neighborDotNpc, nb.ahead && styles.neighborDotAhead, nb.founder && { borderColor: colors.warning }]}>
                 <Text style={[styles.neighborInit, nb.filler && { color: colors.textDim }]}>{(nb.name || "A")[0].toUpperCase()}</Text>
+                {!nb.filler && <View style={[styles.rivalTag, { backgroundColor: accent }]}><Text style={styles.rivalTagText}>⚔</Text></View>}
               </View>
-              <Text style={styles.neighborName} numberOfLines={1}>{nb.enhanced ? "☣" : ""}{nb.name}</Text>
-              <Text style={styles.neighborLv}>Lv{nb.level}</Text>
+              <View style={styles.neighborChip}>
+                <Text style={styles.neighborName} numberOfLines={1}>{nb.enhanced ? "☣ " : ""}{nb.name}</Text>
+                <Text style={styles.neighborLv}>Lv{nb.level}</Text>
+              </View>
             </Pressable>
           ))}
 
@@ -849,11 +882,46 @@ export default function Journey() {
         </Modal>
       )}
       <MemberSheet userId={peekUser} visible={!!peekUser} onClose={() => setPeekUser(null)} />
+
+      {/* Rival action sheet — clear, tappable CHALLENGE + LOADOUT buttons */}
+      <Modal transparent visible={!!rivalSheet} animationType="slide" onRequestClose={() => setRivalSheet(null)}>
+        <Pressable style={styles.rsOverlay} onPress={() => setRivalSheet(null)}>
+          <Pressable style={[styles.rsSheet, { borderColor: accent }]} onPress={(e) => e.stopPropagation()}>
+            {rivalSheet && (
+              <>
+                <View style={styles.rsHead}>
+                  <View style={[styles.rsAvatar, { borderColor: rivalSheet.founder ? colors.warning : accent }]}>
+                    <Text style={styles.rsAvatarText}>{(rivalSheet.name || "A")[0].toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rsName} numberOfLines={1}>{rivalSheet.enhanced ? "☣ " : ""}{rivalSheet.name}</Text>
+                    <Text style={styles.rsMeta}>Lv{rivalSheet.level} · {rivalSheet.ahead ? "AHEAD OF YOU" : "BEHIND YOU"}{rivalSheet.founder ? " · ★ FOUNDER" : ""}</Text>
+                  </View>
+                </View>
+                {rivalSheet.filler ? (
+                  <Text style={styles.rsNpc}>A wandering spirit of the road. Real rivals appear as you climb the ranks — challenge them to a race.</Text>
+                ) : (
+                  <>
+                    <Pressable testID={`peek-${rivalSheet.user_id}`} onPress={() => { const id = rivalSheet.user_id; setRivalSheet(null); setPeekUser(id); }} style={[styles.rsBtn, styles.rsBtnGhost]}>
+                      <Text style={styles.rsBtnGhostText}>👁  VIEW LOADOUT</Text>
+                    </Pressable>
+                    <Pressable testID={`challenge-${rivalSheet.user_id}`} onPress={() => sendChallenge(rivalSheet)} style={[styles.rsBtn, { backgroundColor: accent }]}>
+                      <Text style={styles.rsBtnText}>⚔  CHALLENGE TO A RACE</Text>
+                    </Pressable>
+                  </>
+                )}
+                <Pressable onPress={() => setRivalSheet(null)} style={styles.rsClose}><Text style={styles.rsCloseText}>CLOSE</Text></Pressable>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {data && (() => {
-        const ctx: StoryCtx = { name: user?.display_name || "Player", level: data?.me?.level || myLevel, rank: user?.rank || "Beginner", zoneIndex: data?.zone?.index ?? 0 };
+        const ctx: StoryCtx = { name: user?.display_name || "Player", level: data?.me?.level || myLevel, rank: user?.rank || "Beginner", zoneIndex: previewZone ?? (data?.zone?.index ?? 0), enhanced: !!user?.enhanced };
         return (
           <>
-            <JourneyIntro ctx={{ name: ctx.name }} />
+            <JourneyIntro ctx={{ name: ctx.name, enhanced: ctx.enhanced }} />
             <Chronicle visible={chronicleOpen} onClose={() => setChronicleOpen(false)} ctx={ctx} />
             <StoryBook visible={storybookOpen} onClose={() => setStorybookOpen(false)} />
           </>
@@ -882,23 +950,42 @@ const styles = StyleSheet.create({
   zoomBtnText: { color: colors.text, fontSize: 20, fontWeight: "900", lineHeight: 22 },
   zoomReset: { paddingHorizontal: 8, minWidth: 52, alignItems: "center" },
   zoomLabel: { color: colors.textMid, fontSize: 12, fontWeight: "800", fontVariant: ["tabular-nums"] },
-  nodeHit: { position: "absolute", width: 92, alignItems: "center", marginLeft: -20 },
+  nodeHit: { position: "absolute", width: 92, alignItems: "center", marginLeft: 0 },
   nodeIcon: { color: colors.text, fontWeight: "900", fontSize: 16, marginBottom: 24 },
-  nodeLabel: { color: colors.textMid, fontSize: 9, textAlign: "center", width: 92, fontWeight: "700" },
-  neighbor: { position: "absolute", width: 44, alignItems: "center" },
-  taunt: { position: "absolute", bottom: 44, width: 108, marginLeft: -32, backgroundColor: "rgba(5,5,8,0.95)", borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 4, zIndex: 20 },
-  tauntText: { color: colors.text, fontSize: 9, fontWeight: "700", textAlign: "center" },
-  challengeBtn: { marginTop: 4, borderWidth: 1, borderRadius: radius.sm, paddingVertical: 3, alignItems: "center" },
-  challengeText: { fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  nodeScope: { fontSize: 8, fontWeight: "900", letterSpacing: 1, marginBottom: 1 },
+  nodeLabel: { color: colors.text, fontSize: 9.5, textAlign: "center", width: 92, fontWeight: "800", lineHeight: 12 },
+  nodeReward: { color: colors.warning, fontSize: 8.5, textAlign: "center", fontWeight: "800", marginTop: 1 },
+  nodeObj: { color: colors.textDim, fontSize: 8, textAlign: "center", marginTop: 1 },
+  neighbor: { position: "absolute", width: 56, alignItems: "center", zIndex: 15 },
+  taunt: { position: "absolute", bottom: 52, width: 116, marginLeft: -30, backgroundColor: "rgba(5,5,8,0.96)", borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: 8, paddingVertical: 5, zIndex: 30 },
+  tauntText: { color: colors.text, fontSize: 10, fontWeight: "700", textAlign: "center" },
   challengeBanner: { marginHorizontal: spacing.lg, marginBottom: spacing.xs, padding: spacing.sm, borderWidth: 1, borderRadius: radius.sm, backgroundColor: "rgba(0,0,0,0.4)" },
   challengeBannerText: { color: colors.text, fontSize: 11, fontWeight: "700", textAlign: "center" },
   secondaryBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.border },
-  neighborDot: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.surface3, borderWidth: 2, borderColor: colors.textDim, alignItems: "center", justifyContent: "center" },
-  neighborDotNpc: { borderStyle: "dashed", opacity: 0.7 },
+  neighborDot: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface2, borderWidth: 2, borderColor: colors.textDim, alignItems: "center", justifyContent: "center" },
+  neighborDotAhead: { borderColor: colors.error },
+  neighborDotNpc: { opacity: 0.5, backgroundColor: colors.surface3 },
   npcTag: { color: colors.textDim, fontSize: 8, fontWeight: "900", letterSpacing: 1, textAlign: "center", marginTop: 3 },
-  neighborInit: { color: colors.text, fontWeight: "900", fontSize: 12 },
-  neighborName: { color: colors.textMid, fontSize: 8, marginTop: 2, maxWidth: 52, textAlign: "center" },
-  neighborLv: { color: colors.textDim, fontSize: 8 },
+  neighborInit: { color: colors.text, fontWeight: "900", fontSize: 15 },
+  rivalTag: { position: "absolute", bottom: -4, right: -4, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "#05060A" },
+  rivalTagText: { color: "#05060A", fontSize: 8, fontWeight: "900" },
+  neighborChip: { marginTop: 4, backgroundColor: "rgba(5,6,10,0.82)", borderRadius: radius.sm, paddingHorizontal: 6, paddingVertical: 2, alignItems: "center", maxWidth: 64 },
+  neighborName: { color: colors.text, fontSize: 9.5, fontWeight: "800", textAlign: "center" },
+  neighborLv: { color: colors.textDim, fontSize: 8.5, fontWeight: "700" },
+  rsOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", justifyContent: "flex-end" },
+  rsSheet: { backgroundColor: colors.surface, borderTopWidth: 2, borderLeftWidth: 1, borderRightWidth: 1, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.lg, paddingBottom: spacing.xl },
+  rsHead: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
+  rsAvatar: { width: 52, height: 52, borderRadius: 26, borderWidth: 2, backgroundColor: colors.surface2, alignItems: "center", justifyContent: "center" },
+  rsAvatarText: { color: colors.text, fontWeight: "900", fontSize: 22 },
+  rsName: { color: colors.text, fontSize: 18, fontWeight: "900", letterSpacing: 1 },
+  rsMeta: { color: colors.textDim, fontSize: 11, fontWeight: "700", letterSpacing: 1, marginTop: 3 },
+  rsNpc: { color: colors.textMid, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
+  rsBtn: { minHeight: 50, borderRadius: radius.md, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
+  rsBtnText: { color: "#05060A", fontWeight: "900", letterSpacing: 1.5, fontSize: 14 },
+  rsBtnGhost: { borderWidth: 1.5, borderColor: colors.borderStrong, backgroundColor: colors.surface2 },
+  rsBtnGhostText: { color: colors.text, fontWeight: "900", letterSpacing: 1.5, fontSize: 14 },
+  rsClose: { alignItems: "center", padding: spacing.sm },
+  rsCloseText: { color: colors.textDim, fontWeight: "800", letterSpacing: 2, fontSize: 12 },
   hero: { position: "absolute", alignItems: "center" },
   comet: { position: "absolute", width: 10, height: 10, borderRadius: 5, shadowOpacity: 0.9, shadowRadius: 8, shadowOffset: { width: 0, height: 0 }, elevation: 6 },
   heroTag: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: "rgba(0,0,0,0.6)", marginTop: 2 },
@@ -920,6 +1007,9 @@ const styles = StyleSheet.create({
   atrophyTrack: { height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
   atrophyFill: { height: "100%", backgroundColor: "#FF2A3C", borderRadius: 3 },
   atrophyNote: { color: "#FFC2C8", fontSize: 10.5, marginTop: 5 },
+  clanRankWrap: { marginHorizontal: spacing.lg, marginBottom: spacing.xs, backgroundColor: "rgba(0,85,255,0.08)", borderWidth: 1, borderColor: "rgba(0,85,255,0.35)", borderRadius: radius.sm, paddingVertical: 9, paddingHorizontal: 12 },
+  clanRankText: { color: "#BCD4FF", fontSize: 12, fontWeight: "800" },
+  clanRankNum: { color: colors.brandPrimary, fontWeight: "900" },
   hudVitalLbl: { color: "#8A6E2A", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   hudVitalVal: { color: "#7CFF6B", fontSize: 16, fontWeight: "900", fontVariant: ["tabular-nums"] },
   qiWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", alignItems: "center", justifyContent: "center", padding: spacing.xl },
@@ -1016,6 +1106,9 @@ const styles = StyleSheet.create({
   zoneRevealKicker: { color: colors.textMid, fontWeight: "800", letterSpacing: 4, fontSize: 12 },
   zoneRevealName: { fontWeight: "900", letterSpacing: 4, fontSize: 30, marginTop: spacing.sm, textAlign: "center" },
   zoneRevealTier: { color: colors.textDim, letterSpacing: 2, fontSize: 12, marginTop: spacing.sm },
+  rankBadge: { width: 96, height: 96, borderRadius: 20, borderWidth: 3, alignItems: "center", justifyContent: "center", marginTop: spacing.md, backgroundColor: "rgba(0,0,0,0.4)" },
+  rankBadgeText: { fontSize: 52, fontWeight: "900" },
+  rankAttained: { color: colors.text, fontWeight: "900", letterSpacing: 3, fontSize: 20, marginTop: spacing.md },
   zoneRevealLore: { color: "#CFE8FF", fontSize: 12.5, lineHeight: 19, textAlign: "center", marginTop: spacing.md, paddingHorizontal: spacing.xl, maxWidth: 420 },
   zoneRevealTap: { position: "absolute", bottom: 60, color: colors.textDim, letterSpacing: 2, fontSize: 11 },
 });

@@ -85,7 +85,7 @@ export default function AthletesCenter() {
       <View style={[styles.gate, { paddingTop: insets.top + spacing.xl }]}>
         <Text style={styles.eyebrow}>PREMIUM ONLY</Text>
         <Text style={styles.gateTitle}>AI COACH LOCKED</Text>
-        <Text style={styles.gateSub}>The AI programming layer requires an active $5/mo membership or verified Skool status.</Text>
+        <Text style={styles.gateSub}>The AI programming layer requires an active $9/mo membership or verified Skool status.</Text>
         <Pressable testID="ac-paywall" onPress={() => router.push("/paywall")} style={styles.gateBtn}><Text style={styles.gateBtnText}>UNLOCK PREMIUM</Text></Pressable>
       </View>
     );

@@ -27,10 +27,10 @@ export default function Paywall() {
 
   const [plan, setPlan] = useState<"monthly" | "annual">("monthly");
   const pkg = plan === "annual" ? annualPkg : monthlyPkg;
-  const price = pkg?.product.priceString || (plan === "annual" ? "$39.99" : "$5.00");
+  const price = pkg?.product.priceString || (plan === "annual" ? "$90.00" : "$9.00");
 
-  const monthlyAmount = monthlyPkg?.product.price ?? 5;
-  const annualAmount = annualPkg?.product.price ?? 39.99;
+  const monthlyAmount = monthlyPkg?.product.price ?? 9;
+  const annualAmount = annualPkg?.product.price ?? 90;
   const savingsPct = monthlyAmount > 0 ? Math.max(0, Math.round((1 - annualAmount / (monthlyAmount * 12)) * 100)) : 0;
   const annualPerMonth = (annualAmount / 12).toFixed(2);
 
@@ -57,15 +57,16 @@ export default function Paywall() {
         <LinearGradient colors={[colors.brandTertiary, colors.surface2]} style={styles.hero}>
           <Text style={styles.badge}>PREMIUM</Text>
           <Text style={styles.title}>UNLOCK THE CIRCLE</Text>
-          <Text style={styles.subtitle}>All chatrooms · AI Coach · Premium Badges</Text>
+          <Text style={styles.subtitle}>The Judge · Athlete&apos;s Center · PR Room · Form Room · The Enhanced</Text>
         </LinearGradient>
 
         {[
-          "Community chatroom access",
-          "AI-assisted custom program builder",
-          "The Room (Elite exclusive) access",
+          "The Judge — AI physique judging & feed",
+          "Athlete's Center — AI custom program builder",
+          "PR Room — coach breaks down your lifts",
+          "Form Room — technique checks & fixes",
+          "The Enhanced — protocol tracker room",
           "Premium ★ badge on your profile",
-          "Priority PR verification",
         ].map((b, i) => (
           <View key={i} style={styles.benefit}>
             <Text style={styles.check}>◆</Text>
@@ -76,13 +77,13 @@ export default function Paywall() {
         <View style={styles.planRow}>
           <Pressable testID="plan-monthly" onPress={() => setPlan("monthly")} style={[styles.planCard, plan === "monthly" && styles.planCardActive]}>
             <Text style={[styles.planLabel, plan === "monthly" && styles.planLabelActive]}>MONTHLY</Text>
-            <Text style={styles.planPrice}>{monthlyPkg?.product.priceString || "$5.00"}</Text>
+            <Text style={styles.planPrice}>{monthlyPkg?.product.priceString || "$9.00"}</Text>
             <Text style={styles.planPer}>per month</Text>
           </Pressable>
           <Pressable testID="plan-annual" onPress={() => setPlan("annual")} style={[styles.planCard, plan === "annual" && styles.planCardActive]}>
             {savingsPct > 0 && <View style={styles.saveBadge}><Text style={styles.saveBadgeText}>SAVE {savingsPct}%</Text></View>}
             <Text style={[styles.planLabel, plan === "annual" && styles.planLabelActive]}>ANNUAL</Text>
-            <Text style={styles.planPrice}>{annualPkg?.product.priceString || "$39.99"}</Text>
+            <Text style={styles.planPrice}>{annualPkg?.product.priceString || "$90.00"}</Text>
             <Text style={styles.planPer}>${annualPerMonth}/mo · billed yearly</Text>
           </Pressable>
         </View>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePathname } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, radius } from "@/src/lib/theme";
 
@@ -9,10 +10,13 @@ import { colors, radius } from "@/src/lib/theme";
 export function AppModeSwitch() {
   const insets = useSafeAreaInsets();
   const { user, token, refresh, intro, loading } = useAuth();
+  const pathname = usePathname();
   const [busy, setBusy] = useState(false);
 
   if (loading || !user || intro) return null;
   if (user.mode_selected !== true || user.tour_seen !== true) return null;
+  // The Journey has its own top-right HUD buttons — don't overlap them.
+  if ((pathname || "").includes("journey")) return null;
 
   const lite = !!user.lite_mode;
 

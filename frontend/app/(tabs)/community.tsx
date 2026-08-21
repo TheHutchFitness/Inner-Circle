@@ -2,7 +2,6 @@ import { View, Text, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Scro
 import { useEffect, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { useSubscription } from "@/src/lib/revenuecat";
 import { colors, spacing, radius, rankIndex } from "@/src/lib/theme";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
@@ -12,7 +11,6 @@ import { GroupsPanel } from "@/src/components/GroupsPanel";
 export default function Community() {
   const insets = useSafeAreaInsets();
   const { user, token } = useAuth();
-  const { isSubscribed } = useSubscription();
   const router = useRouter();
   const params = useLocalSearchParams<{ group?: string }>();
   const lite = !!user?.lite_mode;
@@ -52,10 +50,9 @@ export default function Community() {
     return () => { clearTimeout(t); clearInterval(iv); };
   }, [room, activeGym]);
 
-  const canChat = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder || user?.inperson_client;
-  // THE ROOM — Elite rank + premium/skool/founder (moved here from Home)
+  const canChat = true;
+  // THE ROOM — Elite rank only (earned, no payment). Free once you reach Elite.
   const canRoomRank = rankIndex(user?.rank) >= 6 || user?.all_rooms_access;
-  const canRoomPremium = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder;
 
   const Tab = ({ id, label }: { id: "main" | "gym" | "the_room" | "groups"; label: string }) => (
     <Pressable testID={`chat-room-${id}`} onPress={() => setRoom(id)} style={[styles.seg, room === id && styles.segOn]}>
@@ -98,21 +95,12 @@ export default function Community() {
       {room === "groups" ? (
         <GroupsPanel />
       ) : room === "the_room" ? (
-        (!canRoomRank || !canRoomPremium) ? (
+        !canRoomRank ? (
           <View style={[styles.gate, { paddingTop: spacing.xl }]}>
             <Text style={styles.lockGlyph}>🔒</Text>
             <Text style={[styles.eyebrow, { color: colors.error }]}>ELITE ONLY · RESTRICTED</Text>
             <Text style={styles.gateTitle}>THE ROOM</Text>
-            {!canRoomRank ? (
-              <Text style={styles.gateSub}>This chamber is open to only a select few who've reached <Text style={{ color: colors.text, fontWeight: "900" }}>Elite rank</Text>. Keep training and level up to unlock it.</Text>
-            ) : (
-              <Text style={styles.gateSub}>You've earned the rank — a Premium or Skool membership unlocks your voice in The Room.</Text>
-            )}
-            {canRoomRank && !canRoomPremium && (
-              <Pressable testID="room-paywall" onPress={() => router.push("/paywall")} style={styles.gateBtn}>
-                <Text style={styles.gateBtnText}>UNLOCK PREMIUM</Text>
-              </Pressable>
-            )}
+            <Text style={styles.gateSub}>This chamber is open to only a select few who&apos;ve reached <Text style={{ color: colors.text, fontWeight: "900" }}>Elite rank</Text>. Keep training and level up to unlock it — no membership needed.</Text>
           </View>
         ) : (
           <ChatRoom

@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius, applyEnhancedPalette } from "@/src/lib/theme";
 import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
@@ -175,6 +176,22 @@ export default function Admin() {
   const deleteCustom = async (id: string) => {
     try { await apiFetch(token, `/api/admin/quests/custom/${id}`, { method: "DELETE" }); await loadCustom(); if (qUser) await loadUserQuests(qUser.id, qUser.name); flash("Deleted"); } catch (e: any) { flash(e?.message || "Failed"); }
   };
+  // ---- My account / Journey Lab ----
+  const resetMe = async () => {
+    try { await apiFetch(token, "/api/admin/self/reset", { method: "POST" }); await refresh?.(); flash("Your progress was reset to zero ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const setMyXp = async (xp: number) => {
+    try { await apiFetch(token, "/api/admin/self/xp", { method: "POST", body: JSON.stringify({ xp }) }); await refresh?.(); flash(xp === 0 ? "XP set to 0" : `XP set to ${xp.toLocaleString()} ✓`); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const replayIntro = async () => {
+    try {
+      await AsyncStorage.multiRemove(["hic_journey_intro_v3", "hic_zone_seen", "hic_stats_snap", "hic_atrophy_lvl", "hic_enh_seen"]);
+      flash("Cinematics reset — opening Journey");
+      router.push("/journey");
+    } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const previewZone = (i: number) => router.push(`/journey?preview=${i}`);
+  const ZONES_LAB = [["THE WASTES", "E"], ["IRON VALLEY", "D"], ["STORM RIDGE", "C"], ["EMBER PEAKS", "B"], ["CRIMSON CITADEL", "A"], ["ASCENSION", "S"]];
   const loadClans = async () => {
     try { setClanDir((await apiFetch(token, "/api/admin/groups")).groups || []); } catch {}
   };
@@ -696,6 +713,22 @@ export default function Admin() {
         </>)}
 
         {tab === "quests" && (<>
+        <Text style={st.section}>🎬 JOURNEY LAB (MY ACCOUNT)</Text>
+        <View style={st.card}>
+          <Text style={st.cardSub}>Start fresh like a normal member, then unlock everything again whenever you want. Preview any realm's art & story without changing your data.</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: spacing.sm }}>
+            <Pressable testID="self-reset" onPress={resetMe} style={[st.labBtn, { borderColor: colors.error }]}><Text style={[st.labBtnText, { color: colors.error }]}>↺ RESET ME TO ZERO</Text></Pressable>
+            <Pressable testID="self-unlock" onPress={() => setMyXp(500000)} style={[st.labBtn, { borderColor: colors.success }]}><Text style={[st.labBtnText, { color: colors.success }]}>★ UNLOCK EVERYTHING</Text></Pressable>
+            <Pressable testID="self-replay-intro" onPress={replayIntro} style={[st.labBtn, { borderColor: colors.brandPrimary }]}><Text style={[st.labBtnText, { color: colors.brandPrimary }]}>🎬 REPLAY INTRO CINEMATIC</Text></Pressable>
+          </View>
+          <Text style={[st.cardSub, { marginTop: spacing.md }]}>Preview a realm (art + story unlock, non-destructive):</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+            {ZONES_LAB.map(([name, tier], i) => (
+              <Pressable key={i} testID={`preview-zone-${i}`} onPress={() => previewZone(i)} style={st.pickChip}><Text style={st.pickChipText}>{tier} · {name}</Text></Pressable>
+            ))}
+          </View>
+        </View>
+
         <Text style={st.section}>🗺 QUEST CONTROL</Text>
         <Text style={st.dim}>Search a member to view their quests. Force any quest complete/incomplete, or create custom quests for one member or everyone.</Text>
         <View style={st.searchRow}>
@@ -837,6 +870,8 @@ const st = StyleSheet.create({
   qState: { fontSize: 11, marginTop: 1, fontWeight: "700" },
   qBtn: { width: 34, height: 34, borderRadius: radius.sm, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   qBtnText: { fontWeight: "900", fontSize: 15 },
+  labBtn: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: radius.sm, borderWidth: 1, backgroundColor: colors.surface2 },
+  labBtnText: { fontWeight: "900", fontSize: 12, letterSpacing: 0.5 },
   removeText: { color: colors.error, fontWeight: "900", fontSize: 10, letterSpacing: 1 },
   searchRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   filterChip: { alignSelf: "flex-start", paddingVertical: 7, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, marginBottom: spacing.md },

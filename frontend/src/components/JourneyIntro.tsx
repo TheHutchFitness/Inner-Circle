@@ -39,11 +39,15 @@ function KenBurns({ img, panelKey }: { img: any; panelKey: number }) {
 }
 
 /** First-time Journey intro: an anime/LitRPG motion-comic. Auto-advances, tap to skip forward. */
-export function JourneyIntro({ ctx }: { ctx: { name: string } }) {
+export function JourneyIntro({ ctx }: { ctx: { name: string; enhanced?: boolean } }) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0);
   const timer = useRef<any>(null);
-  const last = step >= PANELS.length;
+  // Enhanced users get an extra panel about borrowed power + debt.
+  const panels = ctx.enhanced
+    ? [...PANELS, { img: ZONE_IMAGES[3], kicker: "⚗ DESIGNATION: ENHANCED", caption: "Artificial Shard compounds burn in your blood. Your climb is faster — but borrowed.", sys: "[ ALL DEBT MUST EVENTUALLY BE PAID ]", tone: "danger" as const }]
+    : PANELS;
+  const last = step >= panels.length;
 
   useEffect(() => {
     (async () => { try { if (!(await AsyncStorage.getItem(INTRO_KEY))) setOpen(true); } catch {} })();
@@ -62,7 +66,7 @@ export function JourneyIntro({ ctx }: { ctx: { name: string } }) {
   const next = () => { if (!last) { clearTimeout(timer.current); setStep((s) => s + 1); } };
 
   if (!open) return null;
-  const p = PANELS[Math.min(step, PANELS.length - 1)];
+  const p = panels[Math.min(step, panels.length - 1)];
   const tone = last ? "info" : (p.tone || "info");
   const toneC = tone === "danger" ? "#FF3B4E" : SYS;
 
@@ -75,8 +79,8 @@ export function JourneyIntro({ ctx }: { ctx: { name: string } }) {
 
         {/* progress ticks */}
         <View style={styles.ticks}>
-          {PANELS.map((_, i) => (
-            <View key={i} style={[styles.tick, i <= Math.min(step, PANELS.length - 1) && { backgroundColor: toneC }]} />
+          {panels.map((_, i) => (
+            <View key={i} style={[styles.tick, i <= Math.min(step, panels.length - 1) && { backgroundColor: toneC }]} />
           ))}
         </View>
 
@@ -96,7 +100,7 @@ export function JourneyIntro({ ctx }: { ctx: { name: string } }) {
             <Animated.View entering={FadeIn.duration(500)} style={styles.finalWrap}>
               <Text style={styles.finalKicker}>◇ THE CIRCLE HAS RECOGNIZED YOU</Text>
               <Text style={styles.finalTitle}>WOULD YOU LIKE TO BEGIN?</Text>
-              <Text style={styles.finalSub}>{ctx.name} · Designation: Unranked · Level 0 · Circle: Incomplete</Text>
+              <Text style={styles.finalSub}>{ctx.name} · Designation: {ctx.enhanced ? "ENHANCED" : "Unranked"} · Level 0 · Circle: Incomplete</Text>
               <Pressable testID="journey-intro-accept" onPress={finish} style={styles.acceptBtn}>
                 <Text style={styles.acceptText}>⚔  YES — BEGIN THE FIRST TURN</Text>
               </Pressable>

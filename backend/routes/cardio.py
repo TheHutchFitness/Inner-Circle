@@ -158,4 +158,4 @@ async def active_count(user=Depends(get_current_user)):
         real = await db.user_sessions.count_documents({"created_at": {"$gte": since}})
     except Exception:
         real = 0
-    return {"active": max(10, real)}
+    return {"active": real}

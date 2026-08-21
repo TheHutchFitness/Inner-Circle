@@ -228,7 +228,7 @@ export default function Judge() {
       <View style={[st.gate, { paddingTop: insets.top + spacing.xl }]}>
         <Text style={st.eyebrow}>MEMBERS ONLY</Text>
         <Text style={st.gateTitle}>THE JUDGE IS LOCKED</Text>
-        <Text style={st.gateSub}>Physique judging is for verified Skool members or $5/mo premium athletes.</Text>
+        <Text style={st.gateSub}>Physique judging is for verified Skool members or $9/mo premium athletes.</Text>
         <Pressable testID="judge-paywall" onPress={() => router.push("/paywall")} style={st.gateBtn}>
           <Text style={st.gateBtnText}>UNLOCK PREMIUM</Text>
         </Pressable>

@@ -29,6 +29,59 @@ async def profile_attributes(user=Depends(get_current_user)):
     return await _compute_attributes(user)
 
 
+class BaselineInput(BaseModel):
+    bench: float = 0
+    squat: float = 0
+    deadlift: float = 0
+    ohp: float = 0
+    t_5k: float = 0    # seconds
+    t_10k: float = 0   # seconds
+    t_100m: float = 0  # seconds
+    skip: bool = False
+
+
+@api_router.post("/onboarding/baseline")
+async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)):
+    """One-time signup capture of starting lifts + run times so every member
+    begins with different base STR/PWR/SPD/END stats. Skippable."""
+    uid = user["user_id"]
+    if inp.skip:
+        await db.users.update_one({"user_id": uid}, {"$set": {"baseline_set": True}})
+        return {"ok": True, "skipped": True}
+
+    prs = {
+        "bench": max(0, int(inp.bench or 0)),
+        "squat": max(0, int(inp.squat or 0)),
+        "deadlift": max(0, int(inp.deadlift or 0)),
+        "ohp": max(0, int(inp.ohp or 0)),
+    }
+    badges = set(user.get("badges", []) or [])
+    for lk, w in prs.items():
+        for m in milestones_for(w):
+            badges.add(f"{lk}_{m}")
+    setdoc = {"prs": prs, "baseline_set": True, "badges": list(badges)}
+
+    sprints = dict(user.get("sprints", {}) or {})
+    if inp.t_100m and inp.t_100m > 0:
+        sprints["100m"] = round(float(inp.t_100m), 2)
+        setdoc["sprints"] = sprints
+    await db.users.update_one({"user_id": uid}, {"$set": setdoc})
+
+    # Seed cardio bests (feed the ENDURANCE attribute) for 5k / 10k.
+    await db.cardio.delete_many({"user_id": uid, "baseline": True})
+    for km, secs in [(5.0, inp.t_5k), (10.0, inp.t_10k)]:
+        if secs and secs > 0:
+            await db.cardio.insert_one({
+                "cardio_id": new_id("cardio"), "user_id": uid, "activity_type": "run",
+                "distance_km": km, "duration_s": int(secs), "elevation_gain_m": 0,
+                "temperature_c": None,
+                "avg_pace_min_km": round((secs / 60) / km, 2) if km else 0,
+                "avg_speed_kmh": round(km / (secs / 3600), 2) if secs else 0,
+                "route": [], "logged_at": datetime.now(timezone.utc), "baseline": True,
+            })
+    return {"ok": True}
+
+
 async def _compute_gym_rank(target: dict) -> dict:
     """Rank a member (by Big-4 total) among the athletes at their own gym."""
     gym = (target.get("inperson_gym", "") or "").strip()
