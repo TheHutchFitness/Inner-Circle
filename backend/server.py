@@ -10,6 +10,7 @@ from routes import (  # noqa: F401
     cardio,
     chat,
     coach,
+    critique,
     enhanced,
     exercises,
     gear,

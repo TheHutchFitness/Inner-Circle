@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
@@ -16,6 +16,9 @@ import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { GymWatermark, GymBadge } from "@/src/components/GymWatermark";
 import { isLite } from "@/src/lib/mode";
+import { SpotlightMedia } from "@/src/components/SpotlightMedia";
+
+const API = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 function nextRankInfo(xp: number) {
   const thresholds = [
@@ -91,6 +94,18 @@ export default function Dashboard() {
       } catch {}
     })();
   }, [token]);
+
+  // Refresh the Spotlight whenever Home regains focus (e.g. after an admin
+  // features a member and navigates back), so it never shows stale data.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try { const r = await apiFetch(token, "/api/featured"); if (active) setFeatured(r.featured || []); } catch {}
+      })();
+      return () => { active = false; };
+    }, [token])
+  );
 
   const dismissDigest = async () => {
     if (digest?.week) await AsyncStorage.setItem("gymDigestDismissed", digest.week);
@@ -200,12 +215,17 @@ export default function Dashboard() {
           <HudSectionHeader label="★ SPOTLIGHT" />
           {featured.map((f) => (
             <Pressable key={f.user_id} testID={`spotlight-${f.user_id}`} onPress={() => setSpotId(f.user_id)} style={styles.spotCard}>
-              <View style={styles.spotDot} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.spotName}>{f.display_name} <Text style={styles.spotRank}>· {(f.rank || "").toUpperCase()}</Text></Text>
-                {!!f.reason && <Text style={styles.spotReason}>{f.reason}</Text>}
+              <View style={styles.spotHeadRow}>
+                <View style={styles.spotDot} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.spotName}>{f.display_name} <Text style={styles.spotRank}>· {(f.rank || "").toUpperCase()}</Text></Text>
+                  {!!f.reason && <Text style={styles.spotReason}>{f.reason}</Text>}
+                </View>
+                <Text style={styles.spotChevron}>›</Text>
               </View>
-              <Text style={styles.spotChevron}>›</Text>
+              {f.media_id && (
+                <SpotlightMedia uri={`${API}/api/chat/media/${f.media_id}?token=${token}`} type={f.media_type} />
+              )}
             </Pressable>
           ))}
         </>
@@ -279,6 +299,26 @@ export default function Dashboard() {
         </View>
         <Text style={styles.ctaArrow}>▶</Text>
       </Pressable>
+
+      {!lite && (
+      <Pressable testID="open-pr-room" onPress={() => router.push("/pr-room")} style={[styles.ctaCard, !canJudge && styles.locked]}>
+        <View>
+          <Text style={styles.ctaTitle}>PR ROOM {canJudge ? "" : "🔒"}</Text>
+          <Text style={styles.ctaSub}>Post PRs · AI coach breakdown + member hype · Members</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
+      )}
+
+      {!lite && (
+      <Pressable testID="open-form-lab" onPress={() => router.push("/form-lab")} style={[styles.ctaCard, !canJudge && styles.locked]}>
+        <View>
+          <Text style={styles.ctaTitle}>FORM LAB {canJudge ? "" : "🔒"}</Text>
+          <Text style={styles.ctaSub}>Form checks · AI + member technique critiques · Members</Text>
+        </View>
+        <Text style={styles.ctaArrow}>▶</Text>
+      </Pressable>
+      )}
 
       {!lite && (
       <Pressable testID="open-judge" onPress={() => router.push("/judge")} style={[styles.ctaCard, !canJudge && styles.locked]}>
@@ -392,7 +432,8 @@ const styles = StyleSheet.create({
   adminBtnText: { color: colors.brandPrimary, fontWeight: "900", fontSize: 11, letterSpacing: 2 },
   storeBtn: { backgroundColor: "rgba(255,234,0,0.1)", borderWidth: 1, borderColor: colors.warning, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: 12 },
   storeBtnText: { color: colors.warning, fontWeight: "900", fontSize: 11, letterSpacing: 2 },
-  spotCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.06)" },
+  spotCard: { marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.warning, backgroundColor: "rgba(255,234,0,0.06)" },
+  spotHeadRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   champCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: "#FFD700", backgroundColor: "rgba(255,215,0,0.08)" },
   champAvatar: { width: 58, height: 58, borderRadius: radius.md, borderWidth: 2, borderColor: "#FFD700", alignItems: "center", justifyContent: "center", overflow: "hidden", backgroundColor: colors.surface },
   champEyebrow: { color: "#FFD700", fontSize: 9, fontWeight: "900", letterSpacing: 1 },

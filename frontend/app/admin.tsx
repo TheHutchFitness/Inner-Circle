@@ -201,6 +201,40 @@ export default function Admin() {
   const unfeature = async (uid: string) => {
     try { await apiFetch(token, `/api/admin/featured/${uid}`, { method: "DELETE" }); await loadFeatured(); } catch {}
   };
+  const [uploadingSpot, setUploadingSpot] = useState<string | null>(null);
+  const attachSpotlight = async (m: any, kind: "image" | "video") => {
+    try {
+      const cur = await ImagePicker.getMediaLibraryPermissionsAsync();
+      let status = cur.status;
+      if (status !== "granted") {
+        if (!cur.canAskAgain) { flash("Enable photo access in Settings"); return; }
+        status = (await ImagePicker.requestMediaLibraryPermissionsAsync()).status;
+      }
+      if (status !== "granted") { flash("Media permission needed"); return; }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: kind === "video" ? ["videos"] : ["images"], quality: 0.8, videoMaxDuration: 60 });
+      if (res.canceled || !res.assets?.length) return;
+      const a = res.assets[0];
+      setUploadingSpot(m.user_id);
+      const form = new FormData();
+      form.append("user_id", m.user_id);
+      form.append("reason", (reasons[m.user_id] || "").trim());
+      const name = a.fileName || (kind === "video" ? "clip.mp4" : "photo.jpg");
+      const type = a.mimeType || (kind === "video" ? "video/mp4" : "image/jpeg");
+      if (Platform.OS === "web") {
+        const blob = await (await fetch(a.uri)).blob();
+        form.append("file", blob, name);
+      } else {
+        form.append("file", { uri: a.uri, name, type } as any);
+      }
+      const r = await fetch(`${API}/api/admin/featured/media`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Upload failed"); }
+      await loadFeatured(); flash(`${kind === "video" ? "Video" : "Photo"} added to spotlight ✓`);
+    } catch (e: any) { flash(e?.message || "Upload failed"); }
+    finally { setUploadingSpot(null); }
+  };
+  const clearSpotlightMedia = async (uid: string) => {
+    try { await apiFetch(token, `/api/admin/featured/${uid}/media`, { method: "DELETE" }); await loadFeatured(); flash("Media removed ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
 
   const setRank = async (m: any, direction: "up" | "down") => {
     try { patchMember(await apiFetch(token, "/api/admin/set-rank", { method: "POST", body: JSON.stringify({ user_id: m.user_id, direction }) })); } catch (e: any) { flash(e?.message || "Failed"); }
@@ -479,8 +513,11 @@ export default function Admin() {
         ) : featured.map((f) => (
           <View key={f.user_id} style={st.featRow}>
             <View style={{ flex: 1 }}>
-              <Text style={st.name}>{f.display_name}</Text>
+              <Text style={st.name}>{f.display_name}{f.media_id ? (f.media_type === "video" ? "  🎬" : "  🖼") : ""}</Text>
               <Text style={st.reason} numberOfLines={2}>{f.reason || "—"}</Text>
+              {f.media_id && (
+                <Pressable testID={`spot-clear-media-${f.user_id}`} onPress={() => clearSpotlightMedia(f.user_id)}><Text style={st.spotClear}>✕ remove {f.media_type || "media"}</Text></Pressable>
+              )}
             </View>
             <Pressable testID={`unfeature-${f.user_id}`} onPress={() => unfeature(f.user_id)} style={st.removeBtn}><Text style={st.removeText}>REMOVE</Text></Pressable>
           </View>
@@ -569,6 +606,14 @@ export default function Admin() {
             <View style={st.featInput}>
               <TextInput value={reasons[m.user_id] || ""} onChangeText={(t) => setReasons((r) => ({ ...r, [m.user_id]: t }))} placeholder="Reason to feature on Home…" placeholderTextColor={colors.textDim} style={st.reasonInput} />
               <Pressable testID={`feature-${m.user_id}`} onPress={() => feature(m)} style={st.featBtn}><Text style={st.featBtnText}>★ FEATURE</Text></Pressable>
+            </View>
+            <View style={st.tagRow}>
+              <Pressable testID={`spot-photo-${m.user_id}`} onPress={() => attachSpotlight(m, "image")} disabled={uploadingSpot === m.user_id} style={st.tag}>
+                <Text style={st.tagText}>{uploadingSpot === m.user_id ? "…" : "🖼 ADD PHOTO"}</Text>
+              </Pressable>
+              <Pressable testID={`spot-video-${m.user_id}`} onPress={() => attachSpotlight(m, "video")} disabled={uploadingSpot === m.user_id} style={st.tag}>
+                <Text style={st.tagText}>{uploadingSpot === m.user_id ? "…" : "🎬 ADD VIDEO"}</Text>
+              </Pressable>
             </View>
 
             <Text style={st.miniLabel}>DANGER ZONE</Text>
@@ -668,6 +713,7 @@ const st = StyleSheet.create({
   badgeTextOn: { color: colors.warning, fontWeight: "900" },
   featInput: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   reasonInput: { flex: 1, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 10, borderWidth: 1, borderColor: colors.border, fontSize: 13 },
+  spotClear: { color: colors.error, fontSize: 11, fontWeight: "800", letterSpacing: 0.5, marginTop: 4 },
   featBtn: { paddingHorizontal: 14, justifyContent: "center", borderRadius: radius.sm, backgroundColor: colors.warning },
   featBtnText: { color: "#221900", fontWeight: "900", fontSize: 11, letterSpacing: 1 },
   gymMembers: { color: colors.textDim, fontSize: 11, fontWeight: "800", alignSelf: "center", minWidth: 34, textAlign: "center" },

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator, useWindowDimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator, useWindowDimensions, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -9,7 +9,14 @@ import * as Haptics from "expo-haptics";
 import { captureRef } from "react-native-view-shot";
 import * as Sharing from "expo-sharing";
 import { useAuth, apiFetch } from "@/src/lib/auth";
-import { colors, spacing, radius, bodyImage } from "@/src/lib/theme";
+import { colors, spacing, radius, bodyImage, weaponImage } from "@/src/lib/theme";
+import { Image as ExpoImage } from "expo-image";
+
+function weaponLabel(id?: string) {
+  if (!id) return "UNARMED";
+  const cleaned = id.replace(/^weapon[_-]?/i, "").replace(/[_-]+/g, " ").trim();
+  return (cleaned || "UNARMED").toUpperCase();
+}
 import { HeroSprite } from "@/src/components/HeroSprite";
 import { useResponsive } from "@/src/lib/responsive";
 import { PetCompanion } from "@/src/components/PetCompanion";
@@ -358,6 +365,7 @@ export default function Journey() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [combatNode, setCombatNode] = useState<any>(null);
+  const [questInfo, setQuestInfo] = useState<any>(null);
   const [reward, setReward] = useState<{ label: string; boss: boolean } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [milestone, setMilestone] = useState<{ lift: string; value: number } | null>(null);
@@ -429,6 +437,13 @@ export default function Journey() {
   const primary = data?.zone?.primary || colors.brand;
 
   const onNodePress = (n: any) => {
+    // Fallout-style: tapping any quest opens its info panel first.
+    setQuestInfo(n);
+  };
+  const engageQuest = () => {
+    const n = questInfo;
+    setQuestInfo(null);
+    if (!n) return;
     if (n.claimed) return flash("✓ Already cleared");
     if (!n.complete) return flash("🔒 Finish the objectives first");
     setCombatNode(n);
@@ -633,9 +648,25 @@ export default function Journey() {
         </View>
       )}
 
-      <View style={styles.legend}>
-        <Text style={styles.legendText}>{data?.me?.class_title} · {data?.me?.class_tier}-CLASS</Text>
-        <Text style={styles.legendDim}>Tap a ⚔ node to battle · beat quests to advance & pass rivals</Text>
+      {/* Fallout-style Pip-Boy HUD — always-on stats, weapon, HP/AC/AP + message log */}
+      <View style={[styles.hud, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        <View style={styles.hudLog}>
+          <Text style={styles.hudLogText} numberOfLines={2}>
+            <Text style={{ color: accent }}>▸ You see: </Text>
+            {toast || `${data?.zone?.name || "the wasteland"} — ${data?.me?.class_title || "Athlete"}`}
+          </Text>
+        </View>
+        <View style={styles.hudWeapon}>
+          {weaponImage(user?.equipped_weapon) ? (
+            <ExpoImage source={weaponImage(user?.equipped_weapon)} style={styles.hudWeaponImg} contentFit="contain" />
+          ) : null}
+          <Text style={styles.hudWeaponLabel} numberOfLines={1}>{weaponLabel(user?.equipped_weapon)}</Text>
+          <Text style={styles.hudAp}>AP {Math.max(6, Math.round(6 + (data?.me?.stats?.speed || 40) / 22))}</Text>
+        </View>
+        <View style={styles.hudVitals}>
+          <View style={styles.hudVitalRow}><Text style={styles.hudVitalLbl}>HP</Text><Text style={styles.hudVitalVal}>{String(Math.round(30 + (data?.me?.stats?.endurance || 40) * 0.8 + myLevel * 4)).padStart(3, "0")}</Text></View>
+          <View style={styles.hudVitalRow}><Text style={styles.hudVitalLbl}>AC</Text><Text style={styles.hudVitalVal}>{String(Math.round((data?.me?.stats?.speed || 40) * 0.14)).padStart(3, "0")}</Text></View>
+        </View>
       </View>
 
       {toast && <View style={styles.toast}><Text style={styles.toastText}>{toast}</Text></View>}
@@ -644,6 +675,35 @@ export default function Journey() {
       {reward && <Reward label={reward.label} boss={reward.boss} accent={accent} onClose={finishReward} />}
       {milestone && <MilestoneOverlay lift={milestone.lift} value={milestone.value} accent={accent} token={token} onClose={() => setMilestone(null)} />}
       {zoneReveal && <ZoneReveal zone={zoneReveal} onClose={() => setZoneReveal(null)} />}
+      {questInfo && (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setQuestInfo(null)}>
+          <Pressable style={styles.qiWrap} onPress={() => setQuestInfo(null)}>
+            <Pressable style={[styles.qiCard, { borderColor: accent }]} onPress={() => {}}>
+              <Text style={[styles.qiKicker, { color: accent }]}>
+                {questInfo.boss ? "☠ BOSS ENCOUNTER" : "QUEST"} · {questInfo.claimed ? "CLEARED" : questInfo.complete ? "READY" : "LOCKED"}
+              </Text>
+              <Text style={styles.qiTitle}>{questInfo.title || questInfo.name || "Unknown Quest"}</Text>
+              {!!questInfo.desc && <Text style={styles.qiDesc}>{questInfo.desc}</Text>}
+              <View style={styles.qiRow}>
+                <View style={styles.qiStat}><Text style={styles.qiStatLbl}>REWARD</Text><Text style={styles.qiStatVal}>{questInfo.reward_label || `${questInfo.reward_xp || 0} XP`}</Text></View>
+                <View style={styles.qiStat}><Text style={styles.qiStatLbl}>STATUS</Text><Text style={[styles.qiStatVal, { color: questInfo.claimed ? colors.success : questInfo.complete ? accent : colors.textDim }]}>{questInfo.claimed ? "✓ DONE" : questInfo.complete ? "READY" : "IN PROGRESS"}</Text></View>
+              </View>
+              {!questInfo.complete && !questInfo.claimed && (
+                <Text style={styles.qiHint}>Finish this quest's objectives in your training to unlock the encounter.</Text>
+              )}
+              <Pressable
+                testID="quest-engage"
+                onPress={engageQuest}
+                disabled={questInfo.claimed || !questInfo.complete}
+                style={[styles.qiBtn, { backgroundColor: accent }, (questInfo.claimed || !questInfo.complete) && { opacity: 0.4 }]}
+              >
+                <Text style={styles.qiBtnText}>{questInfo.claimed ? "CLEARED ✓" : questInfo.complete ? (questInfo.boss ? "⚔ ENGAGE BOSS" : "⚔ ENGAGE") : "🔒 LOCKED"}</Text>
+              </Pressable>
+              <Pressable onPress={() => setQuestInfo(null)} style={styles.qiClose}><Text style={styles.qiCloseText}>CLOSE</Text></Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
       <MemberSheet userId={peekUser} visible={!!peekUser} onClose={() => setPeekUser(null)} />
     </View>
   );
@@ -689,6 +749,31 @@ const styles = StyleSheet.create({
   heroTag: { borderWidth: 1, borderRadius: radius.pill, paddingHorizontal: 6, paddingVertical: 1, backgroundColor: "rgba(0,0,0,0.6)", marginTop: 2 },
   heroTagText: { color: colors.text, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   legend: { alignItems: "center", paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+  hud: { flexDirection: "row", alignItems: "stretch", gap: 6, paddingHorizontal: 8, paddingTop: 8, backgroundColor: "#141007", borderTopWidth: 2, borderTopColor: "#2E2611" },
+  hudLog: { flex: 1.3, backgroundColor: "#0A0E06", borderWidth: 2, borderColor: "#243B1E", borderRadius: 6, padding: 8, justifyContent: "center" },
+  hudLogText: { color: "#7CFF6B", fontSize: 10, lineHeight: 14, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  hudWeapon: { flex: 1.1, backgroundColor: "#161206", borderWidth: 2, borderColor: "#4A3B14", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, alignItems: "center", justifyContent: "center" },
+  hudWeaponImg: { width: 34, height: 20, marginBottom: 2 },
+  hudWeaponLabel: { color: "#E7C46A", fontSize: 11, fontWeight: "900", letterSpacing: 1 },
+  hudAp: { color: "#C9A94A", fontSize: 9, fontWeight: "800", letterSpacing: 1, marginTop: 2 },
+  hudVitals: { backgroundColor: "#161206", borderWidth: 2, borderColor: "#4A3B14", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, justifyContent: "center", gap: 2, minWidth: 70 },
+  hudVitalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  hudVitalLbl: { color: "#8A6E2A", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  hudVitalVal: { color: "#7CFF6B", fontSize: 16, fontWeight: "900", fontVariant: ["tabular-nums"] },
+  qiWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  qiCard: { width: "100%", maxWidth: 420, backgroundColor: "#0D0F14", borderWidth: 2, borderRadius: radius.md, padding: spacing.lg },
+  qiKicker: { fontSize: 10, fontWeight: "900", letterSpacing: 2 },
+  qiTitle: { color: colors.text, fontSize: 20, fontWeight: "900", letterSpacing: 1, marginTop: 4 },
+  qiDesc: { color: colors.textMid, fontSize: 13, lineHeight: 19, marginTop: spacing.sm },
+  qiRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
+  qiStat: { flex: 1, backgroundColor: "rgba(255,255,255,0.04)", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.sm },
+  qiStatLbl: { color: colors.textDim, fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  qiStatVal: { color: colors.text, fontSize: 13, fontWeight: "900", marginTop: 3 },
+  qiHint: { color: colors.textDim, fontSize: 11, fontStyle: "italic", marginTop: spacing.md, lineHeight: 16 },
+  qiBtn: { marginTop: spacing.lg, borderRadius: radius.md, paddingVertical: 14, alignItems: "center" },
+  qiBtnText: { color: "#fff", fontWeight: "900", letterSpacing: 2, fontSize: 14 },
+  qiClose: { marginTop: spacing.md, alignItems: "center" },
+  qiCloseText: { color: colors.textDim, fontWeight: "800", letterSpacing: 1, fontSize: 12 },
   minimap: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface2 },
   minimapLabel: { color: colors.textDim, fontSize: 10, fontWeight: "900", letterSpacing: 2, width: 56 },
   minimapTrack: { flex: 1, flexDirection: "row", alignItems: "center", height: 18 },

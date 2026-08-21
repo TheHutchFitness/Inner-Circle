@@ -322,6 +322,8 @@ async def featured_members(user=Depends(get_current_user)):
             "use_photo": bool(u.get("use_photo")),
             "photo_media_id": u.get("photo_media_id"),
             "reason": f.get("reason", ""),
+            "media_id": f.get("media_id"),
+            "media_type": f.get("spotlight_media_type"),
         })
     return {"featured": out}
 
@@ -348,6 +350,64 @@ async def admin_add_featured(payload: dict, user=Depends(get_current_user)):
 async def admin_remove_featured(user_id: str, user=Depends(get_current_user)):
     _require_admin(user)
     await db.featured_members.delete_one({"user_id": user_id})
+    return {"ok": True}
+
+
+@api_router.post("/admin/featured/media")
+async def admin_featured_media(user_id: str = Form(...), reason: str = Form(""),
+                               file: UploadFile = File(...), user=Depends(get_current_user)):
+    """Attach a photo or video (+ optional reason) to a home-spotlight member."""
+    _require_admin(user)
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="Member not found")
+    ct = (file.content_type or "").lower().split(";")[0].strip()
+    IMG = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+    VID = {"video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm"}
+    if ct in IMG:
+        media_type, ext, cap = "image", IMG[ct], 12
+    elif ct in VID:
+        media_type, ext, cap = "video", VID[ct], 60
+    else:
+        raise HTTPException(status_code=400, detail="Use a JPG/PNG/WEBP image or MP4/MOV/WEBM video")
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(data) > cap * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"File too large (max {cap}MB)")
+    path = f"{STORAGE_APP_NAME}/spotlight/{user_id}/{uuid.uuid4().hex}.{ext}"
+    try:
+        await storage_put(path, data, ct)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 402:
+            raise HTTPException(status_code=402, detail="Storage credits exhausted — try again later")
+        raise HTTPException(status_code=502, detail="Upload failed — try again")
+    media_id = new_id("spot")
+    await db.chat_media.insert_one({
+        "media_id": media_id, "user_id": user["user_id"], "storage_path": path,
+        "content_type": ct, "media_type": media_type, "size": len(data),
+        "original_name": file.filename, "created_at": datetime.now(timezone.utc),
+    })
+    set_fields = {"media_id": media_id, "spotlight_media_type": media_type, "added_by": user["user_id"]}
+    if (reason or "").strip():
+        set_fields["reason"] = reason.strip()[:200]
+    await db.featured_members.update_one(
+        {"user_id": user_id},
+        {"$set": set_fields,
+         "$setOnInsert": {"created_at": datetime.now(timezone.utc)}},
+        upsert=True,
+    )
+    return {"ok": True, "media_id": media_id, "media_type": media_type}
+
+
+@api_router.delete("/admin/featured/{user_id}/media")
+async def admin_featured_media_clear(user_id: str, user=Depends(get_current_user)):
+    """Remove just the attached photo/video from a spotlight (keeps the feature)."""
+    _require_admin(user)
+    await db.featured_members.update_one(
+        {"user_id": user_id},
+        {"$unset": {"media_id": "", "spotlight_media_type": ""}},
+    )
     return {"ok": True}
 
 

@@ -246,7 +246,7 @@ async def chat_upload(file: UploadFile = File(...), user=Depends(get_current_use
 # Media stored under these path segments is shown broadly across the app
 # (profile photos, gym logos, exercise demos, legal docs) and is safe for any
 # authenticated member to fetch. Everything else is access-controlled.
-PUBLIC_MEDIA_SEGMENTS = ("/pfp/", "/gym-logo/", "/exercise_demos/", "/legal/")
+PUBLIC_MEDIA_SEGMENTS = ("/pfp/", "/gym-logo/", "/exercise_demos/", "/legal/", "/spotlight/")
 
 
 def _store_room_ok(store_room: str, u: dict) -> bool:
@@ -290,7 +290,8 @@ async def _authorize_media(rec: dict, u: dict) -> bool:
 
 @api_router.get("/chat/media/{media_id}")
 async def chat_media_get(media_id: str, token: Optional[str] = None, t: Optional[str] = None,
-                         authorization: Optional[str] = Header(None)):
+                         authorization: Optional[str] = Header(None),
+                         range_header: Optional[str] = Header(None, alias="Range")):
     rec = await db.chat_media.find_one({"media_id": media_id}, {"_id": 0})
     if not rec:
         raise HTTPException(status_code=404, detail="Media not found")
@@ -319,8 +320,28 @@ async def chat_media_get(media_id: str, token: Optional[str] = None, t: Optional
         content = await storage_get(rec["storage_path"])
     except httpx.HTTPStatusError:
         raise HTTPException(status_code=502, detail="Media unavailable")
+    # Serve with HTTP Range support so video/audio players can stream & seek.
+    # Without 206/Accept-Ranges, browsers and native players render a blank
+    # (often just the background colour) instead of playing the clip.
+    total = len(content)
+    base_headers = {"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=86400"}
+    if range_header and range_header.strip().lower().startswith("bytes="):
+        try:
+            rng = range_header.split("=", 1)[1].split(",")[0]
+            start_s, end_s = rng.split("-", 1)
+            start = int(start_s) if start_s.strip() else 0
+            end = int(end_s) if end_s.strip() else total - 1
+            end = min(end, total - 1)
+            if start < 0 or start > end or start >= total:
+                raise ValueError
+        except Exception:
+            return Response(status_code=416, headers={**base_headers, "Content-Range": f"bytes */{total}"})
+        chunk = content[start:end + 1]
+        return Response(content=chunk, status_code=206, media_type=rec["content_type"],
+                        headers={**base_headers, "Content-Range": f"bytes {start}-{end}/{total}",
+                                 "Content-Length": str(len(chunk))})
     return Response(content=content, media_type=rec["content_type"],
-                    headers={"Cache-Control": "private, max-age=86400"})
+                    headers={**base_headers, "Content-Length": str(total)})
 
 
 # ---- Short-lived signed media tickets (for browser <a>/download links) ----
