@@ -779,3 +779,12 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Comment likes: NEW endpoints POST /api/judge/{sid}/comments/{cid}/like and POST /api/rooms/{room}/{pid}/comments/{cid}/like (toggle). Comment GET now returns like_count + liked. Frontend: ♥ like button on each comment in judge.tsx + CritiqueRoom.tsx.
 - Top Critic: when a critic's comment gets a fresh like they earn CRITIQUE_LIKE_XP=10 and critic_likes++ (rolled back on unlike, no XP deduct). At TOP_CRITIC_LIKES=20 total received likes, user gets top_critic:true + "top_critic" badge. Exposed in /users/{id}/public; MemberSheet shows a "🎖 TOP CRITIC" chip. Verified end-to-end via curl (comment +20, like +10/critic_like, unlike rollback, self=0, badge flips at 20).
 - NOTE: Emergent LLM key budget still exhausted (28.50/28.40) — AI verdicts + Solar Titan skin gen blocked until user tops up.
+
+## Admin AI Gate (2026-08) — AI OFF for members until admin enables
+- Global gate in db.app_state key "ai_gate" {enabled:bool}, DEFAULT FALSE. Helpers: ai_globally_enabled(), set_ai_enabled(), require_ai_access(user) (admins always allowed).
+- Coach chat/tts/voice: require_ai_access → 403 for members when gate OFF ("AI features aren't active yet…").
+- Judge submit & Form/PR critique: still POST normally when gate OFF; the LLM critique block is skipped (critique=null) so rooms stay open for peer critique. Admins get real AI verdicts.
+- GET /api/ai/status now returns {enabled, is_admin, active(=enabled or admin), degraded}.
+- Admin endpoints: GET/POST /api/admin/ai-gate {enabled}. Admin UI: admin.tsx Users tab → "🤖 AI FEATURES" Switch (testID ai-gate-switch).
+- AiStatusBanner: members see "🔒 {label} isn't active yet" (founder-run copy) when !active; admins see "🛠️ AI is admin-only right now — enable in Admin ▸ AI Features" when gate OFF; degraded notice only when enabled+failing.
+- Verified via curl: gate OFF → member coach 403, member judge posts with critique null, member admin-endpoint 403; gate ON → member active=true, coach passes gate (502 only due to exhausted budget). Banner text confirmed present in Judge room DOM.

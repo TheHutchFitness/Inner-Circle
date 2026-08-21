@@ -130,31 +130,33 @@ async def critique_submit(
     details = "\n".join(lift_bits) or "No details provided."
 
     critique = None
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"{cfg['prefix']}_{user['user_id']}_{uuid.uuid4().hex[:6]}",
-            system_message=cfg["system"],
-        ).with_model("openai", "gpt-5.6-terra")
-        if media_type == "image":
-            img = ImageContent(image_base64=base64.b64encode(data).decode())
-            msg = UserMessage(
-                text=f"Critique this lift. Here are the details:\n{details}\n\nReturn only the JSON object.",
-                file_contents=[img],
-            )
-        else:
-            msg = UserMessage(
-                text=("A video was submitted (you cannot watch it). Coach from these details and give the "
-                      f"most important technique cues for this lift:\n{details}\n\nReturn only the JSON object."),
-            )
-        resp = await chat.send_message(msg)
-        critique = _parse_critique_json(resp)
-        await mark_ai_ok()
-    except Exception:
-        logger.exception("Critique AI failed")
-        critique = None
-        await mark_ai_outage("critique")
+    ai_allowed = user.get("is_admin") or await ai_globally_enabled()
+    if ai_allowed:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"{cfg['prefix']}_{user['user_id']}_{uuid.uuid4().hex[:6]}",
+                system_message=cfg["system"],
+            ).with_model("openai", "gpt-5.6-terra")
+            if media_type == "image":
+                img = ImageContent(image_base64=base64.b64encode(data).decode())
+                msg = UserMessage(
+                    text=f"Critique this lift. Here are the details:\n{details}\n\nReturn only the JSON object.",
+                    file_contents=[img],
+                )
+            else:
+                msg = UserMessage(
+                    text=("A video was submitted (you cannot watch it). Coach from these details and give the "
+                          f"most important technique cues for this lift:\n{details}\n\nReturn only the JSON object."),
+                )
+            resp = await chat.send_message(msg)
+            critique = _parse_critique_json(resp)
+            await mark_ai_ok()
+        except Exception:
+            logger.exception("Critique AI failed")
+            critique = None
+            await mark_ai_outage("critique")
 
     post_id = new_id(cfg["prefix"])
     doc = {

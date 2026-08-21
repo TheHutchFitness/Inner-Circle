@@ -34,24 +34,26 @@ async def judge_submit(file: UploadFile = File(...), caption: Optional[str] = Fo
     })
 
     critique = None
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"judge_{user['user_id']}_{uuid.uuid4().hex[:6]}",
-            system_message=JUDGE_SYSTEM,
-        ).with_model("openai", "gpt-5.6-terra")
-        img = ImageContent(image_base64=base64.b64encode(data).decode())
-        resp = await chat.send_message(UserMessage(
-            text="Judge this physique. Return only the JSON object.",
-            file_contents=[img],
-        ))
-        critique = _parse_judge_json(resp)
-        await mark_ai_ok()
-    except Exception:
-        logger.exception("Judge AI critique failed")
-        critique = None
-        await mark_ai_outage("judge")
+    ai_allowed = user.get("is_admin") or await ai_globally_enabled()
+    if ai_allowed:
+        try:
+            from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+            chat = LlmChat(
+                api_key=EMERGENT_LLM_KEY,
+                session_id=f"judge_{user['user_id']}_{uuid.uuid4().hex[:6]}",
+                system_message=JUDGE_SYSTEM,
+            ).with_model("openai", "gpt-5.6-terra")
+            img = ImageContent(image_base64=base64.b64encode(data).decode())
+            resp = await chat.send_message(UserMessage(
+                text="Judge this physique. Return only the JSON object.",
+                file_contents=[img],
+            ))
+            critique = _parse_judge_json(resp)
+            await mark_ai_ok()
+        except Exception:
+            logger.exception("Judge AI critique failed")
+            critique = None
+            await mark_ai_outage("judge")
 
     sub_id = new_id("judge")
     doc = {

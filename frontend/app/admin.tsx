@@ -29,6 +29,21 @@ export default function Admin() {
   const [storeItems, setStoreItems] = useState<any[]>([]);
   const [nf, setNf] = useState<any>({ kind: "aura", name: "", description: "", rarity: "legendary", icon: "★", colors: "#7A5CFF,#00E5FF", motion: "pulse" });
   const [security, setSecurity] = useState<any>(null);
+  const [aiGate, setAiGate] = useState<boolean | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  const loadAiGate = async () => {
+    try { const r = await apiFetch(token, "/api/admin/ai-gate"); setAiGate(!!r?.enabled); } catch {}
+  };
+  const toggleAiGate = async (next: boolean) => {
+    setAiBusy(true);
+    try {
+      const r = await apiFetch(token, "/api/admin/ai-gate", { method: "POST", body: JSON.stringify({ enabled: next }) });
+      setAiGate(!!r?.enabled);
+      flash(next ? "AI enabled for all members ✓" : "AI disabled for members ✓");
+    } catch (e: any) { flash(e?.message || "Failed"); }
+    setAiBusy(false);
+  };
 
   const loadSecurity = async () => {
     try { setSecurity(await apiFetch(token, "/api/admin/security/logins")); } catch {}
@@ -44,7 +59,7 @@ export default function Admin() {
   const loadFeatured = async () => {
     try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
   };
-  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); loadSecurity(); loadClans(); loadPurge(); loadCustom(); } /* eslint-disable-line */ }, [token]);
+  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); loadSecurity(); loadClans(); loadPurge(); loadCustom(); loadAiGate(); } /* eslint-disable-line */ }, [token]);
 
   const loadStore = async () => {
     try { setStoreItems((await apiFetch(token, "/api/admin/store")).items || []); } catch {}
@@ -428,6 +443,28 @@ export default function Admin() {
         </>)}
 
         {tab === "users" && (<>
+        {/* Global AI gate */}
+        <Text style={st.section}>🤖 AI FEATURES</Text>
+        <View style={[st.card, { borderColor: aiGate ? colors.success : colors.warning }]}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flex: 1, paddingRight: spacing.md }}>
+              <Text style={st.cardTitle}>{aiGate ? "AI is ON for all members" : "AI is OFF for members"}</Text>
+              <Text style={st.cardSub}>
+                {aiGate
+                  ? "The Judge, AI Coach and Form/PR critiques are live for everyone."
+                  : "Members can't use AI yet (they can still post & critique each other). You (admin) always have AI access to preview it."}
+              </Text>
+            </View>
+            <Switch
+              testID="ai-gate-switch"
+              value={!!aiGate}
+              disabled={aiGate === null || aiBusy}
+              onValueChange={toggleAiGate}
+              trackColor={{ true: colors.success, false: colors.border }}
+            />
+          </View>
+        </View>
+
         {/* Purge test data */}
         <Text style={st.section}>🧹 PURGE TEST DATA</Text>
         <View style={[st.card, { borderColor: colors.error }]}>

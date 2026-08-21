@@ -131,8 +131,15 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
 
 @api_router.get("/ai/status")
 async def ai_status(user=Depends(get_current_user)):
-    """Whether the AI (LLM) is currently degraded, so rooms can show a banner."""
-    return {"degraded": await ai_is_degraded()}
+    """AI availability for the current member. `active` = this user can use AI now."""
+    enabled = await ai_globally_enabled()
+    is_admin = bool(user.get("is_admin"))
+    return {
+        "enabled": enabled,
+        "is_admin": is_admin,
+        "active": enabled or is_admin,
+        "degraded": await ai_is_degraded(),
+    }
 
 
 @api_router.get("/onboarding/big4-distribution")

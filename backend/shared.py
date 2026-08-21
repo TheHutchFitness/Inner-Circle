@@ -1200,6 +1200,28 @@ async def ai_is_degraded() -> bool:
     return lo is None or lf > lo
 
 
+# ---- Global AI gate (admin-controlled; OFF by default during the founder run) ----
+async def ai_globally_enabled() -> bool:
+    doc = await db.app_state.find_one({"key": "ai_gate"}) or {}
+    return bool(doc.get("enabled", False))
+
+
+async def set_ai_enabled(enabled: bool) -> None:
+    await db.app_state.update_one({"key": "ai_gate"}, {"$set": {"enabled": bool(enabled)}}, upsert=True)
+
+
+async def require_ai_access(user: dict) -> None:
+    """Block AI endpoints for regular members until an admin flips the gate on.
+    Admins can always use AI (so they can preview/test before enabling for all)."""
+    if user.get("is_admin"):
+        return
+    if not await ai_globally_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail="AI features aren't active yet — they switch on once the founder run wraps.",
+        )
+
+
 # ---- Peer critique rewards (keep the rooms lively even when AI is resting) ----
 CRITIQUE_XP = 20            # XP for leaving a critique on someone else's post
 CRITIQUE_DAILY_CAP = 5     # max rewarded critiques per day (anti-spam)

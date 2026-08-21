@@ -7,6 +7,22 @@ def _require_admin(user):
         raise HTTPException(status_code=403, detail="Admin only")
 
 
+@api_router.get("/admin/ai-gate")
+async def admin_get_ai_gate(user=Depends(get_current_user)):
+    """Admin: read the global AI on/off gate."""
+    _require_admin(user)
+    return {"enabled": await ai_globally_enabled()}
+
+
+@api_router.post("/admin/ai-gate")
+async def admin_set_ai_gate(payload: dict, user=Depends(get_current_user)):
+    """Admin: enable/disable AI features for all members (admins always have access)."""
+    _require_admin(user)
+    await set_ai_enabled(bool(payload.get("enabled")))
+    return {"enabled": await ai_globally_enabled()}
+
+
+
 @api_router.get("/admin/security/logins")
 async def admin_login_audit(user=Depends(get_current_user)):
     """Admin: recent failed-login activity to spot brute-force spikes early."""
