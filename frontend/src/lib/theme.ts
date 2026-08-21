@@ -205,6 +205,9 @@ export const SKIN_IMAGES: Record<string, any> = {
   skin_flame: require("@/assets/images/skins/skin_flame.png"),
   skin_frost: require("@/assets/images/skins/skin_frost.png"),
   skin_celestial: require("@/assets/images/skins/skin_celestial.png"),
+  skin_venom: require("@/assets/images/skins/skin_venom.png"),
+  skin_storm: require("@/assets/images/skins/skin_storm.png"),
+  skin_abyss: require("@/assets/images/skins/skin_abyss.png"),
   skin_season1: require("@/assets/images/skins/skin_season1.png"),
 };
 

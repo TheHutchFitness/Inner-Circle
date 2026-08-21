@@ -33,7 +33,7 @@ async function storeToken(v: string | null) {
     else await SecureStore.deleteItemAsync(TOKEN_KEY);
   }
 }
-async function readToken(): Promise<string | null> {
+export async function readToken(): Promise<string | null> {
   if (Platform.OS === "web") return localStorage.getItem(TOKEN_KEY);
   return SecureStore.getItemAsync(TOKEN_KEY);
 }

@@ -86,6 +86,7 @@ async def critique_submit(
     cfg = _room_or_404(room)
     if not (user.get("email_verified") or user.get("phone_verified")):
         raise HTTPException(status_code=403, detail="Verify your email or phone to post")
+    await ai_daily_cap(user, "critique_submit")
     ct = (file.content_type or "").lower().split(";")[0].strip()
     if ct in CRITIQUE_IMAGE_TYPES:
         media_type, cap = "image", MAX_CRITIQUE_IMG

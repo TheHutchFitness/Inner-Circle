@@ -3,7 +3,7 @@ import { Platform, AppState, Alert, Linking } from "react-native";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { useAuth } from "@/src/lib/auth";
+import { useAuth, readToken } from "@/src/lib/auth";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
 
@@ -33,10 +33,12 @@ export async function registerForPush(userId: string) {
     const { status } = await Notifications.requestPermissionsAsync();
     if (status !== "granted") return;
     const tokenResp = await Notifications.getDevicePushTokenAsync();
+    const authToken = await readToken();
+    if (!authToken) return;
     await fetch(`${API}/api/register-push`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId, platform: Platform.OS, device_token: tokenResp.data }),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({ platform: Platform.OS, device_token: tokenResp.data }),
     });
   } catch {
     // non-blocking — push is best-effort and only works on a real build

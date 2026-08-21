@@ -8,6 +8,7 @@ async def judge_submit(file: UploadFile = File(...), caption: Optional[str] = Fo
     import base64
     if not (user.get("email_verified") or user.get("phone_verified")):
         raise HTTPException(status_code=403, detail="Verify your email or phone to submit to The Judge")
+    await ai_daily_cap(user, "judge_submit")
     ct = (file.content_type or "").lower().split(";")[0].strip()
     if ct not in JUDGE_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Upload a JPEG, PNG, or WEBP photo")

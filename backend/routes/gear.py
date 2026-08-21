@@ -66,6 +66,12 @@ QUEST_SKINS = [
      "quest_label": "Defeat 5 Bosses"},
     {"id": "skin_celestial", "name": "Celestial Ascended", "rarity": "mythic", "metric": "hard", "count": 12,
      "quest_label": "Clear 12 Boss or Monthly quests"},
+    {"id": "skin_venom", "name": "Venom Warden", "rarity": "epic", "metric": "hard", "count": 9,
+     "quest_label": "Clear 9 Boss or Monthly quests"},
+    {"id": "skin_storm", "name": "Storm Reaver", "rarity": "legendary", "metric": "boss", "count": 8,
+     "quest_label": "Defeat 8 Bosses"},
+    {"id": "skin_abyss", "name": "Abyss Leviathan", "rarity": "legendary", "metric": "monthly", "count": 6,
+     "quest_label": "Clear 6 Monthly quests"},
 ]
 QUEST_WEAPONS = [
     {"id": "w_shadowblade", "name": "Shadow Blade", "rarity": "epic", "metric": "total", "count": 15,

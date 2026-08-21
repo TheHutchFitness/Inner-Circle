@@ -1161,6 +1161,38 @@ class FavouriteIn(BaseModel):
 
 
 
+# ---- AI usage cap (per-user, per-day) to prevent LLM cost abuse ----
+# Daily quota per AI feature. Admins bypass. Keyed by user_id so it works across
+# devices/sessions. Backed by the same MongoDB fixed-window limiter as auth.
+AI_DAILY_CAPS = {
+    "coach_chat": 80,
+    "coach_tts": 80,
+    "voice_transcribe": 80,
+    "judge_submit": 25,
+    "critique_submit": 25,
+}
+
+
+async def ai_daily_cap(user: dict, feature: str) -> None:
+    """Raise 429 once the caller exceeds their daily quota for an AI feature.
+
+    Admins are exempt. Falls back to a permissive default limit for unknown
+    features. Never blocks on limiter DB hiccups turning into 503 — we let
+    consume_bucket surface 429/503 exactly like the auth throttle does.
+    """
+    if user.get("is_admin"):
+        return
+    limit = AI_DAILY_CAPS.get(feature, 100)
+    from auth_throttle import consume_bucket  # lazy import to avoid circular import
+    await consume_bucket(
+        kind=f"ai:{feature}",
+        raw_key=user["user_id"],
+        limit=limit,
+        window=timedelta(days=1),
+    )
+
+
+
 
 def _range_start(rng: str, now: datetime):
     if rng == "1w":

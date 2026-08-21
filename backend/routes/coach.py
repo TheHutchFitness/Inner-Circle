@@ -128,6 +128,7 @@ async def coach_send(inp: CoachMessageIn, user=Depends(get_current_user)):
     text = (inp.text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Message is empty")
+    await ai_daily_cap(user, "coach_chat")
     now = datetime.now(timezone.utc)
     await db.coach_messages.insert_one({
         "msg_id": new_id("coach"), "user_id": user["user_id"], "role": "user", "text": text[:1500], "created_at": now,
@@ -194,6 +195,7 @@ async def coach_tts(inp: CoachMessageIn, user=Depends(get_current_user)):
     text = _re.sub(r"\s+", " ", text).strip()[:4000]
     if not text:
         raise HTTPException(status_code=400, detail="Nothing to speak")
+    await ai_daily_cap(user, "coach_tts")
     try:
         from emergentintegrations.llm.openai import OpenAITextToSpeech
         tts = OpenAITextToSpeech(api_key=EMERGENT_LLM_KEY)
@@ -260,6 +262,7 @@ async def voice_transcribe(file: UploadFile = File(...), user=Depends(get_curren
         raise HTTPException(status_code=400, detail="Empty recording")
     if len(data) > 15 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Recording too long")
+    await ai_daily_cap(user, "voice_transcribe")
     try:
         from emergentintegrations.llm.openai import OpenAISpeechToText
         if _STT is None:
