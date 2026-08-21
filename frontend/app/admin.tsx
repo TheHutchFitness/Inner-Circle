@@ -101,6 +101,9 @@ export default function Admin() {
   const toggleGymVerified = async (g: any) => {
     try { await apiFetch(token, `/api/admin/gyms/${g.id}/verify`, { method: "POST", body: JSON.stringify({ on: !g.verified }) }); await loadGymDir(); flash(g.verified ? "Unverified" : "Verified ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
   };
+  const toggleGymCoaching = async (g: any) => {
+    try { await apiFetch(token, `/api/admin/gyms/${g.id}/coaching`, { method: "POST", body: JSON.stringify({ coaching_enabled: !g.coaching_enabled }) }); await loadGymDir(); flash(g.coaching_enabled ? "Coaching off" : "Coaching enabled ✓"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
   const uploadGymLogo = async (g: any) => {
     try {
       const cur = await ImagePicker.getMediaLibraryPermissionsAsync();
@@ -363,6 +366,9 @@ export default function Admin() {
             <View style={st.tagRow}>
               <Pressable testID={`gym-verify-${g.id}`} onPress={() => toggleGymVerified(g)} style={[st.tag, g.verified && st.tagOn]}>
                 <Text style={[st.tagText, g.verified && st.tagTextOn]}>{g.verified ? "✓ VERIFIED" : "VERIFY"}</Text>
+              </Pressable>
+              <Pressable testID={`gym-coaching-${g.id}`} onPress={() => toggleGymCoaching(g)} style={[st.tag, g.coaching_enabled && st.tagOn]}>
+                <Text style={[st.tagText, g.coaching_enabled && st.tagTextOn]}>{g.coaching_enabled ? "🏋 COACHING" : "COACHING"}</Text>
               </Pressable>
               <Pressable testID={`gym-merge-${g.id}`} onPress={() => setMergeFrom(mergeFrom === g.id ? null : g.id)} style={[st.tag, mergeFrom === g.id && st.tagOn]}>
                 <Text style={[st.tagText, mergeFrom === g.id && st.tagTextOn]}>⇄ MERGE</Text>

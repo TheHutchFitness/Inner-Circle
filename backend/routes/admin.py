@@ -389,6 +389,18 @@ async def admin_rename_gym(gym_id: str, payload: dict = Body(default={}), user=D
     return {"ok": True}
 
 
+@api_router.post("/admin/gyms/{gym_id}/coaching")
+async def admin_gym_coaching(gym_id: str, payload: dict = Body(default={}), user=Depends(get_current_user)):
+    """Toggle whether a gym offers in-person coaching (members there can request it)."""
+    _require_admin(user)
+    g = await db.gyms.find_one({"id": gym_id})
+    if not g:
+        raise HTTPException(status_code=404, detail="Gym not found")
+    enabled = bool((payload or {}).get("coaching_enabled"))
+    await db.gyms.update_one({"id": gym_id}, {"$set": {"coaching_enabled": enabled}})
+    return {"ok": True, "coaching_enabled": enabled}
+
+
 @api_router.delete("/admin/gyms/{gym_id}")
 async def admin_delete_gym(gym_id: str, user=Depends(get_current_user)):
     _require_admin(user)

@@ -15,6 +15,12 @@ async def profile_me(user=Depends(get_current_user)):
     if user.get("is_founder") and "founder" not in (user.get("badges") or []):
         await db.users.update_one({"user_id": user["user_id"]}, {"$addToSet": {"badges": "founder"}})
         user.setdefault("badges", []).append("founder")
+    # Coaching is only requestable if the member's chosen gym is a coaching-enabled gym.
+    gym = (user.get("inperson_gym") or "").strip()
+    user["coaching_available"] = False
+    if gym:
+        cg = await db.gyms.find_one({"name_lower": gym.lower(), "coaching_enabled": True}, {"_id": 1})
+        user["coaching_available"] = bool(cg)
     return user
 
 
@@ -168,10 +174,10 @@ async def set_background(inp: BackgroundSet, user=Depends(get_current_user)):
 @api_router.get("/gyms")
 async def list_gyms():
     """Curated gym directory for the signup/profile dropdown. Public (no auth)."""
-    rows = await db.gyms.find({}, {"_id": 0, "name": 1, "verified": 1, "logo_media_id": 1}).sort("name", 1).to_list(1000)
+    rows = await db.gyms.find({}, {"_id": 0, "name": 1, "verified": 1, "logo_media_id": 1, "coaching_enabled": 1}).sort("name", 1).to_list(1000)
     if not rows:
         await list_gym_names()  # backfill
-        rows = await db.gyms.find({}, {"_id": 0, "name": 1, "verified": 1, "logo_media_id": 1}).sort("name", 1).to_list(1000)
+        rows = await db.gyms.find({}, {"_id": 0, "name": 1, "verified": 1, "logo_media_id": 1, "coaching_enabled": 1}).sort("name", 1).to_list(1000)
     # The private "test" gym is not shown in the public directory.
     rows = [r for r in rows if (r.get("name", "").strip().lower() != "test")]
     return {

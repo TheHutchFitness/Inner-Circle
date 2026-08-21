@@ -398,6 +398,10 @@ export default function Profile() {
           <View style={[styles.ipStatus, { borderColor: colors.warning }]}>
             <Text style={[styles.ipStatusText, { color: colors.warning }]}>⏳ REQUEST PENDING APPROVAL</Text>
           </View>
+        ) : !user.coaching_available ? (
+          <View style={[styles.ipStatus, { borderColor: colors.border }]}>
+            <Text style={[styles.ipStatusText, { color: colors.textDim }]}>{user.inperson_gym ? "This gym doesn't offer in-person coaching yet" : "Set a gym that offers coaching to request it"}</Text>
+          </View>
         ) : (
           <Pressable
             testID="request-inperson"

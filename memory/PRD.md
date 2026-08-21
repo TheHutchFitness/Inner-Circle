@@ -587,3 +587,11 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - Coaching-by-gym: NEEDS clarification (how access works + how members pick gym). Asked but user pivoted.
 - Judge section cleanup (declutter for new members).
 - "Purge Test Data" admin tool (remove test groups/gyms/chats + diag prod account) — decide whether to also remove the 10 AI leaderboard bots.
+
+## Batch 3 (2026-08)
+- New login background art generated (Gemini Nano Banana, textless cyberpunk gym) -> assets/images/login-bg.png (1408x768). Old baked-in "Hutch's Inner Circle" logo removed; "WELCOME TO THE CIRCLE" text wordmark overlays it.
+- Coaching-by-gym (admin approves each person; members pick own gym): gyms gained coaching_enabled flag. Admin: POST /api/admin/gyms/{id}/coaching toggle + "🏋 COACHING" tag in admin gyms list (toggleGymCoaching). GET /api/gyms now returns coaching_enabled. profile/me returns coaching_available (member's inperson_gym matches a coaching_enabled gym). profile.tsx MY GYM: the "REQUEST IN-PERSON COACHING" button now only shows when coaching_available; otherwise shows a note. Admin approval (inperson_client) flow unchanged. Verified: profile coaching_available works, non-admin toggle 403.
+
+## STILL QUEUED
+- Judge section cleanup (declutter for new members).
+- "Purge Test Data" admin tool (test groups/gyms/chats + diag prod account) — decide whether to also remove the 10 AI leaderboard bots.
