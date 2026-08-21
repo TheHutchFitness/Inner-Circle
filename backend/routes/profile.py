@@ -129,6 +129,19 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
     return {"ok": True, "reward_xp": reward_xp, "recap": recap}
 
 
+@api_router.get("/onboarding/big4-distribution")
+async def big4_distribution(user=Depends(get_current_user)):
+    """Sorted Big-4 totals (lb) of all members so the stats screen can show a
+    LIVE projected percentile as the athlete types, without a request per key.
+    Anonymous numbers only — no identities. Mirrors the baseline recap math."""
+    totals = []
+    async for u in db.users.find({"is_admin": {"$ne": True}}, {"_id": 0, "prs": 1}):
+        p = u.get("prs", {}) or {}
+        totals.append(int(sum(v for v in p.values() if isinstance(v, (int, float)))))
+    totals.sort()
+    return {"totals": totals, "count": len(totals)}
+
+
 async def _compute_gym_rank(target: dict) -> dict:
     """Rank a member (by Big-4 total) among the athletes at their own gym."""
     gym = (target.get("inperson_gym", "") or "").strip()

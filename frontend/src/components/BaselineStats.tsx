@@ -83,6 +83,7 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
   const [busy, setBusy] = useState<"save" | "skip" | null>(null);
   const [reward, setReward] = useState<number | null>(null);
   const [recap, setRecap] = useState<any>(null);
+  const [dist, setDist] = useState<{ totals: number[]; count: number } | null>(null);
 
   const [bench, setBench] = useState("");
   const [squat, setSquat] = useState("");
@@ -121,6 +122,30 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
     // Only re-run when entering the screen / user loads. Unit handled separately.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manual, user?.user_id]);
+
+  // Load the member Big-4 distribution once so we can show a LIVE projected
+  // percentile as the athlete types (no request per keystroke).
+  useEffect(() => {
+    let alive = true;
+    apiFetch(token, "/api/onboarding/big4-distribution")
+      .then((d) => { if (alive && d?.totals) setDist(d); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [token]);
+
+  // Live projected percentile from what's currently typed (converted to lb).
+  const toLbNum = (s: string) => {
+    const v = parseFloat(s) || 0;
+    return unit === "kg" ? v * KG : v;
+  };
+  const previewTotalLb = Math.round(toLbNum(bench) + toLbNum(squat) + toLbNum(deadlift) + toLbNum(ohp));
+  let preview: { pct: number; pos: number; n: number } | null = null;
+  if (dist && dist.count > 0 && previewTotalLb > 0) {
+    const n = dist.count;
+    const below = dist.totals.filter((t) => t <= previewTotalLb).length;
+    const above = dist.totals.filter((t) => t > previewTotalLb).length;
+    preview = { pct: Math.round((below / n) * 100), pos: above + 1, n };
+  }
 
   // Toggle lb⇄kg right here and convert whatever lifts are already typed.
   const changeUnit = (next: "lb" | "kg") => {
@@ -215,6 +240,16 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
             inputRef={(r) => (refs.current[3] = r)} onFocus={() => (focusedRef.current = 3)} onSubmitEditing={() => focusIdx(4)} />
         </LinearGradient>
 
+        {preview && (
+          <View testID="percentile-preview" style={styles.preview}>
+            <Text style={styles.previewGlyph}>📈</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.previewBig}>Stronger than {preview.pct}% of The Circle</Text>
+              <Text style={styles.previewSub}>projected #{preview.pos} of {preview.n} · {previewTotalLb} lb Big-4 total</Text>
+            </View>
+          </View>
+        )}
+
         <View style={[styles.card, styles.cardAlt]}>
           <Text style={[styles.cardTag, { color: colors.success }]}>▸ SPEED &amp; ENGINE</Text>
           <Field label="Fastest 5K" value={t5k} onChange={setT5k} unitLabel="mm:ss" numeric={false} placeholder="mm:ss" testID="bl-5k"
@@ -291,6 +326,10 @@ const styles = StyleSheet.create({
   accessoryBtn: { paddingHorizontal: spacing.md, paddingVertical: 6 },
   accessoryNext: { color: colors.brandPrimary, fontSize: 15, fontWeight: "800", letterSpacing: 1 },
   accessoryDone: { color: colors.text, fontSize: 15, fontWeight: "800", letterSpacing: 1 },
+  preview: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: colors.success, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, marginBottom: spacing.lg, marginTop: -spacing.sm },
+  previewGlyph: { fontSize: 22 },
+  previewBig: { color: colors.success, fontSize: 15, fontWeight: "900", letterSpacing: 0.3 },
+  previewSub: { color: colors.textMid, fontSize: 12, fontWeight: "600", marginTop: 2 },
   field: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
   fieldLabel: { color: colors.text, fontSize: 14, fontWeight: "700", flex: 1 },
   inputWrap: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm, minWidth: 120 },
