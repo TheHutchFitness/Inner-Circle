@@ -1977,20 +1977,10 @@ async def seed():
     except Exception as e:
         logger.warning(f"Object storage init failed at startup (will retry lazily): {e}")
 
-    # No demo/test/bot accounts are seeded. For launch, remove any legacy AI bot
-    # athletes (and their data) so leaderboards show ONLY real members. Idempotent.
-    bot_ids = [u["user_id"] async for u in db.users.find({"is_bot": True}, {"_id": 0, "user_id": 1})]
-    if bot_ids:
-        await db.users.delete_many({"is_bot": True})
-        for coll in ["cardio", "workouts", "quest_claims", "steps", "chat_messages",
-                     "store_purchases", "gym_checkins", "coach_messages", "critiques",
-                     "judge_submissions", "inperson_messages", "verified_purchases",
-                     "set_presets", "supplements", "nutrition_logs", "sessions"]:
-            try:
-                await db[coll].delete_many({"user_id": {"$in": bot_ids}})
-            except Exception:
-                pass
-        logger.info(f"Purged {len(bot_ids)} bot athletes for launch")
+    # No demo/test/bot accounts are seeded. NOTE: we intentionally do NOT delete any
+    # data on startup — startup must be non-destructive. Legacy AI bots (if any exist
+    # in an environment) are removed via the admin panel's manual "purge" tools, never
+    # automatically here.
 
 
     # (Welcome chat messages seed removed — Social Hub starts empty per owner request.)

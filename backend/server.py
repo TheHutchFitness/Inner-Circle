@@ -33,3 +33,10 @@ from routes import (  # noqa: F401
 
 # Register all collected routes AFTER every module has been imported.
 app.include_router(api_router)
+
+
+@app.get("/health")
+async def health():
+    """Lightweight unauthenticated health probe for deploy/uptime checks."""
+    return {"status": "ok"}
+
