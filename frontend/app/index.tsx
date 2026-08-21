@@ -7,6 +7,7 @@ import * as Linking from "expo-linking";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useAuth } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
+import { NeonButton } from "@/src/components/NeonButton";
 import { GlitchImage } from "@/src/components/GlitchImage";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -276,9 +277,13 @@ export default function Index() {
 
           {err && <Text testID="auth-error" style={styles.err}>{err}</Text>}
 
-          <Pressable testID="submit-auth" onPress={submit} disabled={submitting} style={styles.primaryBtn}>
-            {submitting ? <ActivityIndicator color="#001122" /> : <Text style={styles.primaryBtnText}>{mode === "login" ? "ENTER" : "ENLIST"}</Text>}
-          </Pressable>
+          <NeonButton
+            testID="submit-auth"
+            onPress={submit}
+            loading={submitting}
+            label={mode === "login" ? "ENTER" : "ENLIST"}
+            style={{ marginTop: spacing.md }}
+          />
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />

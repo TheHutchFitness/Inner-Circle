@@ -595,3 +595,7 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## STILL QUEUED
 - Judge section cleanup (declutter for new members).
 - "Purge Test Data" admin tool (test groups/gyms/chats + diag prod account) — decide whether to also remove the 10 AI leaderboard bots.
+
+## Batch 4 (2026-08)
+- NeonButton component (src/components/NeonButton.tsx): on-brand blue→orange LinearGradient CTA with glowing border + press scale, matching the reference button sheet. Applied to the login ENTER/ENLIST CTA (index.tsx). Reusable — variant "blueOrange"/"orangeBlue", label/onPress/loading/disabled props.
+- FIRST PASS only: rollout to all primary buttons across screens + bottom tab-bar restyle is a larger design pass still pending.
