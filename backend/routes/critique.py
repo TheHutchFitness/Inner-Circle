@@ -273,10 +273,14 @@ async def critique_like(room: str, post_id: str, user=Depends(get_current_user))
 @api_router.get("/rooms/{room}/{post_id}/comments")
 async def critique_comments(room: str, post_id: str, user=Depends(get_current_user)):
     _room_or_404(room)
+    uid = user["user_id"]
     rows = await db.critique_comments.find({"post_id": post_id}, {"_id": 0}).sort("created_at", 1).to_list(400)
     for r in rows:
         if isinstance(r.get("created_at"), datetime):
             r["created_at"] = r["created_at"].isoformat()
+        r["like_count"] = int(r.get("like_count", 0) or 0)
+        r["liked"] = uid in (r.get("likes") or [])
+        r.pop("likes", None)
     return rows
 
 
@@ -298,13 +302,41 @@ async def critique_comment_add(room: str, post_id: str, inp: CritiqueComment, us
         "rank": rank_from_xp(user["xp"]),
         "text": text[:500],
         "founder_backer": user.get("founder_backer", False),
+        "likes": [],
+        "like_count": 0,
         "created_at": datetime.now(timezone.utc),
     }
     await db.critique_comments.insert_one(doc)
     await db.critique_posts.update_one({"post_id": post_id}, {"$inc": {"comment_count": 1}})
+    awarded = 0
+    if post.get("user_id") != user["user_id"]:
+        awarded = await reward_peer_critique(user["user_id"])
     doc.pop("_id", None)
+    doc.pop("likes", None)
+    doc["liked"] = False
     doc["created_at"] = doc["created_at"].isoformat()
+    doc["awarded_xp"] = awarded
     return doc
+
+
+@api_router.post("/rooms/{room}/{post_id}/comments/{comment_id}/like")
+async def critique_comment_like(room: str, post_id: str, comment_id: str, user=Depends(get_current_user)):
+    _room_or_404(room)
+    uid = user["user_id"]
+    c = await db.critique_comments.find_one({"comment_id": comment_id, "post_id": post_id}, {"_id": 0, "likes": 1, "user_id": 1})
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    liked = uid in (c.get("likes") or [])
+    if liked:
+        await db.critique_comments.update_one({"comment_id": comment_id}, {"$pull": {"likes": uid}, "$inc": {"like_count": -1}})
+        if c.get("user_id") != uid:
+            await remove_critic_like(c["user_id"])
+    else:
+        await db.critique_comments.update_one({"comment_id": comment_id}, {"$addToSet": {"likes": uid}, "$inc": {"like_count": 1}})
+        if c.get("user_id") != uid:
+            await add_critic_like(c["user_id"])
+    fresh = await db.critique_comments.find_one({"comment_id": comment_id}, {"_id": 0, "like_count": 1})
+    return {"liked": not liked, "like_count": max(0, (fresh or {}).get("like_count", 0))}
 
 
 @api_router.delete("/rooms/{room}/{post_id}/comments/{comment_id}")

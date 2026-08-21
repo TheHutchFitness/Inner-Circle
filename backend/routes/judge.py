@@ -132,10 +132,14 @@ async def judge_leaderboard(user=Depends(get_current_user)):
 
 @api_router.get("/judge/{submission_id}/comments")
 async def judge_comments(submission_id: str, user=Depends(get_current_user)):
+    uid = user["user_id"]
     rows = await db.judge_comments.find({"submission_id": submission_id}, {"_id": 0}).sort("created_at", 1).to_list(300)
     for r in rows:
         if isinstance(r.get("created_at"), datetime):
             r["created_at"] = r["created_at"].isoformat()
+        r["like_count"] = int(r.get("like_count", 0) or 0)
+        r["liked"] = uid in (r.get("likes") or [])
+        r.pop("likes", None)
     return rows
 
 
@@ -156,13 +160,41 @@ async def judge_comment_add(submission_id: str, inp: JudgeComment, user=Depends(
         "rank": rank_from_xp(user["xp"]),
         "text": text[:500],
         "founder_backer": user.get("founder_backer", False),
+        "likes": [],
+        "like_count": 0,
         "created_at": datetime.now(timezone.utc),
     }
     await db.judge_comments.insert_one(doc)
     await db.judge_submissions.update_one({"submission_id": submission_id}, {"$inc": {"comment_count": 1}})
+    # Reward leaving a critique on someone else's physique (daily-capped).
+    awarded = 0
+    if sub.get("user_id") != user["user_id"]:
+        awarded = await reward_peer_critique(user["user_id"])
     doc.pop("_id", None)
+    doc.pop("likes", None)
+    doc["liked"] = False
     doc["created_at"] = doc["created_at"].isoformat()
+    doc["awarded_xp"] = awarded
     return doc
+
+
+@api_router.post("/judge/{submission_id}/comments/{comment_id}/like")
+async def judge_comment_like(submission_id: str, comment_id: str, user=Depends(get_current_user)):
+    uid = user["user_id"]
+    c = await db.judge_comments.find_one({"comment_id": comment_id, "submission_id": submission_id}, {"_id": 0, "likes": 1, "user_id": 1})
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    liked = uid in (c.get("likes") or [])
+    if liked:
+        await db.judge_comments.update_one({"comment_id": comment_id}, {"$pull": {"likes": uid}, "$inc": {"like_count": -1}})
+        if c.get("user_id") != uid:
+            await remove_critic_like(c["user_id"])
+    else:
+        await db.judge_comments.update_one({"comment_id": comment_id}, {"$addToSet": {"likes": uid}, "$inc": {"like_count": 1}})
+        if c.get("user_id") != uid:
+            await add_critic_like(c["user_id"])
+    fresh = await db.judge_comments.find_one({"comment_id": comment_id}, {"_id": 0, "like_count": 1})
+    return {"liked": not liked, "like_count": max(0, (fresh or {}).get("like_count", 0))}
 
 
 @api_router.delete("/judge/{submission_id}/comments/{comment_id}")

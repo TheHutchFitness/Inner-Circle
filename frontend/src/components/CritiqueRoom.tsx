@@ -39,7 +39,7 @@ function timeAgo(iso: string) {
 export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { token, user } = useAuth();
+  const { token, user, refresh } = useAuth();
   const { isSubscribed } = useSubscription();
 
   const canAccess = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder || user?.is_admin;
@@ -65,6 +65,7 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
   const [commentText, setCommentText] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
+  const [xpNote, setXpNote] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -150,13 +151,31 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
     if (!commentText.trim() || posting || !active) return;
     setPosting(true);
     try {
-      await apiFetch(token, `/api/rooms/${cfg.room}/${active.post_id}/comments`,
+      const res = await apiFetch(token, `/api/rooms/${cfg.room}/${active.post_id}/comments`,
         { method: "POST", body: JSON.stringify({ text: commentText.trim() }) });
       setCommentText("");
       setComments(await apiFetch(token, `/api/rooms/${cfg.room}/${active.post_id}/comments`));
       setFeed((f) => f.map((p) => p.post_id === active.post_id ? { ...p, comment_count: (p.comment_count || 0) + 1 } : p));
+      if (res?.awarded_xp) {
+        setXpNote(`+${res.awarded_xp} XP for critiquing 🔥`);
+        refresh();
+        setTimeout(() => setXpNote(null), 2600);
+      }
     } catch {}
     setPosting(false);
+  };
+
+  const likeComment = async (c: any) => {
+    if (!active) return;
+    const wasLiked = !!c.liked;
+    setComments((list) => list.map((x) => x.comment_id === c.comment_id
+      ? { ...x, liked: !wasLiked, like_count: Math.max(0, (x.like_count || 0) + (wasLiked ? -1 : 1)) } : x));
+    try {
+      await apiFetch(token, `/api/rooms/${cfg.room}/${active.post_id}/comments/${c.comment_id}/like`, { method: "POST" });
+    } catch {
+      setComments((list) => list.map((x) => x.comment_id === c.comment_id
+        ? { ...x, liked: wasLiked, like_count: Math.max(0, (x.like_count || 0) + (wasLiked ? 1 : -1)) } : x));
+    }
   };
 
   const deleteComment = async (c: any) => {
@@ -359,6 +378,9 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
                   <View style={{ flex: 1 }}>
                     <Text style={st.cmtName}>{c.display_name}{c.founder_backer ? " ★" : ""} <Text style={st.cmtTime}>· {timeAgo(c.created_at)}</Text></Text>
                     <Text style={st.cmtText}>{c.text}{c.edited ? <Text style={st.cmtTime}>  · edited</Text> : null}</Text>
+                    <Pressable testID={`like-comment-${c.comment_id}`} onPress={() => likeComment(c)} hitSlop={8} style={{ alignSelf: "flex-start", marginTop: 6 }}>
+                      <Text style={[st.cmtLike, c.liked && { color: colors.error }]}>{c.liked ? "♥" : "♡"} {c.like_count || 0}</Text>
+                    </Pressable>
                   </View>
                   {(c.user_id === user?.user_id || user?.is_admin) && (
                     <View style={{ flexDirection: "row", gap: 10 }}>
@@ -371,6 +393,7 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
                 </View>
               ))}
             </ScrollView>
+            {xpNote && <Text testID={`${cfg.room}-xp-note`} style={st.xpNote}>{xpNote}</Text>}
             <View style={st.cmtBar}>
               <TextInput value={commentText} onChangeText={setCommentText} placeholder={editingCommentId ? "Edit your critique…" : "Add your critique…"} placeholderTextColor={colors.textDim} style={[st.input, { flex: 1 }]} />
               <Pressable testID={`${cfg.room}-post-comment`} onPress={editingCommentId ? saveEditComment : postComment} disabled={posting} style={[st.sendBtn, { backgroundColor: cfg.accent }]}>
@@ -437,6 +460,8 @@ const st = StyleSheet.create({
   cmtName: { color: colors.text, fontWeight: "800", fontSize: 13 },
   cmtTime: { color: colors.textDim, fontWeight: "600", fontSize: 10 },
   cmtText: { color: colors.textMid, fontSize: 13, marginTop: 2, lineHeight: 18 },
+  cmtLike: { color: colors.textDim, fontSize: 13, fontWeight: "800" },
+  xpNote: { color: colors.success, fontSize: 13, fontWeight: "900", textAlign: "center", paddingVertical: spacing.sm },
   cmtBar: { flexDirection: "row", gap: spacing.sm, alignItems: "center", marginTop: spacing.sm },
   sendBtn: { borderRadius: radius.sm, paddingHorizontal: 18, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
   sendText: { color: "#000", fontWeight: "900", letterSpacing: 1, fontSize: 12 },

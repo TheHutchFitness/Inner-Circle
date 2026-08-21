@@ -27,13 +27,13 @@ export function AiStatusBanner({ label = "AI scoring", peerReview = true }: { la
 
   return (
     <View style={styles.wrap} testID="ai-outage-banner">
-      <Text style={styles.icon}>⚠️</Text>
+      <Text style={styles.icon}>⚙️</Text>
       <View style={{ flex: 1 }}>
-        <Text style={styles.title}>{label} is paused right now</Text>
+        <Text style={styles.title}>{label} is paused during the Founder run</Text>
         <Text style={styles.sub}>
           {peerReview
-            ? "You can still post your lifts and critique each other — the room stays fully open. AI verdicts will return shortly."
-            : "The AI Coach is catching its breath — everything else in the app works. Try again shortly."}
+            ? "AI verdicts switch on once the beta wraps and paid members start joining. Until then, post your lifts and critique each other — the room stays fully open."
+            : "The AI Coach switches on once the beta wraps and paid members start joining. Everything else in the app works as normal."}
         </Text>
       </View>
     </View>

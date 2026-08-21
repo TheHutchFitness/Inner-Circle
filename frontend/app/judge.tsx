@@ -105,7 +105,7 @@ function JudgeHistory({ hist, mediaUrl }: { hist: any; mediaUrl: (id: string) =>
 export default function Judge() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { token, user } = useAuth();
+  const { token, user, refresh } = useAuth();
   const { isSubscribed } = useSubscription();
 
   const canJudge = isSubscribed || user?.skool_verified || user?.all_rooms_access || user?.is_founder || user?.is_admin;
@@ -126,6 +126,7 @@ export default function Judge() {
   const [commentText, setCommentText] = useState("");
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
+  const [xpNote, setXpNote] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -207,14 +208,31 @@ export default function Judge() {
     if (!commentText.trim() || posting || !active) return;
     setPosting(true);
     try {
-      await apiFetch(token, `/api/judge/${active.submission_id}/comments`, {
+      const res = await apiFetch(token, `/api/judge/${active.submission_id}/comments`, {
         method: "POST", body: JSON.stringify({ text: commentText.trim() }),
       });
       setCommentText("");
       setComments(await apiFetch(token, `/api/judge/${active.submission_id}/comments`));
       setFeed((f) => f.map((s) => s.submission_id === active.submission_id ? { ...s, comment_count: (s.comment_count || 0) + 1 } : s));
+      if (res?.awarded_xp) {
+        setXpNote(`+${res.awarded_xp} XP for critiquing 🔥`);
+        refresh();
+        setTimeout(() => setXpNote(null), 2600);
+      }
     } catch {}
     setPosting(false);
+  };
+
+  const likeComment = async (c: any) => {
+    const wasLiked = !!c.liked;
+    setComments((list) => list.map((x) => x.comment_id === c.comment_id
+      ? { ...x, liked: !wasLiked, like_count: Math.max(0, (x.like_count || 0) + (wasLiked ? -1 : 1)) } : x));
+    try {
+      await apiFetch(token, `/api/judge/${active.submission_id}/comments/${c.comment_id}/like`, { method: "POST" });
+    } catch {
+      setComments((list) => list.map((x) => x.comment_id === c.comment_id
+        ? { ...x, liked: wasLiked, like_count: Math.max(0, (x.like_count || 0) + (wasLiked ? 1 : -1)) } : x));
+    }
   };
 
   const deleteComment = async (c: any) => {
@@ -430,9 +448,13 @@ export default function Judge() {
                     )}
                   </View>
                   <Text style={st.commentText}>{c.text}{c.edited ? <Text style={{ color: colors.textDim, fontSize: 10, fontStyle: "italic" }}>  · edited</Text> : null}</Text>
+                  <Pressable testID={`like-comment-${c.comment_id}`} onPress={() => likeComment(c)} hitSlop={8} style={st.cLikeBtn}>
+                    <Text style={[st.cLikeText, c.liked && { color: colors.error }]}>{c.liked ? "♥" : "♡"} {c.like_count || 0}</Text>
+                  </Pressable>
                 </View>
               ))}
             </ScrollView>
+            {xpNote && <Text testID="judge-xp-note" style={st.xpNote}>{xpNote}</Text>}
             <View style={st.commentInputRow}>
               <TextInput
                 testID="judge-comment-input" value={commentText} onChangeText={setCommentText}
@@ -549,6 +571,9 @@ const st = StyleSheet.create({
   delCommentText: { color: colors.error, fontSize: 12, fontWeight: "900", lineHeight: 14 },
   commentName: { color: colors.text, fontWeight: "800", fontSize: 13, flex: 1 },
   commentText: { color: colors.textMid, marginTop: 4, lineHeight: 19 },
+  cLikeBtn: { alignSelf: "flex-start", marginTop: 6, paddingVertical: 2, paddingHorizontal: 4 },
+  cLikeText: { color: colors.textDim, fontSize: 13, fontWeight: "800" },
+  xpNote: { color: colors.success, fontSize: 13, fontWeight: "900", textAlign: "center", paddingVertical: spacing.sm },
   commentInputRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, alignItems: "center" },
   commentInput: { flex: 1, backgroundColor: colors.surface3, borderRadius: radius.sm, paddingHorizontal: spacing.md, color: colors.text, borderWidth: 1, borderColor: colors.border, minHeight: 44 },
   commentSend: { paddingHorizontal: spacing.lg, backgroundColor: colors.brandPrimary, borderRadius: radius.sm, alignItems: "center", justifyContent: "center", minHeight: 44 },

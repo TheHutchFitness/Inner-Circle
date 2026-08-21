@@ -313,6 +313,8 @@ def default_user_doc(email: str, name: str, picture: str = "") -> dict:
         "prs": {"bench": 0, "squat": 0, "deadlift": 0, "ohp": 0},
         "baseline_set": False,
         "badges": [],
+        "critic_likes": 0,
+        "top_critic": False,
         "workouts_logged": 0,
         "streak_days": 0,
         "last_workout_date": None,
@@ -1196,6 +1198,51 @@ async def ai_is_degraded() -> bool:
     if (datetime.now(timezone.utc) - lf) > timedelta(minutes=15):
         return False
     return lo is None or lf > lo
+
+
+# ---- Peer critique rewards (keep the rooms lively even when AI is resting) ----
+CRITIQUE_XP = 20            # XP for leaving a critique on someone else's post
+CRITIQUE_DAILY_CAP = 5     # max rewarded critiques per day (anti-spam)
+CRITIQUE_LIKE_XP = 10      # XP to a critic when their critique gets a fresh like
+TOP_CRITIC_LIKES = 20      # total critique-likes received to earn the Top Critic badge
+
+
+async def reward_peer_critique(user_id: str) -> int:
+    """Award daily-capped XP for leaving a critique. Returns XP granted (0 if capped)."""
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    doc = await db.critique_daily.find_one_and_update(
+        {"user_id": user_id, "day": day},
+        {"$inc": {"count": 1}},
+        upsert=True,
+        return_document=True,
+    )
+    if (doc or {}).get("count", 1) > CRITIQUE_DAILY_CAP:
+        return 0
+    await award_xp(user_id, CRITIQUE_XP)
+    return CRITIQUE_XP
+
+
+async def add_critic_like(author_id: str) -> None:
+    """A critic's comment got a fresh like: reward them + progress the Top Critic badge."""
+    await award_xp(author_id, CRITIQUE_LIKE_XP)
+    u = await db.users.find_one_and_update(
+        {"user_id": author_id},
+        {"$inc": {"critic_likes": 1}},
+        return_document=True,
+    )
+    if u and int(u.get("critic_likes", 0)) >= TOP_CRITIC_LIKES and not u.get("top_critic"):
+        await db.users.update_one(
+            {"user_id": author_id},
+            {"$set": {"top_critic": True}, "$addToSet": {"badges": "top_critic"}},
+        )
+
+
+async def remove_critic_like(author_id: str) -> None:
+    """A like was removed from a critic's comment: roll back the like tally (not XP)."""
+    await db.users.update_one(
+        {"user_id": author_id, "critic_likes": {"$gt": 0}},
+        {"$inc": {"critic_likes": -1}},
+    )
 
 
 

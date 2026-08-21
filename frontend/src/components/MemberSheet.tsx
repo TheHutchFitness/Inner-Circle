@@ -91,6 +91,7 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
                 {m.is_creator && <View style={styles.bCreator}><Text style={styles.bCreatorText}>✔ CREATOR</Text></View>}
                 {m.founder_backer && <View style={styles.bBacker}><Text style={styles.bBackerText}>★ FOUNDING BACKER</Text></View>}
                 {m.skool_verified && <View style={styles.bSkool}><Text style={styles.bSkoolText}>✓ SKOOL</Text></View>}
+                {m.top_critic && <View style={styles.bCritic}><Text style={styles.bCriticText}>🎖 TOP CRITIC</Text></View>}
               </View>
 
               <View style={styles.big4Band}>
@@ -170,6 +171,8 @@ const styles = StyleSheet.create({
   bCreatorText: { color: colors.brandPrimary, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   bSkool: { backgroundColor: colors.success, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
   bSkoolText: { color: "#002200", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  bCritic: { backgroundColor: "rgba(255,176,32,0.18)", borderWidth: 1, borderColor: colors.warning, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.sm },
+  bCriticText: { color: colors.warning, fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   prGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.lg, width: "100%" },
   big4Band: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginTop: spacing.lg, paddingHorizontal: spacing.md, paddingVertical: 10, borderRadius: radius.md, borderWidth: 1, borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
   gymRibbon: { marginTop: 6, paddingHorizontal: spacing.md, paddingVertical: 4, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: colors.surface3 },

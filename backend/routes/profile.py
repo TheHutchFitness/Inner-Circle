@@ -676,6 +676,8 @@ async def public_user(user_id: str, user=Depends(get_current_user)):
         "gym_members": gr["members"],
         "workouts_logged": u.get("workouts_logged", 0),
         "badges_count": len(u.get("badges", []) or []),
+        "top_critic": bool(u.get("top_critic")),
+        "critic_likes": int(u.get("critic_likes", 0) or 0),
         "loadout": _clean_loadout(u),
         "photo_media_id": u.get("photo_media_id"),
         "use_photo": bool(u.get("use_photo")),
