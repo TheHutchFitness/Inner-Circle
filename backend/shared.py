@@ -1311,6 +1311,13 @@ async def _build_quests(user, scope: str, now: datetime):
                 complete = False
             objectives.append({"label": ob["label"], "current": cur, "target": ob["target"]})
         claim = await db.quest_claims.find_one({"user_id": user["user_id"], "quest_key": quest_key})
+        # Admin override: force a quest complete/incomplete for this user
+        ov = await db.quest_overrides.find_one({"user_id": user["user_id"], "quest_key": quest_key})
+        if ov:
+            if ov.get("forced") == "complete":
+                complete = True
+            elif ov.get("forced") == "incomplete":
+                complete = False
         completers = await db.quest_claims.count_documents({"quest_key": quest_key})
         out.append({
             "id": quest_key,

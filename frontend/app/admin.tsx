@@ -23,7 +23,7 @@ export default function Admin() {
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [gyms, setGyms] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
-  const [tab, setTab] = useState<"users" | "groups" | "gyms" | "cosmetics">("users");
+  const [tab, setTab] = useState<"users" | "groups" | "gyms" | "cosmetics" | "quests">("users");
   const [redOn, setRedOn] = useState(!!user?.enhanced);
   const [storeItems, setStoreItems] = useState<any[]>([]);
   const [nf, setNf] = useState<any>({ kind: "aura", name: "", description: "", rarity: "legendary", icon: "★", colors: "#7A5CFF,#00E5FF", motion: "pulse" });
@@ -43,7 +43,7 @@ export default function Admin() {
   const loadFeatured = async () => {
     try { setFeatured((await apiFetch(token, "/api/featured")).featured || []); } catch {}
   };
-  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); loadSecurity(); loadClans(); loadPurge(); } /* eslint-disable-line */ }, [token]);
+  useEffect(() => { if (token) { loadMembers(); loadFeatured(); loadStore(); loadGymDir(); loadChallenge(); loadSecurity(); loadClans(); loadPurge(); loadCustom(); } /* eslint-disable-line */ }, [token]);
 
   const loadStore = async () => {
     try { setStoreItems((await apiFetch(token, "/api/admin/store")).items || []); } catch {}
@@ -135,6 +135,46 @@ export default function Admin() {
   const [chalTitle, setChalTitle] = useState("");
   // ---- Clan directory (admin moderation) ----
   const [clanDir, setClanDir] = useState<any[]>([]);
+  // ---- Quests admin ----
+  const [qSearch, setQSearch] = useState("");
+  const [qUser, setQUser] = useState<{ id: string; name: string } | null>(null);
+  const [qData, setQData] = useState<any>(null);
+  const [customList, setCustomList] = useState<any[]>([]);
+  const [ncq, setNcq] = useState<{ title: string; xp: string; label: string; target: "all" | "user" }>({ title: "", xp: "150", label: "Complete the quest", target: "all" });
+  const loadCustom = async () => {
+    try { setCustomList((await apiFetch(token, "/api/admin/quests/custom")).quests || []); } catch {}
+  };
+  const loadUserQuests = async (uid: string, name: string) => {
+    setQUser({ id: uid, name });
+    try { setQData(await apiFetch(token, `/api/admin/quests/user?user_id=${uid}`)); } catch {}
+  };
+  const overrideQuest = async (quest_key: string, forced: "complete" | "incomplete" | "clear") => {
+    if (!qUser) return;
+    try {
+      await apiFetch(token, "/api/admin/quests/override", { method: "POST", body: JSON.stringify({ user_id: qUser.id, quest_key, forced }) });
+      await loadUserQuests(qUser.id, qUser.name); flash("Quest updated ✓");
+    } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const markCustom = async (custom_id: string, complete: boolean) => {
+    if (!qUser) return;
+    try {
+      await apiFetch(token, "/api/admin/quests/custom/mark", { method: "POST", body: JSON.stringify({ custom_id, user_id: qUser.id, complete }) });
+      await loadUserQuests(qUser.id, qUser.name); flash(complete ? "Marked complete ✓" : "Marked incomplete");
+    } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const createCustom = async () => {
+    if (!ncq.title.trim()) { flash("Title required"); return; }
+    const target = ncq.target === "user" && qUser ? qUser.id : "all";
+    try {
+      await apiFetch(token, "/api/admin/quests/custom", { method: "POST", body: JSON.stringify({ title: ncq.title.trim(), reward_xp: parseInt(ncq.xp || "0", 10) || 0, objective_label: ncq.label.trim(), target }) });
+      setNcq({ title: "", xp: "150", label: "Complete the quest", target: "all" });
+      await loadCustom(); if (qUser) await loadUserQuests(qUser.id, qUser.name);
+      flash("Custom quest created ✓");
+    } catch (e: any) { flash(e?.message || "Failed"); }
+  };
+  const deleteCustom = async (id: string) => {
+    try { await apiFetch(token, `/api/admin/quests/custom/${id}`, { method: "DELETE" }); await loadCustom(); if (qUser) await loadUserQuests(qUser.id, qUser.name); flash("Deleted"); } catch (e: any) { flash(e?.message || "Failed"); }
+  };
   const loadClans = async () => {
     try { setClanDir((await apiFetch(token, "/api/admin/groups")).groups || []); } catch {}
   };
@@ -323,7 +363,7 @@ export default function Admin() {
         </View>
 
         <View style={st.tabBar}>
-          {([["users", "👥 USERS"], ["groups", "🛡 CLANS"], ["gyms", "🏋 GYMS"], ["cosmetics", "🛒 COSMETICS"]] as const).map(([k, label]) => (
+          {([["users", "👥 USERS"], ["groups", "🛡 CLANS"], ["gyms", "🏋 GYMS"], ["cosmetics", "🛒 COSMETICS"], ["quests", "🗺 QUESTS"]] as const).map(([k, label]) => (
             <Pressable key={k} testID={`admin-tab-${k}`} onPress={() => setTab(k)} style={[st.tabBtn, tab === k && st.tabBtnOn]}>
               <Text style={[st.tabBtnText, tab === k && st.tabBtnTextOn]}>{label}</Text>
             </Pressable>
@@ -654,6 +694,82 @@ export default function Admin() {
           </View>
         ))}
         </>)}
+
+        {tab === "quests" && (<>
+        <Text style={st.section}>🗺 QUEST CONTROL</Text>
+        <Text style={st.dim}>Search a member to view their quests. Force any quest complete/incomplete, or create custom quests for one member or everyone.</Text>
+        <View style={st.searchRow}>
+          <TextInput testID="quest-user-search" value={qSearch} onChangeText={(t) => { setQSearch(t); loadMembers(t); }} placeholder="Search member by name…" placeholderTextColor={colors.textDim} style={st.searchInput} />
+        </View>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: spacing.sm }}>
+          {members.slice(0, 12).map((m) => (
+            <Pressable key={m.user_id} testID={`quest-pick-${m.user_id}`} onPress={() => loadUserQuests(m.user_id, m.display_name)} style={[st.pickChip, qUser?.id === m.user_id && st.pickChipOn]}>
+              <Text style={[st.pickChipText, qUser?.id === m.user_id && st.pickChipTextOn]}>{m.display_name}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {qUser && qData && (
+          <>
+            <Text style={st.cardTitle}>{qUser.name}'s quests</Text>
+            {(["daily", "weekly", "monthly", "boss"] as const).map((sc) => (
+              <View key={sc} style={st.card}>
+                <Text style={st.qScope}>{sc.toUpperCase()}</Text>
+                {(qData[sc] || []).map((q: any) => (
+                  <View key={q.id} style={st.qRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.qTitle}>{q.title}</Text>
+                      <Text style={[st.qState, { color: q.complete ? colors.success : colors.textDim }]}>{q.claimed ? "✓ claimed" : q.complete ? "complete" : "in progress"}</Text>
+                    </View>
+                    <Pressable testID={`q-done-${q.id}`} onPress={() => overrideQuest(q.id, "complete")} style={[st.qBtn, { borderColor: colors.success }]}><Text style={[st.qBtnText, { color: colors.success }]}>✓</Text></Pressable>
+                    <Pressable testID={`q-undo-${q.id}`} onPress={() => overrideQuest(q.id, "incomplete")} style={[st.qBtn, { borderColor: colors.error }]}><Text style={[st.qBtnText, { color: colors.error }]}>✗</Text></Pressable>
+                    <Pressable testID={`q-clear-${q.id}`} onPress={() => overrideQuest(q.id, "clear")} style={[st.qBtn, { borderColor: colors.border }]}><Text style={[st.qBtnText, { color: colors.textDim }]}>↺</Text></Pressable>
+                  </View>
+                ))}
+              </View>
+            ))}
+            {(qData.custom || []).length > 0 && (
+              <View style={st.card}>
+                <Text style={st.qScope}>CUSTOM (for this member)</Text>
+                {qData.custom.map((q: any) => (
+                  <View key={q.id} style={st.qRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={st.qTitle}>{q.title} · {q.reward_xp} XP</Text>
+                      <Text style={[st.qState, { color: q.complete ? colors.success : colors.textDim }]}>{q.claimed ? "✓ claimed" : q.complete ? "complete" : "not done"} · {q.target === "all" ? "everyone" : "this member"}</Text>
+                    </View>
+                    <Pressable testID={`cq-done-${q.id}`} onPress={() => markCustom(q.id, true)} style={[st.qBtn, { borderColor: colors.success }]}><Text style={[st.qBtnText, { color: colors.success }]}>✓</Text></Pressable>
+                    <Pressable testID={`cq-undo-${q.id}`} onPress={() => markCustom(q.id, false)} style={[st.qBtn, { borderColor: colors.error }]}><Text style={[st.qBtnText, { color: colors.error }]}>✗</Text></Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
+
+        <Text style={st.section}>➕ CREATE CUSTOM QUEST</Text>
+        <View style={st.card}>
+          <TextInput testID="ncq-title" value={ncq.title} onChangeText={(t) => setNcq({ ...ncq, title: t })} placeholder="Quest title" placeholderTextColor={colors.textDim} style={st.annInput2} />
+          <TextInput testID="ncq-label" value={ncq.label} onChangeText={(t) => setNcq({ ...ncq, label: t })} placeholder="Objective label" placeholderTextColor={colors.textDim} style={st.annInput2} />
+          <TextInput testID="ncq-xp" value={ncq.xp} onChangeText={(t) => setNcq({ ...ncq, xp: t.replace(/[^0-9]/g, "") })} placeholder="Reward XP" placeholderTextColor={colors.textDim} keyboardType="number-pad" style={st.annInput2} />
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+            <Pressable testID="ncq-target-all" onPress={() => setNcq({ ...ncq, target: "all" })} style={[st.pickChip, ncq.target === "all" && st.pickChipOn]}><Text style={[st.pickChipText, ncq.target === "all" && st.pickChipTextOn]}>EVERYONE</Text></Pressable>
+            <Pressable testID="ncq-target-user" onPress={() => setNcq({ ...ncq, target: "user" })} style={[st.pickChip, ncq.target === "user" && st.pickChipOn]}><Text style={[st.pickChipText, ncq.target === "user" && st.pickChipTextOn]}>{qUser ? qUser.name.toUpperCase() : "PICK A MEMBER"}</Text></Pressable>
+          </View>
+          <Pressable testID="ncq-create" onPress={createCustom} style={[st.annBtn, { marginTop: spacing.sm }]}><Text style={st.annBtnText}>+ CREATE QUEST</Text></Pressable>
+        </View>
+
+        <Text style={st.section}>🗂 ALL CUSTOM QUESTS ({customList.length})</Text>
+        {customList.length === 0 ? <Text style={st.dim}>None yet.</Text> : customList.map((c) => (
+          <View key={c.id} style={st.qRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={st.name}>{c.title} · {c.reward_xp} XP</Text>
+              <Text style={st.cardSub}>{c.target === "all" ? "Everyone" : "One member"} · {c.objective_label}</Text>
+            </View>
+            <Pressable testID={`cq-del-${c.id}`} onPress={() => deleteCustom(c.id)} style={st.removeBtn}><Text style={st.removeText}>DELETE</Text></Pressable>
+          </View>
+        ))}
+        </>)}
+
         {msg && <Text style={st.msg}>{msg}</Text>}
       </ScrollView>
     </View>
@@ -711,6 +827,16 @@ const st = StyleSheet.create({
   name: { color: colors.text, fontWeight: "800", letterSpacing: 1 },
   reason: { color: colors.warning, fontSize: 12, marginTop: 2 },
   removeBtn: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.error },
+  pickChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  pickChipOn: { borderColor: colors.brandPrimary, backgroundColor: "rgba(0,85,255,0.12)" },
+  pickChipText: { color: colors.textDim, fontWeight: "800", fontSize: 12 },
+  pickChipTextOn: { color: colors.brandPrimary },
+  qScope: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 1.5, fontSize: 11, marginBottom: 6 },
+  qRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 7, borderTopWidth: 1, borderTopColor: colors.border },
+  qTitle: { color: colors.text, fontWeight: "700", fontSize: 13 },
+  qState: { fontSize: 11, marginTop: 1, fontWeight: "700" },
+  qBtn: { width: 34, height: 34, borderRadius: radius.sm, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  qBtnText: { fontWeight: "900", fontSize: 15 },
   removeText: { color: colors.error, fontWeight: "900", fontSize: 10, letterSpacing: 1 },
   searchRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   filterChip: { alignSelf: "flex-start", paddingVertical: 7, paddingHorizontal: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, marginBottom: spacing.md },

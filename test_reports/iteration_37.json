@@ -1,0 +1,37 @@
+{
+  "summary": "Backend fully verified for iteration 37 (8/8 pytest passed). Admin quest tool (list/override/custom/mark/claim/delete + 403 for non-admins) works end-to-end. /api/journey returns atrophy object. /api/leaderboard/xp and /api/cardio/leaderboard exclude bots. /api/chat/unread-gyms returns proper shape. Frontend Journey does NOT crash and renders (journey-story visible, chronicle openable, intro gated by localStorage). Could not fully drive the d20 combat flow via web preview because journey-node-{i} pressables did not surface in DOM despite the API returning 12 nodes — the map ScrollView appears to render the RPG map but the node hit-targets/labels are not present in the visible DOM in mobile web preview, so tapping a node to open ENGAGE could not be scripted. Home page & Admin panel deep-links loaded blank / redirected to login in the shared-preview session (auth persistence quirk) so admin-tab-quests, Home ROOMS ordering, and CUSTOM PROGRAM label could not be validated via automation; the code review confirms testIDs are wired.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "journey.tsx map nodes", "issue": "journey-node-{i} Pressables not present in web-preview DOM even though /api/journey returned 12 nodes (including the admin-created custom quest with complete=true). Rival testIDs (rival-npc_*) DO render. This blocks tapping quest nodes to open the ENGAGE modal — cannot drive the d20 combat + claim flow. Likely a hydration / ScrollView-clip issue at mobile viewport 390x844, or nodes rendered off-screen inside the horizontal ScrollView. Reference: /app/frontend/app/journey.tsx:703-709", "testID": "journey-node-*", "priority": "HIGH"},
+      {"component": "settings.tsx replay-whatsnew", "issue": "Button exists (testID replay-whatsnew found), but clicking it did not visibly open a What's New / CHANGELOG modal in the web-preview session. Please verify the popup mounts on web. Reference: /app/frontend/app/settings.tsx", "testID": "replay-whatsnew", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Journey d20 combat", "issue": "Because journey-node-{i} did not render in the DOM, could not open ENGAGE modal to test combat-roll / combat-claim from web preview. Backend piece is verified (custom quest complete + claim works via curl).", "affected_testIDs": ["journey-node-*", "quest-engage", "combat-roll", "combat-claim"]},
+      {"flow": "Admin /admin deep-link + Home", "issue": "Navigating directly to /admin from web preview after login rendered the login screen; /home rendered a blank scaffold below the tab bar. May be a client-side auth-restore race for deep-links in web preview. testIDs admin-tab-quests and Home ROOMS layout could NOT be automation-verified this run.", "affected_testIDs": ["admin-tab-quests"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter37_admin_quests_atrophy.py", "/app/test_reports/pytest/pytest_iter37.xml"],
+  "action_items": [
+    "Investigate why Pressable testID journey-node-{i} is missing from web DOM on mobile viewport — verify the map ScrollView renders these hit targets. If they only appear after horizontal scroll, still they should be in the DOM. Consider adding testID onto their container to allow at-a-glance QA.",
+    "Verify Settings 'REPLAY WHAT'S NEW' button actually mounts the What's New modal on web (clicked but no modal DOM appeared).",
+    "Manually validate on-device (Expo Go) the following flows since automation could not: (a) tap quest node -> ENGAGE -> combat d20 -> VICTORY -> claim; (b) Home ROOMS order (red Founders on top, last card 'CUSTOM PROGRAM'); (c) Admin /admin -> 🗺 QUESTS tab; (d) The Room gate for a fresh normal-rank signup.",
+    "Backend all clean — no action needed."
+  ],
+  "critical_code_review_comments": [
+    "shared.py _build_quests uses quest_key = 'scope:tmpl:pkey' as the override key — matches the ID returned to clients (so admin panel must send the full quest id, not just 'scope:tmpl'). The problem statement wording 'quest_key' is ambiguous — recommend documenting that quest_key is the fully qualified id.",
+    "journey.tsx (1019 lines) is over the recommended 700-line limit; consider splitting Combat, Chronicle, and map rendering into modules.",
+    "routes/chat.py post_message has minor formatting issue: two fields on one line ('founder_backer': user.get('founder_backer', False),        'text': text[:500]) — cosmetic only."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter37_admin_quests_atrophy.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "~50% (Journey renders and does not crash, chronicle/story button OK; combat + admin quests tab + Home/Room gate NOT verified via automation)"},
+  "seed_data_creation": "Created custom quest cq_edc0d1446d7e (title TEST_iter37_ui) targeted at owner, marked complete, then DELETED at end of testing. No lingering test artifacts (verified DELETE returned {ok:true}).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend admin-quest / atrophy / leaderboard-bot-exclusion / unread-gyms all pass in /app/backend/tests/test_iter37_admin_quests_atrophy.py. If frontend combat testing is needed, seed a custom quest for the test account via /api/admin/quests/custom + /api/admin/quests/custom/mark, then on /journey the map ScrollView should expose journey-node-{i} — the LAST index in the API-nodes array is the custom quest. If those testIDs still don't render in the DOM, that is a real FE bug to raise (see this iteration's HIGH-priority ui_bug). Preview shared IP has auth throttling — always login via in-browser fetch (page.evaluate) rather than urllib.",
+  "rca_of_issue": "N/A for backend (all pass). For frontend map-nodes: hypothesis is that the horizontal ScrollView positions node Pressables at absolute x=70+ but the RN-web renderer may be gating them behind pointer/layout after zoom or after data hydration. In this run journey-story, journey-sfx, journey-milestone, rival-npc_* all rendered — only journey-node-{i} did not. That points to `nodes.map((n,i)=>...)` executing with an empty local `nodes` array despite API returning 12 (state race between initial render and setData). Main agent to inspect useEffect / setState timing in journey.tsx."
+}

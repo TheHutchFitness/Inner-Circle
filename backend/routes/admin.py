@@ -660,3 +660,97 @@ async def admin_gym_logo(gym_id: str, file: UploadFile = File(...), user=Depends
     })
     await db.gyms.update_one({"id": gym_id}, {"$set": {"logo_media_id": media_id}})
     return {"ok": True, "logo_media_id": media_id}
+
+
+
+# ---------- Admin: Quest management ----------
+@api_router.get("/admin/quests/user")
+async def admin_user_quests(user_id: str, user=Depends(get_current_user)):
+    """Every quest (template + custom) for a target user, with completion state."""
+    _require_admin(user)
+    target = await db.users.find_one({"user_id": user_id})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    now = datetime.now(timezone.utc)
+    out = {"user_id": user_id, "name": target.get("display_name") or "Athlete"}
+    for sc in ("daily", "weekly", "monthly", "boss"):
+        rows = await _build_quests(target, sc, now)
+        out[sc] = [{"id": q["id"], "title": q["title"], "complete": q["complete"], "claimed": q["claimed"], "reward_label": q.get("reward_label", "")} for q in rows]
+    cqs = await db.custom_quests.find({"$or": [{"target": "all"}, {"target": user_id}]}).sort("created_at", -1).to_list(50)
+    customs = []
+    for cq in cqs:
+        st = await db.custom_quest_state.find_one({"custom_id": cq["id"], "user_id": user_id}) or {}
+        customs.append({"id": cq["id"], "title": cq["title"], "reward_xp": cq.get("reward_xp", 0), "target": cq.get("target"), "complete": bool(st.get("complete")), "claimed": bool(st.get("claimed"))})
+    out["custom"] = customs
+    return out
+
+
+@api_router.post("/admin/quests/override")
+async def admin_quest_override(payload: dict, user=Depends(get_current_user)):
+    """Force a template quest complete/incomplete for a user (or 'clear' the override)."""
+    _require_admin(user)
+    uid = (payload.get("user_id") or "").strip()
+    qk = (payload.get("quest_key") or "").strip()
+    forced = payload.get("forced")
+    if not uid or not qk:
+        raise HTTPException(status_code=400, detail="user_id and quest_key required")
+    if forced in (None, "", "clear"):
+        await db.quest_overrides.delete_one({"user_id": uid, "quest_key": qk})
+    elif forced in ("complete", "incomplete"):
+        await db.quest_overrides.update_one({"user_id": uid, "quest_key": qk}, {"$set": {"forced": forced}}, upsert=True)
+    else:
+        raise HTTPException(status_code=400, detail="forced must be complete/incomplete/clear")
+    return {"ok": True}
+
+
+@api_router.get("/admin/quests/custom")
+async def admin_list_custom(user=Depends(get_current_user)):
+    _require_admin(user)
+    rows = await db.custom_quests.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for r in rows:
+        if isinstance(r.get("created_at"), datetime):
+            r["created_at"] = r["created_at"].isoformat()
+    return {"quests": rows}
+
+
+@api_router.post("/admin/quests/custom")
+async def admin_create_custom(payload: dict, user=Depends(get_current_user)):
+    """Create a custom quest for everyone ('all') or one user."""
+    _require_admin(user)
+    title = (payload.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title required")
+    doc = {
+        "id": new_id("cq"),
+        "created_by": user["user_id"],
+        "target": (payload.get("target") or "all").strip() or "all",
+        "title": title[:80],
+        "flavor": (payload.get("flavor") or "").strip()[:300],
+        "reward_xp": max(0, min(2000, int(payload.get("reward_xp", 150) or 0))),
+        "objective_label": (payload.get("objective_label") or "Complete the quest").strip()[:120],
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.custom_quests.insert_one(doc)
+    doc.pop("_id", None)
+    doc["created_at"] = doc["created_at"].isoformat()
+    return {"ok": True, "quest": doc}
+
+
+@api_router.post("/admin/quests/custom/mark")
+async def admin_mark_custom(payload: dict, user=Depends(get_current_user)):
+    """Mark a custom quest complete/incomplete for a specific user."""
+    _require_admin(user)
+    cid = (payload.get("custom_id") or "").strip()
+    uid = (payload.get("user_id") or "").strip()
+    if not cid or not uid:
+        raise HTTPException(status_code=400, detail="custom_id and user_id required")
+    await db.custom_quest_state.update_one({"custom_id": cid, "user_id": uid}, {"$set": {"complete": bool(payload.get("complete"))}}, upsert=True)
+    return {"ok": True}
+
+
+@api_router.delete("/admin/quests/custom/{cid}")
+async def admin_delete_custom(cid: str, user=Depends(get_current_user)):
+    _require_admin(user)
+    await db.custom_quests.delete_one({"id": cid})
+    await db.custom_quest_state.delete_many({"custom_id": cid})
+    return {"ok": True}

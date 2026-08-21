@@ -114,6 +114,45 @@ async def get_quests(scope: str = "daily", user=Depends(get_current_user)):
     return {scope: await _build_quests(user, scope, now)}
 
 
+def _atrophy(user: dict) -> dict:
+    """The Atrophy — an existential decay that grows the longer a member goes without training.
+    Level 0 (dormant) -> 4 (critical), based on days since the last workout / check-in."""
+    now = datetime.now(timezone.utc)
+    times = []
+    def _add(v):
+        if not v:
+            return
+        try:
+            dt = datetime.fromisoformat(v) if isinstance(v, str) else v
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            times.append(dt)
+        except Exception:
+            pass
+    _add(user.get("last_workout_date"))
+    cld = user.get("checkin_last_day")
+    if cld:
+        try:
+            times.append(datetime.strptime(cld, "%Y-%m-%d").replace(tzinfo=timezone.utc))
+        except Exception:
+            pass
+    # Floor at account creation so brand-new members don't start maxed out.
+    _add(user.get("created_at"))
+    last = max(times) if times else now
+    days = max(0, (now - last).days)
+    if days <= 1:
+        level, note = 0, "The Circle is recording you. Keep training."
+    elif days <= 3:
+        level, note = 1, "Regression stirs — a couple days unrecorded."
+    elif days <= 6:
+        level, note = 2, "Your edge is fading. Train to be re-recorded."
+    elif days <= 13:
+        level, note = 3, "Sliding toward Zero — a week without training."
+    else:
+        level, note = 4, "The Circle is un-writing you. Break free — train today."
+    return {"days_idle": days, "level": level, "note": note}
+
+
 @api_router.get("/journey")
 async def journey(user=Depends(get_current_user)):
     now = datetime.now(timezone.utc)
@@ -130,6 +169,18 @@ async def journey(user=Depends(get_current_user)):
                 "global_percent": q.get("global_percent", 0),
                 "boss": sc == "boss",
             })
+    # Admin-authored custom quests targeted at everyone or this specific user
+    cqs = await db.custom_quests.find({"$or": [{"target": "all"}, {"target": user["user_id"]}]}).sort("created_at", -1).to_list(50)
+    for cq in cqs:
+        st = await db.custom_quest_state.find_one({"custom_id": cq["id"], "user_id": user["user_id"]}) or {}
+        complete = bool(st.get("complete"))
+        nodes.append({
+            "id": f"custom:{cq['id']}", "scope": "custom", "title": cq["title"],
+            "complete": complete, "claimed": bool(st.get("claimed")),
+            "reward_xp": cq.get("reward_xp", 0), "reward_label": f"{cq.get('reward_xp', 0)} XP",
+            "objectives": [{"label": cq.get("objective_label", "Complete the quest"), "current": 1 if complete else 0, "target": 1}],
+            "flavor": cq.get("flavor", ""), "global_percent": 0, "boss": False, "custom": True,
+        })
     all_users = await db.users.find(
         {}, {"_id": 0, "user_id": 1, "display_name": 1, "xp": 1, "enhanced": 1, "founder_backer": 1, "sex": 1}
     ).sort("xp", -1).to_list(3000)
@@ -172,6 +223,7 @@ async def journey(user=Depends(get_current_user)):
             "sex": user.get("sex", "male"),
         },
         "zone": _zone_for_tier(attrs["class_tier"]),
+        "atrophy": _atrophy(user),
         "nodes": nodes,
         "neighbors": neighbors,
         "challenges": challenges,
@@ -213,6 +265,28 @@ async def journey_challenge(inp: ChallengeIn, user=Depends(get_current_user)):
 @api_router.post("/quests/claim")
 async def claim_quest(payload: dict, user=Depends(get_current_user)):
     quest_id = payload.get("quest_id", "")
+    # Admin-authored custom quest claim
+    if quest_id.startswith("custom:"):
+        cid = quest_id.split(":", 1)[1]
+        cq = await db.custom_quests.find_one({"id": cid})
+        if not cq:
+            raise HTTPException(status_code=404, detail="Quest not found")
+        st = await db.custom_quest_state.find_one({"custom_id": cid, "user_id": user["user_id"]}) or {}
+        if not st.get("complete"):
+            raise HTTPException(status_code=400, detail="Objectives not met")
+        if st.get("claimed"):
+            raise HTTPException(status_code=400, detail="Already claimed")
+        now = datetime.now(timezone.utc)
+        await db.custom_quest_state.update_one(
+            {"custom_id": cid, "user_id": user["user_id"]},
+            {"$set": {"complete": True, "claimed": True, "claimed_at": now}}, upsert=True)
+        gained = int(cq.get("reward_xp", 0) or 0)
+        if gained:
+            await award_xp(user["user_id"], gained)
+            await award_group_xp(user["user_id"], gained)
+        fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})
+        fresh["rank"] = rank_from_xp(fresh["xp"])
+        return {"ok": True, "reward": (f"+{gained} XP" if gained else "Reward claimed"), "loot": [], "user": fresh}
     parts = quest_id.split(":")
     if len(parts) < 3:
         raise HTTPException(status_code=400, detail="Bad quest id")

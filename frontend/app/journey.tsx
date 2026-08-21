@@ -30,7 +30,8 @@ import { PetCompanion } from "@/src/components/PetCompanion";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { MemberSheet } from "@/src/components/MemberSheet";
 import { initSfx, playSfx, isSfxEnabled, setSfxEnabled, startZoneMusic, stopMusic } from "@/src/lib/sfx";
-import { SystemAwakening, Chronicle, SystemWindow, type StoryCtx, type SysMsg } from "@/src/components/JourneyStory";
+import { Chronicle, SystemWindow, StoryBook, type StoryCtx, type SysMsg } from "@/src/components/JourneyStory";
+import { JourneyIntro } from "@/src/components/JourneyIntro";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -411,7 +412,7 @@ function ZoneReveal({ zone, onClose }: { zone: any; onClose: () => void }) {
         <Text style={styles.zoneRevealKicker}>◇ THE CIRCLE · NEW REALM UNLOCKED</Text>
         <Text style={[styles.zoneRevealName, { color: zone?.accent }]}>{zone?.name}</Text>
         <Text style={styles.zoneRevealTier}>TIER {zone?.tier} REACHED</Text>
-        <Text style={styles.zoneRevealLore}>You leave the old realm behind. The Atrophy loses its grip — your legend grows. Read your Chronicle (📜) for the next chapter.</Text>
+        <Text style={styles.zoneRevealLore}>The Circle records your ascent — a new rank, a new realm. Your Combat Rating climbs. Read your Chronicle (📜) for the next chapter of your story.</Text>
       </Animated.View>
       <Text style={styles.zoneRevealTap}>tap to continue</Text>
     </Pressable>
@@ -432,6 +433,7 @@ export default function Journey() {
   const [milestone, setMilestone] = useState<{ lift: string; value: number } | null>(null);
   const [zoneReveal, setZoneReveal] = useState<any>(null);
   const [chronicleOpen, setChronicleOpen] = useState(false);
+  const [storybookOpen, setStorybookOpen] = useState(false);
   const [sysWin, setSysWin] = useState<SysMsg | null>(null);
   const [sfxOn, setSfxOn] = useState(true);
   const [taunt, setTaunt] = useState<{ id: string; text: string } | null>(null);
@@ -447,6 +449,31 @@ export default function Journey() {
         const idx = d?.zone?.index ?? 0;
         if (seen === null) { await AsyncStorage.setItem("hic_zone_seen", String(idx)); }
         else if (idx > parseInt(seen, 10)) { setZoneReveal(d.zone); await AsyncStorage.setItem("hic_zone_seen", String(idx)); }
+      } catch {}
+      // Stat growth — The Circle celebrates a big jump since your last visit
+      try {
+        const cur = d?.me?.stats || {};
+        const snapRaw = await AsyncStorage.getItem("hic_stats_snap");
+        const NAMES: Record<string, string> = { strength: "STRENGTH", power: "POWER", speed: "AGILITY", endurance: "ENDURANCE", grit: "GRIT" };
+        if (snapRaw) {
+          const prev = JSON.parse(snapRaw);
+          let best: { k: string; gain: number } | null = null;
+          for (const k of Object.keys(NAMES)) {
+            const gain = Math.round((cur[k] || 0) - (prev[k] || 0));
+            if (gain >= 4 && (!best || gain > best.gain)) best = { k, gain };
+          }
+          if (best) setSysWin({ title: `${NAMES[best.k]} ASCENDED`, lines: [`Your ${NAMES[best.k]} rose +${best.gain}.`, "The Circle records your growth."], tone: "victory" });
+        }
+        await AsyncStorage.setItem("hic_stats_snap", JSON.stringify(cur));
+      } catch {}
+      // Atrophy — warn when the looming threat grows
+      try {
+        const at = d?.atrophy;
+        if (at && at.level >= 2) {
+          const seenLvl = parseInt((await AsyncStorage.getItem("hic_atrophy_lvl")) || "0", 10);
+          if (at.level > seenLvl) setSysWin({ title: "⚠ REGRESSION SETS IN", lines: [at.note, `${at.days_idle} days without training.`], tone: "danger" });
+        }
+        if (at) await AsyncStorage.setItem("hic_atrophy_lvl", String(at.level));
       } catch {}
     } catch {}
     setLoading(false);
@@ -602,6 +629,7 @@ export default function Journey() {
           <Text style={styles.zoneTier}>TIER {data?.zone?.tier} · RANK #{data?.me?.rank_position}/{data?.me?.total_players}</Text>
         </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          <Pressable testID="journey-storybook" onPress={() => setStorybookOpen(true)} hitSlop={10}><Text style={[styles.prBtn, { color: accent }]}>📖</Text></Pressable>
           <Pressable testID="journey-story" onPress={() => setChronicleOpen(true)} hitSlop={10}><Text style={[styles.prBtn, { color: accent }]}>📜</Text></Pressable>
           <Pressable testID="journey-sfx" onPress={toggleSfx} hitSlop={10}><Text style={[styles.prBtn, { color: sfxOn ? accent : colors.textDim }]}>{sfxOn ? "🔊" : "🔇"}</Text></Pressable>
           <Pressable testID="journey-milestone" onPress={openTopMilestone} hitSlop={10}><Text style={[styles.prBtn, { color: accent }]}>PRs ✦</Text></Pressable>
@@ -617,6 +645,20 @@ export default function Journey() {
           </View>
         ))}
       </View>
+
+      {/* The Atrophy — looming threat meter that grows with inactivity */}
+      {data?.atrophy && data.atrophy.level > 0 && (
+        <Pressable testID="atrophy-meter" onPress={() => setChronicleOpen(true)} style={styles.atrophyWrap}>
+          <View style={styles.atrophyTop}>
+            <Text style={styles.atrophyLbl}>⚠ REGRESSION</Text>
+            <Text style={styles.atrophyDays}>{data.atrophy.days_idle}d idle</Text>
+          </View>
+          <View style={styles.atrophyTrack}>
+            <View style={[styles.atrophyFill, { width: `${(data.atrophy.level / 4) * 100}%` }]} />
+          </View>
+          <Text style={styles.atrophyNote} numberOfLines={1}>{data.atrophy.note}</Text>
+        </Pressable>
+      )}
 
       {(data?.challenges?.length || 0) > 0 && (
         <View style={[styles.challengeBanner, { borderColor: accent }]}>
@@ -811,8 +853,9 @@ export default function Journey() {
         const ctx: StoryCtx = { name: user?.display_name || "Player", level: data?.me?.level || myLevel, rank: user?.rank || "Beginner", zoneIndex: data?.zone?.index ?? 0 };
         return (
           <>
-            <SystemAwakening ctx={ctx} />
+            <JourneyIntro ctx={{ name: ctx.name }} />
             <Chronicle visible={chronicleOpen} onClose={() => setChronicleOpen(false)} ctx={ctx} />
+            <StoryBook visible={storybookOpen} onClose={() => setStorybookOpen(false)} />
           </>
         );
       })()}
@@ -870,6 +913,13 @@ const styles = StyleSheet.create({
   hudAp: { color: "#C9A94A", fontSize: 9, fontWeight: "800", letterSpacing: 1, marginTop: 2 },
   hudVitals: { backgroundColor: "#161206", borderWidth: 2, borderColor: "#4A3B14", borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, justifyContent: "center", gap: 2, minWidth: 70 },
   hudVitalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  atrophyWrap: { marginHorizontal: spacing.lg, marginTop: spacing.xs, marginBottom: spacing.xs, backgroundColor: "rgba(255,42,60,0.06)", borderWidth: 1, borderColor: "rgba(255,42,60,0.35)", borderRadius: radius.sm, padding: 8 },
+  atrophyTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 5 },
+  atrophyLbl: { color: "#FF6B78", fontWeight: "900", letterSpacing: 1.5, fontSize: 10.5 },
+  atrophyDays: { color: "#FFB3B9", fontWeight: "800", fontSize: 10.5 },
+  atrophyTrack: { height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" },
+  atrophyFill: { height: "100%", backgroundColor: "#FF2A3C", borderRadius: 3 },
+  atrophyNote: { color: "#FFC2C8", fontSize: 10.5, marginTop: 5 },
   hudVitalLbl: { color: "#8A6E2A", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   hudVitalVal: { color: "#7CFF6B", fontSize: 16, fontWeight: "900", fontVariant: ["tabular-nums"] },
   qiWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", alignItems: "center", justifyContent: "center", padding: spacing.xl },

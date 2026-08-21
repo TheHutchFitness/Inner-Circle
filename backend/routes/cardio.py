@@ -63,7 +63,7 @@ async def cardio_leaderboard(board: str = "overall", activity: str = "run", dist
     by_user: dict = {}
     for r in rows:
         by_user.setdefault(r["user_id"], []).append(r)
-    users = {u["user_id"]: u for u in await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(2000)}
+    users = {u["user_id"]: u for u in await db.users.find({"is_bot": {"$ne": True}, "is_admin": {"$ne": True}, "leaderboard_hidden": {"$ne": True}}, {"_id": 0, "password_hash": 0}).to_list(2000)}
     entries = []
     for uid, sessions in by_user.items():
         u = users.get(uid)

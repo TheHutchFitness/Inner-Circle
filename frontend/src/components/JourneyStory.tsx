@@ -16,39 +16,39 @@ export type StoryCtx = { name: string; level: number; rank: string; zoneIndex: n
 export const CHAPTERS: { n: string; zone: string; tier: string; title: string; body: (c: StoryCtx) => string; after: (c: StoryCtx) => string }[] = [
   {
     n: "I", zone: "THE WASTES", tier: "E",
-    title: "The Awakening",
-    body: (c) => `The Circle has chosen you, ${c.name}. You wake in the Wastes — rank E, weakest of all. Rusted barbells lie scattered where fallen lifters once trained. The Circle whispers: lift, and you shall rise. Your first quest is simple — survive, and grow strong enough to leave this graveyard of the weak.`,
-    after: () => `[ THE CIRCLE ] The Wastes are behind you. You dragged iron from the dust and refused to stay buried. The weakest version of you died here — and something harder crawled out. The gates of the Iron Valley grind open.`,
+    title: "Zero",
+    body: (c) => `You Awakened with a Combat Rating of 7, ${c.name} — weaker than an ordinary human. They called you Zero. Then, dying in an alley, a stranger with black eyes pressed a broken circle into your skin and whispered, "There you are — someone empty." The Circle recognized you. Designation: Unranked. Survive.`,
+    after: () => `[ THE CIRCLE ] First Turn survived. The weakest Awakened alive refused to stay down — and the Circle recorded it. An Empty Vessel has no ceiling. Rank E cleared.`,
   },
   {
     n: "II", zone: "IRON VALLEY", tier: "D",
     title: "The First Law",
-    body: () => `You descend into the Iron Valley, where the forges never cool. Here discipline is hammered into you rep by rep. The Circle hands down its first law: "Consistency is the first law of power." Rivals track your every session. Keep climbing — the valley remembers only those who return.`,
-    after: () => `[ THE CIRCLE ] The forge has tempered you. You showed up when it was easy and when it was not — and the Iron Valley bent to your will. Thunder calls from the ridge above. The Circle marks you: Disciplined.`,
+    body: () => `The Circle gives no ability — it records what you do. Run, and you run faster. Lift, and you grow stronger. In the Iron Valley the forges never cool, and every rep is written into your soul. "Consistency is the first law of power," the Circle decrees.`,
+    after: () => `[ THE CIRCLE ] Adaptation logged. You showed up and the Valley bent to your will. Rank D cleared — a hunter now, no longer prey.`,
   },
   {
     n: "III", zone: "STORM RIDGE", tier: "C",
-    title: "Weather the Storm",
-    body: () => `Lightning splits the sky over Storm Ridge. The trials grow fierce; every workout is a storm to be endured. The Circle speaks: "Pain is data. Adapt." Other Players race the ridge beside you now — pass them, or be left behind in the rain.`,
-    after: () => `[ THE CIRCLE ] You walked into the storm and it broke on you instead of the other way around. Rivals who once led now watch your back grow smaller. Embers glow on the horizon. The Circle marks you: Relentless.`,
+    title: "Danger Sense",
+    body: () => `A Gate tears open over Storm Ridge and monsters pour out. Every trial is a blade at your throat — and the Circle turns pain into data. "Pain is data. Adapt." Other Awakened race the ridge beside you. Pass them, or be passed.`,
+    after: () => `[ THE CIRCLE ] Danger Sense acquired. You walked into the storm and it broke on you instead. Rank C cleared.`,
   },
   {
     n: "IV", zone: "EMBER PEAKS", tier: "B",
     title: "Break the Ceiling",
-    body: () => `The Ember Peaks burn with the fire of those who refuse their limits. Your body remakes itself in the heat. The Circle issues a rare directive: "Break your ceiling." Bosses stir in the molten dark, guarding the only path upward. Answer them.`,
-    after: () => `[ THE CIRCLE ] The ceiling you feared is now the floor you stand on. You met the fire and gave it nothing to burn. A crimson fortress rises ahead, banners snapping. The Circle marks you: Unchained.`,
+    body: () => `The Ember Peaks burn away every limit you thought you had. A Gate Boss stirs in the molten dark, ten levels above you, guarding the only path up. The Circle issues a rare directive: "Defeat an enemy far above your rank."`,
+    after: () => `[ THE CIRCLE ] Ceiling shattered. You met a monster stronger than you and gave it nothing to break. Rank B cleared.`,
   },
   {
     n: "V", zone: "CRIMSON CITADEL", tier: "A",
     title: "Gauntlet of Champions",
-    body: () => `You cross into the Crimson Citadel — the gauntlet of champions. Banners of legends hang above the arena. The Circle declares: "Only the relentless walk these halls." Prove your might against the strongest and carve your name among the elite.`,
-    after: () => `[ THE CIRCLE ] The champions bowed. Your name is now carved beside the legends whose banners once intimidated you. Above the clouds, a light waits that few ever reach. The Circle marks you: Champion.`,
+    body: () => `The Crimson Citadel is where A-Ranks are forged — Guilds, banners, and the strongest hunters alive. "Only the relentless walk these halls," the Circle declares. Prove your might against champions and carve your name beside the legends.`,
+    after: () => `[ THE CIRCLE ] The champions bowed. Guilds that ignored Zero now speak your name. Rank A cleared — the summit is in sight.`,
   },
   {
     n: "VI", zone: "ASCENSION", tier: "S",
-    title: "Monarch of Iron",
-    body: (c) => `Above the clouds lies Ascension, where few Players ever stand — and where THE ATROPHY claws hardest at the edges of the world. The Circle bows to you, ${c.name}: "You are no longer climbing — you are the wall the rot cannot pass." Monarch of Iron, every plate you move now buys time for everyone below.`,
-    after: (c) => `[ THE CIRCLE ] You stood at the summit and held the line, ${c.name}. The Atrophy recoiled from a will it could not rust. It is not gone — it never is — but today it did not win, because you refused to be still. New Players wake in the Wastes and see your shadow at the top. Lead them. The Circle marks you: Monarch.`,
+    title: "The Empty Vessel",
+    body: (c) => `At the summit stand the S-Ranks — gods among men who can level armies. And now, ${c.name}, they look up at you. The Empty Vessel that could become anything became everything. Something ancient beyond the Gates opens its eyes… and finally sees a rival.`,
+    after: (c) => `[ THE CIRCLE ] Rank S attained. There is no path above this one, ${c.name} — only the endless refinement of a legend. New Initiates wake as Zero and see your shadow at the peak. The Circle is complete.`,
   },
 ];
 
@@ -107,8 +107,8 @@ export function Chronicle({ visible, onClose, ctx }: { visible: boolean; onClose
           <Text style={styles.h1}>THE ASCENT</Text>
           <Text style={styles.sub}>Your legend, chapter by chapter. Each realm you conquer unlocks the next page of the story.</Text>
           <View style={styles.threatCard}>
-            <Text style={styles.threatKicker}>☠ THE THREAT · THE ATROPHY</Text>
-            <Text style={styles.threatBody}>An ancient decay that unmakes the idle and the weak — it turned a thriving world into the Wastes. Every day you don't train, it creeps closer, reclaiming ground. The Circle exists to hold it back, and you are its sharpest weapon. Reach the summit and you don't just win — you stand between The Atrophy and everyone still climbing.</Text>
+            <Text style={styles.threatKicker}>☠ THE THREAT · REGRESSION</Text>
+            <Text style={styles.threatBody}>The Circle only records what you DO. Go still, skip your training, and it begins to un-write you — dragging your Combat Rating back toward Zero. And beyond the Gates, something ancient has opened its eyes. Keep climbing: an Empty Vessel that stops is an Empty Vessel that fades.</Text>
           </View>
           <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: spacing.md }} showsVerticalScrollIndicator={false}>
             {CHAPTERS.map((ch, i) => {
@@ -197,6 +197,28 @@ export function SystemWindow({ data, onDone }: { data: SysMsg | null; onDone: ()
   );
 }
 
+/** "The Story So Far" — the full LitRPG novel, coming soon. */
+export function StoryBook({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.wrap}>
+        <View style={[styles.card, { alignItems: "center" }]}>
+          <Text style={styles.sysTag}>◇ THE CIRCLE</Text>
+          <Text style={[styles.h1, { textAlign: "center" }]}>THE STORY SO FAR</Text>
+          <Text style={[styles.sub, { textAlign: "center" }]}>Book One: The First Turn</Text>
+          <Text style={styles.bookGlyph}>📖</Text>
+          <Text style={styles.bookLocked}>The story is still being written.</Text>
+          <Text style={styles.bookSub}>An anime / LitRPG saga — the full origin of The Circle, your Awakening as the Empty Vessel, and the climb from Zero to Rank S. Come back soon: Chapter One drops when it's complete.</Text>
+          <View style={styles.bookBadge}><Text style={styles.bookBadgeText}>✍  COMING SOON · CHAPTER ONE</Text></View>
+          <Pressable testID="storybook-close" onPress={onClose} style={styles.closeBtn}>
+            <Text style={styles.closeText}>CLOSE</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 const styles = StyleSheet.create({
   // intro
   introWrap: { flex: 1, backgroundColor: "rgba(2,4,10,0.94)", justifyContent: "center", padding: spacing.lg },
@@ -235,6 +257,11 @@ const styles = StyleSheet.create({
   sealedBody: { color: colors.textDim, fontSize: 12.5, lineHeight: 18, fontStyle: "italic" },
   closeBtn: { marginTop: spacing.sm, alignItems: "center", paddingVertical: 12 },
   closeText: { color: colors.textDim, letterSpacing: 3, fontWeight: "800" },
+  bookGlyph: { fontSize: 52, marginTop: spacing.lg, marginBottom: spacing.sm },
+  bookLocked: { color: colors.text, fontSize: 17, fontWeight: "900", letterSpacing: 0.5, textAlign: "center" },
+  bookSub: { color: colors.textMid, fontSize: 13, lineHeight: 19, textAlign: "center", marginTop: spacing.sm, marginBottom: spacing.lg },
+  bookBadge: { borderWidth: 1, borderColor: SYS, backgroundColor: "rgba(58,160,255,0.12)", borderRadius: radius.pill, paddingHorizontal: spacing.lg, paddingVertical: 8 },
+  bookBadgeText: { color: "#CFE8FF", fontWeight: "900", letterSpacing: 1.5, fontSize: 12 },
   // system window (Solo-Leveling style)
   sysOverlay: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", zIndex: 900 },
   sysWin: { minWidth: 260, maxWidth: "84%", backgroundColor: "rgba(6,12,22,0.96)", borderWidth: 1.5, borderRadius: 6, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, alignItems: "center", shadowOpacity: 0.8, shadowRadius: 26, shadowOffset: { width: 0, height: 0 }, elevation: 12 },

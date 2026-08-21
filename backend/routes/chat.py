@@ -11,6 +11,8 @@ from shared import *  # noqa: F401,F403
 @api_router.get("/chat/{room}/messages")
 async def get_messages(room: str, gym: str | None = None, user=Depends(get_current_user)):
     store_room = await _resolve_store_room(room, user, gym)
+    # Mark this room read for the member (powers per-gym unread dots).
+    await db.chat_reads.update_one({"user_id": user["user_id"], "room": store_room}, {"$set": {"at": datetime.now(timezone.utc)}}, upsert=True)
     rows = await db.chat_messages.find({"room": store_room}, {"_id": 0}).sort("created_at", -1).limit(100).to_list(100)
     rows.reverse()
     # Backer status can change after a message is posted — reflect current status on read
@@ -128,6 +130,21 @@ def _user_gyms(user) -> list:
     if not gyms:
         gyms = [user["inperson_gym"]] if (user.get("inperson_gym") or "").strip() else []
     return gyms
+
+
+@api_router.get("/chat/unread-gyms")
+async def unread_gyms(user=Depends(get_current_user)):
+    """Which of the member's gyms have unread messages (for switcher dots)."""
+    out = {}
+    for g in _user_gyms(user):
+        store = f"gym:{g.lower()}"
+        read = await db.chat_reads.find_one({"user_id": user["user_id"], "room": store})
+        q = {"room": store, "user_id": {"$ne": user["user_id"]}}
+        if read and read.get("at"):
+            q["created_at"] = {"$gt": read["at"]}
+        out[g.lower()] = (await db.chat_messages.count_documents(q)) > 0
+    return {"unread": out}
+
 
 
 async def _resolve_store_room(room: str, user, gym: str | None = None):

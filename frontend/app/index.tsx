@@ -165,7 +165,7 @@ export default function Index() {
         <View style={styles.wordmarkWrap}>
           <Text style={styles.brandMark}>WELCOME TO</Text>
           <Text style={styles.brandBig}>THE CIRCLE</Text>
-          <Text style={styles.sysTagline}>◇ THE CIRCLE IS ONLINE · RISE BEFORE THE ATROPHY</Text>
+          <Text style={styles.sysTagline}>◇ THE CIRCLE HAS RECOGNIZED YOU · AN EMPTY VESSEL CAN BECOME ANYTHING</Text>
         </View>
 
         <View style={styles.card}>

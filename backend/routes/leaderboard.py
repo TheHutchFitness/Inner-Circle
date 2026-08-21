@@ -5,11 +5,11 @@ from shared import *  # noqa: F401,F403
 # ---------- Leaderboards ----------
 @api_router.get("/leaderboard/{board_type}")
 async def leaderboard(board_type: str, filter: str = "all", gym: str = "", user=Depends(get_current_user)):
-    q = {"is_admin": {"$ne": True}}
+    q = {"is_admin": {"$ne": True}, "is_bot": {"$ne": True}}
     if filter == "enhanced":
-        q = {"enhanced": True, "is_admin": {"$ne": True}}
+        q = {"enhanced": True, "is_admin": {"$ne": True}, "is_bot": {"$ne": True}}
     elif filter == "natural":
-        q = {"enhanced": {"$ne": True}, "is_admin": {"$ne": True}}
+        q = {"enhanced": {"$ne": True}, "is_admin": {"$ne": True}, "is_bot": {"$ne": True}}
     q["leaderboard_hidden"] = {"$ne": True}
     users = await db.users.find(q, {"_id": 0, "password_hash": 0}).to_list(1000)
     # Gym-only ranking: keep athletes whose gym matches (case-insensitive)
