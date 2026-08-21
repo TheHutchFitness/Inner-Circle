@@ -146,6 +146,11 @@ export function BaselineStats({ manual = false }: { manual?: boolean }) {
               <>
                 <Text style={styles.recapBig}>Stronger than {recap.percentile}%</Text>
                 <Text style={styles.recapSub}>of The Circle · you enter at #{recap.position} of {recap.total_members}</Text>
+                {recap.trend && !recap.trend.first && (
+                  <Text style={[styles.recapTrend, { color: recap.trend.percentile_delta > 0 ? colors.success : recap.trend.percentile_delta < 0 ? colors.error : colors.textDim }]}>
+                    {recap.trend.percentile_delta > 0 ? `↑ +${recap.trend.percentile_delta}%` : recap.trend.percentile_delta < 0 ? `↓ ${recap.trend.percentile_delta}%` : "→ no change"} since last test{recap.trend.big4_delta ? ` · ${recap.trend.big4_delta > 0 ? "+" : ""}${recap.trend.big4_delta} lb total` : ""}
+                  </Text>
+                )}
               </>
             ) : (
               <Text style={styles.rewardSub}>Your vessel is charted. Now go earn the rest.</Text>
@@ -183,4 +188,5 @@ const styles = StyleSheet.create({
   rewardSub: { color: colors.textDim, fontSize: 12, textAlign: "center", marginTop: spacing.sm, lineHeight: 17 },
   recapBig: { color: colors.success, fontSize: 20, fontWeight: "900", letterSpacing: 1, marginTop: spacing.sm, textAlign: "center" },
   recapSub: { color: colors.textMid, fontSize: 12, textAlign: "center", marginTop: 4, lineHeight: 17 },
+  recapTrend: { fontSize: 12, fontWeight: "900", letterSpacing: 0.5, textAlign: "center", marginTop: spacing.sm },
 });

@@ -322,6 +322,8 @@ async def journey_races(user=Depends(get_current_user)):
         won_by_me = False
         nudge = False
         shield_awarded = False
+        shield_tier = None
+        shield_xp = 0
         if overtaken:
             winner_id = uid if led_now else other_id
             # Guarded single-writer completion so the winner is rewarded exactly once.
@@ -354,8 +356,21 @@ async def journey_races(user=Depends(get_current_user)):
                         {"$addToSet": {"shield_rewarded": uid}},
                     )
                     if res2.modified_count == 1:
-                        await award_xp(uid, SHIELD_XP)
-                        await db.users.update_one({"user_id": uid}, {"$addToSet": {"badges": "lead_defender"}})
+                        # Escalating Defender Tiers by lifetime shields earned.
+                        await db.users.update_one({"user_id": uid}, {"$inc": {"shield_count": 1}})
+                        u2 = await db.users.find_one({"user_id": uid}, {"_id": 0, "shield_count": 1})
+                        sc = (u2 or {}).get("shield_count", 1)
+                        if sc >= 6:
+                            shield_tier, shield_xp = "gold", 250
+                        elif sc >= 3:
+                            shield_tier, shield_xp = "silver", 180
+                        else:
+                            shield_tier, shield_xp = "bronze", SHIELD_XP
+                        await award_xp(uid, shield_xp)
+                        await db.users.update_one(
+                            {"user_id": uid},
+                            {"$addToSet": {"badges": {"$each": ["lead_defender", f"shield_{shield_tier}"]}}},
+                        )
                         shield_awarded = True
         out.append({
             "id": str(r.get("_id")),
@@ -373,7 +388,8 @@ async def journey_races(user=Depends(get_current_user)):
             "reward_xp": RACE_WINNER_XP if won_by_me else 0,
             "nudge": nudge,
             "shield_awarded": shield_awarded,
-            "shield_xp": SHIELD_XP if shield_awarded else 0,
+            "shield_xp": shield_xp,
+            "shield_tier": shield_tier,
         })
     return {"races": out}
 

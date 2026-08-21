@@ -725,7 +725,7 @@ export default function Journey() {
                   <Text style={styles.raceFlag}>🏁</Text>
                 </View>
                 <Text style={[styles.raceLabel, r.nudge && { color: colors.warning, fontWeight: "800" }]}>{label}</Text>
-                {r.shield_awarded && <Text style={styles.shieldNote}>🛡 LEAD DEFENDED · +{r.shield_xp} XP</Text>}
+                {r.shield_awarded && <Text style={[styles.shieldNote, r.shield_tier === "gold" ? { color: "#FFD24A" } : r.shield_tier === "silver" ? { color: "#CBD5E1" } : { color: "#E08A4B" }]}>🛡 LEAD DEFENDED · {(r.shield_tier || "bronze").toUpperCase()} · +{r.shield_xp} XP</Text>}
               </View>
             );
           })}

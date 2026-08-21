@@ -94,7 +94,7 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
                 "avg_speed_kmh": round(km / (secs / 3600), 2) if secs else 0,
                 "route": [], "logged_at": datetime.now(timezone.utc), "baseline": True,
             })
-    # Recap: where this member's starting Big-4 total ranks vs the pack.
+    # Recap: where this member's starting Big-4 total ranks vs the pack + trend vs last test.
     recap = None
     if logged_anything:
         my_total = sum(prs.values())
@@ -106,7 +106,17 @@ async def onboarding_baseline(inp: BaselineInput, user=Depends(get_current_user)
         below = sum(1 for t in totals if t <= my_total)
         percentile = round(below / n * 100)
         position = sum(1 for t in totals if t > my_total) + 1
-        recap = {"percentile": percentile, "position": position, "total_members": n, "big4": my_total}
+        old_pct = user.get("baseline_percentile")
+        old_big4 = user.get("baseline_big4")
+        if old_pct is not None:
+            trend = {"first": False, "percentile_delta": percentile - int(old_pct),
+                     "big4_delta": my_total - int(old_big4 or 0)}
+        else:
+            trend = {"first": True}
+        recap = {"percentile": percentile, "position": position, "total_members": n,
+                 "big4": my_total, "trend": trend}
+        await db.users.update_one({"user_id": uid},
+                                  {"$set": {"baseline_percentile": percentile, "baseline_big4": my_total}})
     return {"ok": True, "reward_xp": reward_xp, "recap": recap}
 
 
