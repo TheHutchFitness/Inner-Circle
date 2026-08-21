@@ -330,3 +330,24 @@ async def critique_post_delete(room: str, post_id: str, user=Depends(get_current
     await db.critique_posts.delete_one({"post_id": post_id})
     await db.critique_comments.delete_many({"post_id": post_id})
     return {"ok": True}
+
+
+@api_router.patch("/rooms/{room}/{post_id}/comments/{comment_id}")
+async def critique_comment_edit(room: str, post_id: str, comment_id: str, inp: CritiqueComment, user=Depends(get_current_user)):
+    """Author (or admin) can edit their room comment ONCE."""
+    _room_or_404(room)
+    c = await db.critique_comments.find_one({"comment_id": comment_id, "post_id": post_id})
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if not user.get("is_admin") and c.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    if c.get("edited") and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="You can only edit a comment once.")
+    text = (inp.text or "").strip()[:500]
+    if not text:
+        raise HTTPException(status_code=400, detail="Comment cannot be empty.")
+    await db.critique_comments.update_one(
+        {"comment_id": comment_id},
+        {"$set": {"text": text, "edited": True, "edited_at": datetime.now(timezone.utc)}},
+    )
+    return {"ok": True, "text": text, "edited": True}

@@ -33,6 +33,7 @@ export function ChatRoom({ room, gymName, accent, sendTextColor, placeholder, em
   const [pending, setPending] = useState<any>(null);
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [pin, setPin] = useState<string | null>(null);
   const [adminAction, setAdminAction] = useState<null | "pin" | "clear">(null);
@@ -172,6 +173,35 @@ export function ChatRoom({ room, gymName, accent, sendTextColor, placeholder, em
     setSending(false);
   };
 
+  const startEdit = (m: any) => {
+    if (m.edited) { setErr("You can only edit a message once."); return; }
+    setErr(null);
+    setEditingId(m.message_id);
+    setText(m.text || "");
+  };
+  const cancelEdit = () => { setEditingId(null); setText(""); };
+  const saveEdit = async () => {
+    if (!editingId || !text.trim() || sending) return;
+    setSending(true); setErr(null);
+    const id = editingId;
+    const newText = text.trim();
+    try {
+      await apiFetch(token, `/api/chat/${room}/messages/${id}${gymQ}`, {
+        method: "PATCH", body: JSON.stringify({ text: newText }),
+      });
+      setMessages((list) => list.map((x) => x.message_id === id ? { ...x, text: newText, edited: true } : x));
+      setEditingId(null); setText("");
+    } catch (e: any) { setErr(e.message); }
+    setSending(false);
+  };
+  const deleteMsg = async (m: any) => {
+    setMessages((list) => list.filter((x) => x.message_id !== m.message_id));
+    if (editingId === m.message_id) cancelEdit();
+    try { await apiFetch(token, `/api/chat/${room}/messages/${m.message_id}${gymQ}`, { method: "DELETE" }); }
+    catch (e: any) { setErr(e.message); await load(); }
+  };
+
+
   const mediaUrl = (id: string) => `${API}/api/chat/media/${id}?token=${token}`;
 
   return (
@@ -241,7 +271,20 @@ export function ChatRoom({ room, gymName, accent, sendTextColor, placeholder, em
                   )}
                   {m.media_id && m.media_type === "video" && <ChatVideo uri={mediaUrl(m.media_id)} />}
                   {!!m.text && <Text style={[st.msgText, mine && st.msgTextMine]}>{m.text}</Text>}
+                  {!!m.edited && <Text style={st.editedTag}>edited</Text>}
                 </View>
+                {mine && !m.pending && (
+                  <View style={st.msgActions}>
+                    {!m.edited && (
+                      <Pressable testID={`edit-msg-${m.message_id}`} onPress={() => startEdit(m)} hitSlop={8} style={st.msgAction}>
+                        <Text style={st.msgActionTxt}>Edit</Text>
+                      </Pressable>
+                    )}
+                    <Pressable testID={`del-msg-${m.message_id}`} onPress={() => deleteMsg(m)} hitSlop={8} style={st.msgAction}>
+                      <Text style={[st.msgActionTxt, { color: colors.error }]}>Delete</Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
             </View>
           );
@@ -263,6 +306,13 @@ export function ChatRoom({ room, gymName, accent, sendTextColor, placeholder, em
       )}
       {err && <Text testID="chat-error" style={st.err}>{err}</Text>}
 
+      {editingId && (
+        <View style={st.editBanner}>
+          <Text style={st.editBannerText}>Editing message (one-time)</Text>
+          <Pressable testID="chat-edit-cancel" onPress={cancelEdit} hitSlop={8}><Text style={st.editBannerCancel}>CANCEL</Text></Pressable>
+        </View>
+      )}
+
       <View style={[st.composerWrap, { paddingBottom: spacing.sm + bottomInset }]}>
         <View style={st.composer}>
           <Pressable testID="chat-camera" onPress={() => pick("camera")} hitSlop={8} style={st.inputIcon}>
@@ -276,14 +326,14 @@ export function ChatRoom({ room, gymName, accent, sendTextColor, placeholder, em
             style={st.input}
             value={text}
             onChangeText={setText}
-            placeholder={placeholder}
+            placeholder={editingId ? "Edit your message…" : placeholder}
             placeholderTextColor={colors.textDim}
             multiline
           />
-          <Pressable testID="chat-send" onPress={send} disabled={sending} style={[st.sendCircle, { backgroundColor: accent }]}>
+          <Pressable testID="chat-send" onPress={editingId ? saveEdit : send} disabled={sending} style={[st.sendCircle, { backgroundColor: accent }]}>
             {sending
               ? <ActivityIndicator size="small" color={sendTextColor} />
-              : <Text style={[st.sendArrow, { color: sendTextColor }]}>➤</Text>}
+              : <Text style={[st.sendArrow, { color: sendTextColor }]}>{editingId ? "✓" : "➤"}</Text>}
           </Pressable>
         </View>
       </View>
@@ -373,6 +423,13 @@ const st = StyleSheet.create({
   bubbleGrouped: { borderTopLeftRadius: radius.md, borderTopRightRadius: radius.md },
   msgText: { color: colors.textMid, lineHeight: 20, fontSize: 14.5 },
   msgTextMine: { color: colors.text },
+  editedTag: { color: colors.textDim, fontSize: 10, fontStyle: "italic", marginTop: 3 },
+  msgActions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.md, marginTop: 3, marginRight: 4 },
+  msgAction: { paddingVertical: 2 },
+  msgActionTxt: { color: colors.textDim, fontSize: 11, fontWeight: "700" },
+  editBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.md, paddingVertical: 6, backgroundColor: colors.surface3 },
+  editBannerText: { color: colors.textMid, fontSize: 12, fontWeight: "700" },
+  editBannerCancel: { color: colors.error, fontSize: 12, fontWeight: "900", letterSpacing: 1 },
   image: { width: 240, maxWidth: "100%", height: 200, borderRadius: radius.sm, marginBottom: 6, backgroundColor: colors.surface3 },
   video: { width: 240, maxWidth: "100%", height: 200, borderRadius: radius.sm, marginBottom: 6, backgroundColor: "#000" },
   pendingRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: spacing.md, paddingVertical: 8, backgroundColor: colors.surface3, borderTopWidth: 1, borderTopColor: colors.border },

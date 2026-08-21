@@ -175,3 +175,37 @@ async def judge_comment_delete(submission_id: str, comment_id: str, user=Depends
         {"submission_id": submission_id, "comment_count": {"$gt": 0}}, {"$inc": {"comment_count": -1}}
     )
     return {"ok": True}
+
+
+@api_router.delete("/judge/{submission_id}")
+async def judge_submission_delete(submission_id: str, user=Depends(get_current_user)):
+    """A member (or admin) can remove their own Judge submission + its comments."""
+    sub = await db.judge_submissions.find_one({"submission_id": submission_id})
+    if not sub:
+        raise HTTPException(status_code=404, detail="Submission not found")
+    if not user.get("is_admin") and sub.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    await db.judge_submissions.delete_one({"submission_id": submission_id})
+    await db.judge_comments.delete_many({"submission_id": submission_id})
+    return {"ok": True}
+
+
+@api_router.patch("/judge/{submission_id}/comments/{comment_id}")
+async def judge_comment_edit(submission_id: str, comment_id: str, inp: JudgeComment, user=Depends(get_current_user)):
+    """Author (or admin) can edit their Judge comment ONCE."""
+    c = await db.judge_comments.find_one({"comment_id": comment_id, "submission_id": submission_id})
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    if not user.get("is_admin") and c.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    if c.get("edited") and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="You can only edit a comment once.")
+    text = (inp.text or "").strip()[:500]
+    if not text:
+        raise HTTPException(status_code=400, detail="Comment cannot be empty.")
+    await db.judge_comments.update_one(
+        {"comment_id": comment_id},
+        {"$set": {"text": text, "edited": True, "edited_at": datetime.now(timezone.utc)}},
+    )
+    return {"ok": True, "text": text, "edited": True}
+

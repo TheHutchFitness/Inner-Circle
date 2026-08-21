@@ -62,6 +62,7 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
   const [active, setActive] = useState<any>(null);
   const [comments, setComments] = useState<any[]>([]);
   const [commentText, setCommentText] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
   const [memberId, setMemberId] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -163,6 +164,27 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
     setFeed((f) => f.map((p) => p.post_id === active.post_id ? { ...p, comment_count: Math.max(0, (p.comment_count || 1) - 1) } : p));
     try { await apiFetch(token, `/api/rooms/${cfg.room}/${active.post_id}/comments/${c.comment_id}`, { method: "DELETE" }); } catch {}
   };
+
+  const startEditComment = (c: any) => {
+    if (c.edited) return;
+    setEditingCommentId(c.comment_id);
+    setCommentText(c.text || "");
+  };
+  const cancelEditComment = () => { setEditingCommentId(null); setCommentText(""); };
+  const saveEditComment = async () => {
+    if (!editingCommentId || !commentText.trim() || posting || !active) return;
+    setPosting(true);
+    const id = editingCommentId; const t = commentText.trim();
+    try {
+      await apiFetch(token, `/api/rooms/${cfg.room}/${active.post_id}/comments/${id}`, {
+        method: "PATCH", body: JSON.stringify({ text: t }),
+      });
+      setComments((list) => list.map((x) => x.comment_id === id ? { ...x, text: t, edited: true } : x));
+      setEditingCommentId(null); setCommentText("");
+    } catch {}
+    setPosting(false);
+  };
+
 
   const deletePost = (post: any) => {
     const go = async () => {
@@ -333,19 +355,27 @@ export function CritiqueRoom({ cfg }: { cfg: RoomConfig }) {
                   <Text style={st.avatar}>{avatarFor(c.avatar_id).emoji}</Text>
                   <View style={{ flex: 1 }}>
                     <Text style={st.cmtName}>{c.display_name}{c.founder_backer ? " ★" : ""} <Text style={st.cmtTime}>· {timeAgo(c.created_at)}</Text></Text>
-                    <Text style={st.cmtText}>{c.text}</Text>
+                    <Text style={st.cmtText}>{c.text}{c.edited ? <Text style={st.cmtTime}>  · edited</Text> : null}</Text>
                   </View>
                   {(c.user_id === user?.user_id || user?.is_admin) && (
-                    <Pressable onPress={() => deleteComment(c)}><Text style={st.del}>✕</Text></Pressable>
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                      {!c.edited && c.user_id === user?.user_id && (
+                        <Pressable testID={`edit-comment-${c.comment_id}`} onPress={() => startEditComment(c)}><Text style={[st.del, { color: cfg.accent }]}>✎</Text></Pressable>
+                      )}
+                      <Pressable testID={`del-comment-${c.comment_id}`} onPress={() => deleteComment(c)}><Text style={st.del}>✕</Text></Pressable>
+                    </View>
                   )}
                 </View>
               ))}
             </ScrollView>
             <View style={st.cmtBar}>
-              <TextInput value={commentText} onChangeText={setCommentText} placeholder="Add your critique…" placeholderTextColor={colors.textDim} style={[st.input, { flex: 1 }]} />
-              <Pressable testID={`${cfg.room}-post-comment`} onPress={postComment} disabled={posting} style={[st.sendBtn, { backgroundColor: cfg.accent }]}>
-                {posting ? <ActivityIndicator color="#000" /> : <Text style={st.sendText}>POST</Text>}
+              <TextInput value={commentText} onChangeText={setCommentText} placeholder={editingCommentId ? "Edit your critique…" : "Add your critique…"} placeholderTextColor={colors.textDim} style={[st.input, { flex: 1 }]} />
+              <Pressable testID={`${cfg.room}-post-comment`} onPress={editingCommentId ? saveEditComment : postComment} disabled={posting} style={[st.sendBtn, { backgroundColor: cfg.accent }]}>
+                {posting ? <ActivityIndicator color="#000" /> : <Text style={st.sendText}>{editingCommentId ? "SAVE" : "POST"}</Text>}
               </Pressable>
+              {editingCommentId && (
+                <Pressable testID={`${cfg.room}-cancel-edit`} onPress={cancelEditComment} style={{ paddingHorizontal: 6, justifyContent: "center" }}><Text style={[st.del, { color: colors.error }]}>✕</Text></Pressable>
+              )}
             </View>
           </View>
         </KeyboardAvoidingView>

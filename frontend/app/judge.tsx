@@ -123,6 +123,7 @@ export default function Judge() {
   const [active, setActive] = useState<any>(null); // submission open in comments modal
   const [comments, setComments] = useState<any[]>([]);
   const [commentText, setCommentText] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
   const [memberId, setMemberId] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -223,6 +224,34 @@ export default function Judge() {
       await apiFetch(token, `/api/judge/${active.submission_id}/comments/${c.comment_id}`, { method: "DELETE" });
     } catch {}
   };
+
+  const startEditComment = (c: any) => {
+    if (c.edited) { setErr("You can only edit a comment once."); return; }
+    setEditingCommentId(c.comment_id);
+    setCommentText(c.text || "");
+  };
+  const cancelEditComment = () => { setEditingCommentId(null); setCommentText(""); };
+  const saveEditComment = async () => {
+    if (!editingCommentId || !commentText.trim() || posting || !active) return;
+    setPosting(true);
+    const id = editingCommentId; const t = commentText.trim();
+    try {
+      await apiFetch(token, `/api/judge/${active.submission_id}/comments/${id}`, {
+        method: "PATCH", body: JSON.stringify({ text: t }),
+      });
+      setComments((list) => list.map((x) => x.comment_id === id ? { ...x, text: t, edited: true } : x));
+      setEditingCommentId(null); setCommentText("");
+    } catch (e: any) { setErr(e.message); }
+    setPosting(false);
+  };
+  const deleteSubmission = async (s: any) => {
+    setFeed((f) => f.filter((x) => x.submission_id !== s.submission_id));
+    setHist((h) => h.filter((x) => x.submission_id !== s.submission_id));
+    if (active?.submission_id === s.submission_id) setActive(null);
+    try { await apiFetch(token, `/api/judge/${s.submission_id}`, { method: "DELETE" }); }
+    catch (e: any) { setErr(e.message); }
+  };
+
   if (!canJudge) {
     return (
       <View style={[st.gate, { paddingTop: insets.top + spacing.xl }]}>
@@ -354,6 +383,11 @@ export default function Judge() {
                       <Text style={st.commentBtnText}>↗ SHARE</Text>
                     </Pressable>
                   )}
+                  {(user?.is_admin || s.user_id === user?.user_id) && (
+                    <Pressable testID={`del-sub-${s.submission_id}`} onPress={() => deleteSubmission(s)} style={[st.commentBtn, { paddingHorizontal: spacing.md, borderColor: colors.error }]}>
+                      <Text style={[st.commentBtnText, { color: colors.error }]}>🗑</Text>
+                    </Pressable>
+                  )}
                 </View>
               </View>
             );
@@ -380,12 +414,19 @@ export default function Judge() {
                     </Pressable>
                     <Text style={[st.cardRank, { color: RANK_COLORS[c.rank] || colors.brandPrimary }]}>{c.rank?.toUpperCase()}</Text>
                     {(user?.is_admin || c.user_id === user?.user_id) && (
-                      <Pressable testID={`del-comment-${c.comment_id}`} onPress={() => deleteComment(c)} hitSlop={8} style={st.delComment}>
-                        <Text style={st.delCommentText}>✕</Text>
-                      </Pressable>
+                      <View style={{ flexDirection: "row", marginLeft: "auto", gap: 8 }}>
+                        {!c.edited && c.user_id === user?.user_id && (
+                          <Pressable testID={`edit-comment-${c.comment_id}`} onPress={() => startEditComment(c)} hitSlop={8} style={st.delComment}>
+                            <Text style={[st.delCommentText, { color: colors.brandPrimary }]}>✎</Text>
+                          </Pressable>
+                        )}
+                        <Pressable testID={`del-comment-${c.comment_id}`} onPress={() => deleteComment(c)} hitSlop={8} style={st.delComment}>
+                          <Text style={st.delCommentText}>✕</Text>
+                        </Pressable>
+                      </View>
                     )}
                   </View>
-                  <Text style={st.commentText}>{c.text}</Text>
+                  <Text style={st.commentText}>{c.text}{c.edited ? <Text style={{ color: colors.textDim, fontSize: 10, fontStyle: "italic" }}>  · edited</Text> : null}</Text>
                 </View>
               ))}
             </ScrollView>
@@ -394,9 +435,14 @@ export default function Judge() {
                 testID="judge-comment-input" value={commentText} onChangeText={setCommentText}
                 placeholder="Give your critique…" placeholderTextColor={colors.textDim} style={st.commentInput}
               />
-              <Pressable testID="judge-comment-post" onPress={postComment} disabled={posting} style={st.commentSend}>
-                {posting ? <ActivityIndicator size="small" color="#001122" /> : <Text style={st.commentSendText}>POST</Text>}
+              <Pressable testID="judge-comment-post" onPress={editingCommentId ? saveEditComment : postComment} disabled={posting} style={st.commentSend}>
+                {posting ? <ActivityIndicator size="small" color="#001122" /> : <Text style={st.commentSendText}>{editingCommentId ? "SAVE" : "POST"}</Text>}
               </Pressable>
+              {editingCommentId && (
+                <Pressable testID="judge-comment-cancel" onPress={cancelEditComment} hitSlop={8} style={{ paddingHorizontal: 8, justifyContent: "center" }}>
+                  <Text style={{ color: colors.error, fontWeight: "900", fontSize: 12 }}>✕</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         </KeyboardAvoidingView>

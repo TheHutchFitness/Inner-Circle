@@ -212,6 +212,38 @@ async def clear_room(room: str, gym: str | None = None, user=Depends(get_current
     return {"deleted": res.deleted_count}
 
 
+@api_router.patch("/chat/{room}/messages/{message_id}")
+async def edit_message(room: str, message_id: str, inp: ChatMessageIn, gym: str | None = None, user=Depends(get_current_user)):
+    """Author (or admin) can edit their message ONCE."""
+    m = await db.chat_messages.find_one({"message_id": message_id})
+    if not m:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not user.get("is_admin") and m.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    if m.get("edited") and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="You can only edit a message once.")
+    text = (inp.text or "").strip()[:500]
+    if not text:
+        raise HTTPException(status_code=400, detail="Message cannot be empty.")
+    await db.chat_messages.update_one(
+        {"message_id": message_id},
+        {"$set": {"text": text, "edited": True, "edited_at": datetime.now(timezone.utc)}},
+    )
+    return {"ok": True, "text": text, "edited": True}
+
+
+@api_router.delete("/chat/{room}/messages/{message_id}")
+async def delete_message(room: str, message_id: str, gym: str | None = None, user=Depends(get_current_user)):
+    """Author (or admin) can remove their own message."""
+    m = await db.chat_messages.find_one({"message_id": message_id})
+    if not m:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not user.get("is_admin") and m.get("user_id") != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    await db.chat_messages.delete_one({"message_id": message_id})
+    return {"ok": True}
+
+
 @api_router.post("/chat/upload")
 async def chat_upload(file: UploadFile = File(...), user=Depends(get_current_user)):
     if not (user.get("email_verified") or user.get("phone_verified")):
