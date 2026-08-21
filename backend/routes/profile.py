@@ -186,6 +186,59 @@ async def gym_digest(user=Depends(get_current_user)):
     return {**cur, "delta": delta, "week": cur_week}
 
 
+@api_router.get("/digest/weekly")
+async def weekly_digest(user=Depends(get_current_user)):
+    """A short weekly recap: XP/rank moves, races won/lost, strength trend + shields.
+    Rolls a per-ISO-week XP snapshot forward so xp_gained reflects gains this week."""
+    uid = user["user_id"]
+    now = datetime.now(timezone.utc)
+    week = f"{now.isocalendar().year}-W{now.isocalendar().week:02d}"
+    since = now - timedelta(days=7)
+    xp_now = int(user.get("xp", 0))
+    level = level_from_xp(xp_now)
+    rank = rank_from_xp(xp_now)
+
+    snap = user.get("weekly_snap") or {}
+    xp_gained = None
+    level_up = 0
+    if snap.get("week") and snap["week"] != week:
+        xp_gained = xp_now - int(snap.get("xp", 0))
+        level_up = level - int(snap.get("level", level))
+    is_new_week = bool(snap.get("week")) and snap.get("week") != week
+    if snap.get("week") != week:
+        await db.users.update_one(
+            {"user_id": uid},
+            {"$set": {"weekly_snap": {"week": week, "xp": xp_now, "level": level}}},
+        )
+
+    workouts = await db.workouts.count_documents({"user_id": uid, "logged_at": {"$gte": since}})
+    cardio_km = 0.0
+    async for c in db.cardio.find({"user_id": uid, "logged_at": {"$gte": since}}, {"_id": 0, "distance_km": 1}):
+        cardio_km += float(c.get("distance_km", 0) or 0)
+
+    won = await db.rival_challenges.count_documents(
+        {"status": "complete", "winner_id": uid, "completed_at": {"$gte": since}})
+    total_done = await db.rival_challenges.count_documents(
+        {"status": "complete", "completed_at": {"$gte": since},
+         "$or": [{"from_user_id": uid}, {"to_user_id": uid}]})
+    lost = max(0, total_done - won)
+
+    hist = user.get("percentile_history") or []
+    trend = {"percentile_delta": int(hist[-1]["p"]) - int(hist[-2]["p"])} if len(hist) >= 2 else None
+    shield_count = int(user.get("shield_count", 0) or 0)
+
+    return {
+        "week": week, "is_new_week": is_new_week,
+        "level": level, "rank": rank, "xp": xp_now,
+        "xp_gained": xp_gained, "level_up": level_up,
+        "workouts": workouts, "cardio_km": round(cardio_km, 1),
+        "races": {"won": won, "lost": lost},
+        "trend": trend,
+        "shield_tier": shield_tier_for(shield_count), "shield_count": shield_count,
+    }
+
+
+
 @api_router.get("/profile/prs")
 async def profile_prs(user_id: Optional[str] = None, user=Depends(get_current_user)):
     """Current lift bests + a recent PR feed (from logged workouts). Own by default."""

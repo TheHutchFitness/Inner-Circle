@@ -17,6 +17,7 @@ import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { GymWatermark } from "@/src/components/GymWatermark";
 import { LegalNamePrompt } from "@/src/components/LegalNamePrompt";
 import { WhatsNew } from "@/src/components/WhatsNew";
+import { WeeklyDigestCard } from "@/src/components/WeeklyDigestCard";
 import { isLite } from "@/src/lib/mode";
 import { SpotlightMedia } from "@/src/components/SpotlightMedia";
 
@@ -231,6 +232,8 @@ export default function Dashboard() {
           <Text style={styles.champTrophy}>🏆</Text>
         </Pressable>
       )}
+
+      {!lite && <WeeklyDigestCard />}
 
       {!lite && featured.length > 0 && (
         <>

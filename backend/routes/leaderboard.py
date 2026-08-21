@@ -59,6 +59,13 @@ async def leaderboard(board_type: str, filter: str = "all", gym: str = "", user=
             u["metric_label"] = "Bosses"
         users = [u for u in users if u["metric"] > 0]
         users.sort(key=lambda x: x["metric"], reverse=True)
+    elif board_type == "defender":
+        # Lead-defenders: ranked by lifetime shields earned (defended leads).
+        for u in users:
+            u["metric"] = int(u.get("shield_count", 0) or 0)
+            u["metric_label"] = "Shields"
+        users = [u for u in users if u["metric"] > 0]
+        users.sort(key=lambda x: x["metric"], reverse=True)
     else:
         raise HTTPException(status_code=400, detail="Invalid board type")
     # SECURITY: never return raw user docs (they hold email/phone/apple_sub/etc.).

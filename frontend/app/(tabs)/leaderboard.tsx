@@ -40,6 +40,7 @@ const BOARDS = [
   { key: "bench", label: "🏋 BENCH", desc: "Bench PR" },
   { key: "deadlift", label: "🏋 DEADLIFT", desc: "Deadlift PR" },
   { key: "ratio", label: "BW RATIO", desc: "Total / Bodyweight" },
+  { key: "defender", label: "🛡 DEFENDERS", desc: "Leads defended (shields earned)" },
   { key: "season", label: "🔥 SEASON", desc: "Bosses beaten this season · vaults soon" },
 ];
 
