@@ -11,6 +11,7 @@ import { RankUpCelebration } from "@/src/components/RankUpCelebration";
 import { ExerciseLibraryModal } from "@/src/components/ExerciseLibraryModal";
 import { takePendingWorkout } from "@/src/lib/pendingWorkout";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
+import { NeonButton } from "@/src/components/NeonButton";
 
 type SetT = { reps: number; weight_lb: number; rpe: number; id?: string };
 type Exercise = { name: string; sets: SetT[] };
@@ -393,7 +394,7 @@ export default function WorkoutScreen() {
 
           {notice && <Text style={styles.notice}>{notice}</Text>}
 
-          <Pressable testID="finish-workout" onPress={finish} disabled={saving} style={styles.finishBtn}><Text style={styles.finishText}>{saving ? "SAVING..." : "FINISH WORKOUT"}</Text></Pressable>
+          <NeonButton testID="finish-workout" onPress={finish} loading={saving} label="FINISH WORKOUT" style={{ marginTop: spacing.md }} />
           {user?.is_admin && (
             <Pressable testID="assign-to-client" onPress={openAssignPicker} style={styles.assignBtn}><Text style={styles.assignBtnText}>🏋 ASSIGN TO IN-PERSON CLIENT</Text></Pressable>
           )}

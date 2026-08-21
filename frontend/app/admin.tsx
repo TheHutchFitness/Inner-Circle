@@ -23,6 +23,7 @@ export default function Admin() {
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [gyms, setGyms] = useState<Record<string, string>>({});
   const [msg, setMsg] = useState<string | null>(null);
+  const [tab, setTab] = useState<"users" | "groups" | "gyms" | "cosmetics">("users");
   const [redOn, setRedOn] = useState(!!user?.enhanced);
   const [storeItems, setStoreItems] = useState<any[]>([]);
   const [nf, setNf] = useState<any>({ kind: "aura", name: "", description: "", rarity: "legendary", icon: "★", colors: "#7A5CFF,#00E5FF", motion: "pulse" });
@@ -244,6 +245,15 @@ export default function Admin() {
           </View>
         </View>
 
+        <View style={st.tabBar}>
+          {([["users", "👥 USERS"], ["groups", "🛡 GROUPS"], ["gyms", "🏋 GYMS"], ["cosmetics", "🛒 COSMETICS"]] as const).map(([k, label]) => (
+            <Pressable key={k} testID={`admin-tab-${k}`} onPress={() => setTab(k)} style={[st.tabBtn, tab === k && st.tabBtnOn]}>
+              <Text style={[st.tabBtnText, tab === k && st.tabBtnTextOn]}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {tab === "groups" && (<>
         {/* Group (Clan) Challenge */}
         <Text style={st.section}>🏆 GROUP CHALLENGE</Text>
         <View style={st.card}>
@@ -266,6 +276,9 @@ export default function Admin() {
           )}
         </View>
 
+        </>)}
+
+        {tab === "users" && (<>
         {/* Security / login audit */}
         <View style={st.secHeadRow}>
           <Text style={st.section}>🛡 SECURITY — LOGIN ATTEMPTS</Text>
@@ -302,6 +315,9 @@ export default function Admin() {
           )}
         </View>
 
+        </>)}
+
+        {tab === "cosmetics" && (<>
         {/* Store drop creator */}
         <Text style={st.section}>🛒 STORE DROPS ({storeItems.length})</Text>
         <View style={st.card}>
@@ -337,6 +353,9 @@ export default function Admin() {
           </View>
         ))}
 
+        </>)}
+
+        {tab === "gyms" && (<>
         {/* Gym directory moderation */}
         <Text style={st.section}>🏋 GYM DIRECTORY ({gymDir.length})</Text>
         <Text style={st.dim}>Edit or remove fake gyms. Removing one clears it from all members who picked it.</Text>
@@ -411,6 +430,9 @@ export default function Admin() {
           </View>
         ))}
 
+        </>)}
+
+        {tab === "users" && (<>
         {/* Featured members */}
         <Text style={st.section}>★ HOME SPOTLIGHT ({featured.length})</Text>
         {featured.length === 0 ? (
@@ -516,6 +538,7 @@ export default function Admin() {
             </Pressable>
           </View>
         ))}
+        </>)}
         {msg && <Text style={st.msg}>{msg}</Text>}
       </ScrollView>
     </View>
@@ -524,6 +547,12 @@ export default function Admin() {
 
 const st = StyleSheet.create({
   wrap: { flex: 1, backgroundColor: colors.surface },
+  searchInput: { flex: 1, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 12, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
+  tabBar: { flexDirection: "row", gap: 6, marginBottom: spacing.lg, flexWrap: "wrap" },
+  tabBtn: { flex: 1, minWidth: 72, paddingVertical: 11, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  tabBtnOn: { borderColor: colors.brandPrimary, backgroundColor: colors.brandTertiary },
+  tabBtnText: { color: colors.textDim, fontWeight: "900", fontSize: 10, letterSpacing: 0.5 },
+  tabBtnTextOn: { color: colors.brandPrimary },
   deleteBtn: { marginTop: 4, paddingVertical: 11, alignItems: "center", borderRadius: radius.sm, borderWidth: 1, borderColor: colors.error, backgroundColor: "rgba(255,45,85,0.1)" },
   deleteBtnText: { color: colors.error, fontWeight: "900", letterSpacing: 1, fontSize: 12 },
   locked: { color: colors.error, fontWeight: "900", letterSpacing: 3, fontSize: 20 },

@@ -17,6 +17,8 @@ import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { BookingModal } from "@/src/components/BookingModal";
+import { NeonButton } from "@/src/components/NeonButton";
+import { CircleIconButton } from "@/src/components/CircleIconButton";
 import { setPendingWorkoutExact } from "@/src/lib/pendingWorkout";
 
 const API = process.env.EXPO_PUBLIC_BACKEND_URL;
@@ -441,9 +443,7 @@ export default function InPersonRoom() {
               style={styles.sessionsCal}
             />
             {!isAdmin && (
-              <Pressable testID="ip-request-session" onPress={() => { setRescheduleId(null); setBookingOpen(true); }} style={styles.sessionReqBtn}>
-                <Text style={styles.sessionReqText}>📅 REQUEST A SESSION</Text>
-              </Pressable>
+              <NeonButton testID="ip-request-session" onPress={() => { setRescheduleId(null); setBookingOpen(true); }} label="📅 REQUEST A SESSION" style={{ marginTop: spacing.sm }} />
             )}
             {isAdmin && bookings.filter((b) => b.status === "pending").length > 0 && (
               <View style={{ marginTop: spacing.sm }}>
@@ -752,18 +752,16 @@ export default function InPersonRoom() {
           <View style={[styles.composerWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
             <View style={styles.composer}>
               {isAdmin && (
-                <Pressable testID="ip-assign" onPress={openAssign} style={styles.iconBtn}><Text style={styles.iconText}>🏋</Text></Pressable>
+                <CircleIconButton testID="ip-assign" onPress={openAssign} icon="🏋" tone="gold" size={44} />
               )}
-              <Pressable testID="ip-attach-img" onPress={pickImage} style={styles.iconBtn}><Text style={styles.iconText}>🖼</Text></Pressable>
-              <Pressable testID="ip-attach-file" onPress={pickDoc} style={styles.iconBtn}><Text style={styles.iconText}>📎</Text></Pressable>
+              <CircleIconButton testID="ip-attach-img" onPress={pickImage} icon="🖼" tone="gold" size={44} />
+              <CircleIconButton testID="ip-attach-file" onPress={pickDoc} icon="📎" tone="blue" size={44} />
               <TextInput
                 testID="ip-input" value={text} onChangeText={setText}
                 placeholder="Message…" placeholderTextColor={colors.textDim}
                 style={styles.input} multiline
               />
-              <Pressable testID="ip-send" onPress={send} disabled={sending} style={styles.sendCircle}>
-                <Text style={styles.sendArrow}>{sending ? "…" : "➤"}</Text>
-              </Pressable>
+              <CircleIconButton testID="ip-send" onPress={send} disabled={sending} icon="➤" tone="orange" size={44} />
             </View>
           </View>
         </>

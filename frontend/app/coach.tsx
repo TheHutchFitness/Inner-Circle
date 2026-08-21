@@ -6,6 +6,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
+import { CircleIconButton } from "@/src/components/CircleIconButton";
 import { VoiceButton } from "@/src/components/VoiceButton";
 import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { colors, spacing, radius } from "@/src/lib/theme";
@@ -142,9 +143,7 @@ export default function Coach() {
             multiline
             onSubmitEditing={() => send()}
           />
-          <Pressable testID="coach-send" onPress={() => send()} disabled={sending || !text.trim()} style={[styles.sendCircle, (sending || !text.trim()) && { opacity: 0.4 }]}>
-            <Text style={styles.sendArrow}>➤</Text>
-          </Pressable>
+          <CircleIconButton testID="coach-send" onPress={() => send()} disabled={sending || !text.trim()} icon="➤" tone="orange" size={46} />
         </View>
       </View>
     </KeyboardAvoidingView>

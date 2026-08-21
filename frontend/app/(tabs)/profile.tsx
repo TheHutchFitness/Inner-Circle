@@ -18,6 +18,8 @@ import { HudSectionHeader } from "@/src/components/Hud";
 import { SocialLinksEditor } from "@/src/components/SocialLinks";
 import { FoundingRibbon, CreatorBadge, SeasonChampBadge } from "@/src/components/Badges";
 import { PetCompanion } from "@/src/components/PetCompanion";
+import { NeonButton } from "@/src/components/NeonButton";
+import { NavButton } from "@/src/components/NavButton";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { GymWatermark } from "@/src/components/GymWatermark";
@@ -238,7 +240,7 @@ export default function Profile() {
             </LinearGradient>
           </View>
         </Pressable>
-        <Text style={styles.tapHint}>TAP THE CARD TO SWITCH YOUR CLASS</Text>
+        <Text style={styles.tapHint}>TAP THE CARD TO CHANGE YOUR AVATAR</Text>
         {showBadges && (
           <View style={styles.badgesPanel}>
             <Text style={styles.badgesPanelLabel}>MILESTONE BADGES</Text>
@@ -403,21 +405,17 @@ export default function Profile() {
             <Text style={[styles.ipStatusText, { color: colors.textDim }]}>{user.inperson_gym ? "This gym doesn't offer in-person coaching yet" : "Set a gym that offers coaching to request it"}</Text>
           </View>
         ) : (
-          <Pressable
+          <NeonButton
             testID="request-inperson"
             onPress={requestInperson}
             disabled={!user.inperson_gym}
-            style={[styles.ipRequestBtn, !user.inperson_gym && styles.ipRequestDisabled]}
-          >
-            <Text style={styles.ipRequestText}>🏋 REQUEST IN-PERSON COACHING</Text>
-          </Pressable>
+            label="🏋 REQUEST IN-PERSON COACHING"
+          />
         )}
 
         {user.inperson_client && (
           <>
-            <Pressable testID="profile-request-session" onPress={() => { setRescheduleId(null); setBookingOpen(true); }} style={styles.sessionBtn}>
-              <Text style={styles.sessionBtnText}>📅 REQUEST A TRAINING SESSION</Text>
-            </Pressable>
+            <NeonButton testID="profile-request-session" onPress={() => { setRescheduleId(null); setBookingOpen(true); }} label="📅 REQUEST A TRAINING SESSION" variant="orangeBlue" style={{ marginTop: spacing.sm }} />
             {bookings.filter((b) => b.status === "approved" || b.status === "pending").length > 0 && (
               <View style={styles.bookingList}>
                 {bookings.filter((b) => b.status === "approved" || b.status === "pending").slice(0, 5).map((b) => (
@@ -451,27 +449,13 @@ export default function Profile() {
         )}
       </View>
 
-      {!lite && (
-      <Pressable testID="open-loadout" onPress={() => router.push("/loadout")} style={styles.linkBtn}>
-        <Text style={styles.linkText}>◆ INVENTORY — GEAR, FRAMES & BACKGROUNDS</Text>
-      </Pressable>
-      )}
-      {!lite && (
-      <Pressable testID="open-armory" onPress={() => router.push("/gear")} style={[styles.linkBtn, { borderColor: colors.warning }]}>
-        <Text style={[styles.linkText, { color: colors.warning }]}>⚔ THE ARMORY — SKINS & WEAPONS</Text>
-      </Pressable>
-      )}
-      {!lite && (
-      <Pressable testID="open-paywall-profile" onPress={() => router.push("/paywall")} style={styles.linkBtn}>
-        <Text style={styles.linkText}>MANAGE PREMIUM</Text>
-      </Pressable>
-      )}
-      <Pressable testID="open-purchases" onPress={() => router.push("/purchases")} style={styles.linkBtn}>
-        <Text style={styles.linkText}>MY PURCHASES</Text>
-      </Pressable>
-      <Pressable testID="sign-out" onPress={signOut} style={[styles.linkBtn, { borderColor: colors.error }]}>
-        <Text style={[styles.linkText, { color: colors.error }]}>SIGN OUT</Text>
-      </Pressable>
+      <View style={styles.navGroup}>
+        {!lite && <NavButton testID="open-loadout" onPress={() => router.push("/loadout")} icon="◆" label="INVENTORY — GEAR & FRAMES" tone="blue" />}
+        {!lite && <NavButton testID="open-armory" onPress={() => router.push("/gear")} icon="⚔" label="THE ARMORY — SKINS & WEAPONS" tone="gold" />}
+        {!lite && <NavButton testID="open-paywall-profile" onPress={() => router.push("/paywall")} icon="★" label="MANAGE PREMIUM" tone="gold" />}
+        <NavButton testID="open-purchases" onPress={() => router.push("/purchases")} icon="🧾" label="MY PURCHASES" tone="blue" />
+        <NavButton testID="sign-out" onPress={signOut} icon="⏻" label="SIGN OUT" tone="red" />
+      </View>
 
       <Modal visible={avatarOpen} transparent animationType="fade" onRequestClose={() => setAvatarOpen(false)}>
         <View style={styles.modalOverlay}>
@@ -652,6 +636,7 @@ const styles = StyleSheet.create({
   badgeText: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 1, fontWeight: "800" },
   emptyBadges: { color: colors.textDim, paddingHorizontal: spacing.lg },
   linkBtn: { marginTop: spacing.md, marginHorizontal: spacing.lg, padding: spacing.md, alignItems: "center", borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.sm },
+  navGroup: { paddingHorizontal: spacing.lg, marginTop: spacing.md, gap: spacing.sm },
   linkText: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 3 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.9)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalCard: { width: "100%", backgroundColor: colors.surface2, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderStrong },

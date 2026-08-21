@@ -6,6 +6,9 @@ import { useRouter } from "expo-router";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors, spacing, radius } from "@/src/lib/theme";
 import { VerifyPanel } from "@/src/components/VerifyPanel";
+import { NeonButton } from "@/src/components/NeonButton";
+import { NavButton } from "@/src/components/NavButton";
+import { ActionButton } from "@/src/components/ActionButton";
 import { persistEnhancedFlag, reloadApp } from "@/src/lib/enhancedTheme";
 
 export default function Settings() {
@@ -116,16 +119,12 @@ export default function Settings() {
           ))}
         </View>
 
-        <Pressable testID="save-profile" onPress={save} style={styles.primary}>
-          <Text style={styles.primaryText}>SAVE PROFILE</Text>
-        </Pressable>
+        <NeonButton testID="save-profile" onPress={save} label="SAVE PROFILE" style={{ marginTop: 8 }} />
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>SKOOL VERIFICATION</Text>
         <Text style={styles.helper}>{"Get your access code from the The Circle Skool community. Members enter the code below to unlock chatrooms + AI."}</Text>
         <TextInput testID="s-skool-code" value={code} onChangeText={setCode} placeholder="Enter 4-digit code" placeholderTextColor={colors.textDim} style={styles.input} keyboardType="number-pad" maxLength={4} />
-        <Pressable testID="verify-skool" onPress={verifySkool} style={styles.primary}>
-          <Text style={styles.primaryText}>VERIFY MEMBERSHIP</Text>
-        </Pressable>
+        <NeonButton testID="verify-skool" onPress={verifySkool} label="VERIFY MEMBERSHIP" variant="orangeBlue" />
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>ACCOUNT VERIFICATION</Text>
         <Text style={styles.helper}>Verify your email to unlock photo & video sharing in the chatrooms.</Text>
@@ -135,24 +134,20 @@ export default function Settings() {
           <>
             <Text style={[styles.h1, { marginTop: spacing.xl }]}>ENHANCED STATUS</Text>
             <Text style={styles.helper}>Remove the Enhanced tag and red theme from your profile. This can only be done once — it cannot be undone.</Text>
-            <Pressable
+            <ActionButton
               testID="remove-enhanced"
               onPress={removeEnhanced}
               disabled={!!user?.enhanced_removal_used}
-              style={[styles.dangerBtn, user?.enhanced_removal_used && styles.dangerBtnDisabled]}
-            >
-              <Text style={[styles.dangerText, user?.enhanced_removal_used && styles.dangerTextDisabled]}>
-                {user?.enhanced_removal_used ? "ONLY AVAILABLE ONCE" : "REMOVE ENHANCED STATUS"}
-              </Text>
-            </Pressable>
+              tone="red"
+              label={user?.enhanced_removal_used ? "ONLY AVAILABLE ONCE" : "REMOVE ENHANCED STATUS"}
+              style={{ marginTop: spacing.md }}
+            />
           </>
         )}
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>APP TOUR</Text>
         <Text style={styles.helper}>Re-watch the quick intro to Quests, the Armory and Clans.</Text>
-        <Pressable testID="replay-tour" onPress={replayTour} style={styles.linkBtn}>
-          <Text style={styles.linkText}>🧭  REPLAY INTRO TOUR</Text>
-        </Pressable>
+        <NavButton testID="replay-tour" onPress={replayTour} icon="🧭" label="REPLAY INTRO TOUR" tone="blue" style={{ marginTop: spacing.sm }} />
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>APP MODE</Text>
         <Text style={styles.helper}>Full unlocks games, cosmetics & chat. Lite is pure tracking with no distractions. Switch anytime.</Text>
@@ -168,13 +163,14 @@ export default function Settings() {
         </View>
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>LEGAL</Text>
-        <Pressable
+        <NavButton
           testID="privacy-policy"
           onPress={() => Linking.openURL(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/legal/privacy`).catch(() => {})}
-          style={styles.linkBtn}
-        >
-          <Text style={styles.linkText}>📄  PRIVACY POLICY</Text>
-        </Pressable>
+          icon="📄"
+          label="PRIVACY POLICY"
+          tone="blue"
+          style={{ marginTop: spacing.sm }}
+        />
 
         {!user?.is_admin && (
           <>
@@ -193,16 +189,15 @@ export default function Settings() {
               autoCorrect={false}
               style={styles.input}
             />
-            <Pressable
+            <ActionButton
               testID="delete-account"
               onPress={deleteAccount}
               disabled={confirmDelete.trim().toUpperCase() !== "DELETE" || deleting}
-              style={[styles.dangerBtn, (confirmDelete.trim().toUpperCase() !== "DELETE" || deleting) && styles.dangerBtnDisabled]}
-            >
-              <Text style={[styles.dangerText, (confirmDelete.trim().toUpperCase() !== "DELETE" || deleting) && styles.dangerTextDisabled]}>
-                {deleting ? "DELETING..." : "DELETE MY ACCOUNT"}
-              </Text>
-            </Pressable>
+              loading={deleting}
+              tone="red"
+              label="DELETE MY ACCOUNT"
+              style={{ marginTop: spacing.md }}
+            />
           </>
         )}
 
