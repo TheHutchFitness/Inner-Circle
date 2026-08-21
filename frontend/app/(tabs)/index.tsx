@@ -15,6 +15,7 @@ import { SwipeTabs } from "@/src/components/SwipeTabs";
 import { GearedAvatar } from "@/src/components/GearedAvatar";
 import { PlayerAvatar } from "@/src/components/PlayerAvatar";
 import { GymWatermark } from "@/src/components/GymWatermark";
+import { LegalNamePrompt } from "@/src/components/LegalNamePrompt";
 import { isLite } from "@/src/lib/mode";
 import { SpotlightMedia } from "@/src/components/SpotlightMedia";
 
@@ -142,6 +143,7 @@ export default function Dashboard() {
         style={StyleSheet.absoluteFill}
       />
       <GymWatermark />
+      <LegalNamePrompt />
       {questReady > 0 && !questPopupDismissed && (
         <View style={[styles.questPop, { top: insets.top + 8 }]} testID="quest-ready-pop">
           <Pressable onPress={() => { setQuestPopupDismissed(true); router.push("/journey"); }}>

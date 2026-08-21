@@ -658,3 +658,8 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - QUEST READY POPUP: Home focus-effect fetches /api/journey; if any node complete&&!claimed shows a small dismissible orange pill "⚔ N quests ready to claim" → /journey.
 - JOURNEY ZONE TEXTURES: journey.tsx map canvas now has a zone-tinted LinearGradient (primary→accent) + scattered low-opacity building/gym/barbell emoji themed by zone name (zoneDecor keyword match: iron/storm/waste/citadel/neon/default). hexA() alpha helper added.
 - BACKEND TESTED: /app/test_reports/iteration_35.json — 20/20 passed (register full_name, rooms submit/feed/like/comment/leaderboard, multi-gym limit/dedupe/primary, journey objectives, purge-preview, admin members full_name). Cleanup done (owner gyms restored, test data removed).
+
+## Batch 6g (2026-08 — Legacy full-name prompt)
+- LEGACY NAME PROMPT: backend POST /api/profile/full-name (validates >=2 chars, stores full_name[:80]). Frontend src/components/LegalNamePrompt.tsx — blocking modal mounted on Home (index.tsx) that shows for any non-admin user whose full_name is empty; on save it refreshes auth. Verified endpoint (400 too-short, 200 valid) + Home renders (hidden for admin).
+- REFERENCE IMAGES: user provided 4 painted zone-background references for the Journey ("Zone Art Upgrade") — NOT yet implemented (needs generated/painted per-zone image assets; deferred to next session to avoid partial work).
+- STILL PENDING from user's list: Zone Art Upgrade (custom painted gym/city backdrops per zone using the provided refs), Gym Chat Rooms (per-gym chat for each of a member's up to 5 gyms).

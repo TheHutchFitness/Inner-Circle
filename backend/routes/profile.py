@@ -155,6 +155,17 @@ async def skool_verify(inp: SkoolVerifyIn, user=Depends(get_current_user)):
     return fresh
 
 
+@api_router.post("/profile/full-name")
+async def set_full_name(inp: dict = Body(...), user=Depends(get_current_user)):
+    """Legacy members backfill their full legal name (prompted on login)."""
+    name = (inp.get("full_name") or "").strip()
+    if len(name) < 2:
+        raise HTTPException(status_code=400, detail="Please enter your full legal name")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"full_name": name[:80]}})
+    return {"ok": True, "full_name": name[:80]}
+
+
+
 @api_router.post("/profile/set-background")
 async def set_background(inp: BackgroundSet, user=Depends(get_current_user)):
     bg = next((b for b in BACKGROUNDS if b["id"] == inp.background_id), None)
