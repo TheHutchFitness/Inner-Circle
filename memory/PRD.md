@@ -599,3 +599,7 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 ## Batch 4 (2026-08)
 - NeonButton component (src/components/NeonButton.tsx): on-brand blue→orange LinearGradient CTA with glowing border + press scale, matching the reference button sheet. Applied to the login ENTER/ENLIST CTA (index.tsx). Reusable — variant "blueOrange"/"orangeBlue", label/onPress/loading/disabled props.
 - FIRST PASS only: rollout to all primary buttons across screens + bottom tab-bar restyle is a larger design pass still pending.
+
+## Batch 5 (2026-08)
+- Bottom tab bar neon restyle ((tabs)/_layout.tsx): active tab now has a blue→orange LinearGradient glow pill behind it, orange icon (blue text-shadow glow) + orange bold label, and a blue→orange gradient underline. Verified via screenshot.
+- STILL PENDING: full NeonButton rollout to every primary button across ~15 screens (large multi-file pass); Judge cleanup; Purge Test Data tool.

@@ -1,6 +1,7 @@
 import { Tabs, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth, apiFetch } from "@/src/lib/auth";
 import { colors } from "@/src/lib/theme";
@@ -76,10 +77,11 @@ function CustomTabBar({ state, navigation }: any) {
             onPress={() => navigation.navigate(route.name)}
             style={styles.item}
           >
+            {focused && <LinearGradient colors={["rgba(10,132,255,0.28)", "rgba(255,122,24,0.28)"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.tabGlow} />}
             <Text style={[styles.icon, focused && styles.iconFocus]}>{meta.icon}</Text>
             <Text style={[styles.label, focused && styles.labelFocus]}>{meta.label}</Text>
             {meta.name === "quests" && bossAlert && <View testID="boss-alert-dot" style={styles.badge} />}
-            {focused && <View style={styles.underline} />}
+            {focused && <LinearGradient colors={["#0A84FF", "#FF7A18"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.underline} />}
           </Pressable>
         );
       })}
@@ -133,10 +135,11 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   item: { flex: 1, alignItems: "center", paddingVertical: 4 },
+  tabGlow: { position: "absolute", top: 2, alignSelf: "center", width: 46, height: 34, borderRadius: 12 },
   icon: { color: colors.textDim, fontSize: 18, marginBottom: 2 },
-  iconFocus: { color: colors.brandPrimary, textShadowColor: colors.brandPrimary, textShadowRadius: 8 },
+  iconFocus: { color: "#FF9E4A", textShadowColor: "#0A84FF", textShadowRadius: 10 },
   label: { color: colors.textDim, fontSize: 9, letterSpacing: 1, fontWeight: "700" },
-  labelFocus: { color: colors.brandPrimary },
-  underline: { position: "absolute", top: 0, height: 2, width: 24, backgroundColor: colors.brandPrimary },
+  labelFocus: { color: "#FF9E4A", fontWeight: "900" },
+  underline: { position: "absolute", top: 0, height: 3, width: 30, borderRadius: 2 },
   badge: { position: "absolute", top: 0, right: "30%", width: 9, height: 9, borderRadius: 5, backgroundColor: colors.warning, borderWidth: 1, borderColor: colors.surface2 },
 });
