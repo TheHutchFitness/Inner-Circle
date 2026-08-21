@@ -192,6 +192,16 @@ async def me(user=Depends(get_current_user)):
     if gym:
         cg = await db.gyms.find_one({"name_lower": gym.lower(), "coaching_enabled": True}, {"_id": 1})
         user["coaching_available"] = bool(cg)
+    # Baseline run bests (seconds) so the retest screen can pre-fill 5K / 10K.
+    runs = {}
+    async for c in db.cardio.find(
+        {"user_id": user["user_id"], "baseline": True}, {"_id": 0, "distance_km": 1, "duration_s": 1}
+    ):
+        if c.get("distance_km") == 5.0:
+            runs["t_5k"] = int(c.get("duration_s") or 0)
+        elif c.get("distance_km") == 10.0:
+            runs["t_10k"] = int(c.get("duration_s") or 0)
+    user["baseline_runs"] = runs
     return user
 
 

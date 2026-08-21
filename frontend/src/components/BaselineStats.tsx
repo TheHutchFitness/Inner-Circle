@@ -1,10 +1,22 @@
-import { useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { useState, useRef, useEffect } from "react";
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform, Keyboard, InputAccessoryView, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuth, apiFetch } from "@/src/lib/auth";
+import { useUnits } from "@/src/lib/units";
 import { colors, spacing, radius } from "@/src/lib/theme";
+
+const KG = 2.2046226218;
+const ACCESSORY_ID = "baseline-kb-accessory";
+
+// seconds -> "mm:ss" for pre-filling run fields.
+function secondsToMMSS(secs: number): string {
+  if (!secs || secs <= 0) return "";
+  const m = Math.floor(secs / 60);
+  const s = Math.round(secs % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 // Parse "mm:ss" or "m:ss" or plain seconds -> total seconds. Empty -> 0.
 function parseTime(v: string): number {
@@ -21,39 +33,41 @@ function parseTime(v: string): number {
 // Defined at module scope (NOT inside BaselineStats) so their component identity
 // stays stable across re-renders — otherwise the TextInput remounts on every
 // keystroke and the keyboard closes after each character (iOS).
-function Lift({ label, value, onChange }: { label: string; value: string; onChange: (t: string) => void }) {
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.inputWrap}>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          keyboardType="numeric"
-          placeholder="0"
-          placeholderTextColor={colors.textDim}
-          style={styles.input}
-        />
-        <Text style={styles.unit}>lb</Text>
-      </View>
-    </View>
-  );
-}
+type FieldProps = {
+  label: string;
+  value: string;
+  onChange: (t: string) => void;
+  unitLabel: string;
+  inputRef?: (r: TextInput | null) => void;
+  onFocus?: () => void;
+  onSubmitEditing?: () => void;
+  isLast?: boolean;
+  numeric?: boolean;
+  placeholder?: string;
+  testID?: string;
+};
 
-function RunField({ label, value, onChange, ph, hint }: { label: string; value: string; onChange: (t: string) => void; ph: string; hint: string }) {
+function Field({ label, value, onChange, unitLabel, inputRef, onFocus, onSubmitEditing, isLast, numeric = true, placeholder = "0", testID }: FieldProps) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.inputWrap}>
         <TextInput
+          ref={inputRef}
+          testID={testID}
           value={value}
           onChangeText={onChange}
-          keyboardType="numbers-and-punctuation"
-          placeholder={ph}
+          onFocus={onFocus}
+          keyboardType={numeric ? "numeric" : "numbers-and-punctuation"}
+          placeholder={placeholder}
           placeholderTextColor={colors.textDim}
           style={styles.input}
+          returnKeyType={isLast ? "done" : "next"}
+          blurOnSubmit={isLast}
+          onSubmitEditing={onSubmitEditing}
+          inputAccessoryViewID={Platform.OS === "ios" ? ACCESSORY_ID : undefined}
         />
-        <Text style={styles.unit}>{hint}</Text>
+        <Text style={styles.unit}>{unitLabel}</Text>
       </View>
     </View>
   );
@@ -63,7 +77,8 @@ function RunField({ label, value, onChange, ph, hint }: { label: string; value: 
 // Writes baseline_set:true so it only appears once.
 export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; onSkip?: () => void }) {
   const insets = useSafeAreaInsets();
-  const { token, refresh } = useAuth();
+  const { token, user, refresh } = useAuth();
+  const { unit, setUnit } = useUnits();
   const router = useRouter();
   const [busy, setBusy] = useState<"save" | "skip" | null>(null);
   const [reward, setReward] = useState<number | null>(null);
@@ -77,8 +92,59 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
   const [t10k, setT10k] = useState("");
   const [t100m, setT100m] = useState("");
 
+  // Ordered refs so a "Next" jumps Bench → Squat → Deadlift → OHP → runs.
+  const refs = useRef<Array<TextInput | null>>([]);
+  const focusIdx = (i: number) => {
+    const n = refs.current[i];
+    if (n) n.focus();
+    else Keyboard.dismiss();
+  };
+  const focusedRef = useRef(0);
+
+  // Pre-fill from the member's saved bests so a retest only tweaks what changed.
+  useEffect(() => {
+    if (!manual || !user) return;
+    const dispLift = (lb: number) => {
+      if (!lb || lb <= 0) return "";
+      return String(Math.round(unit === "kg" ? lb / KG : lb));
+    };
+    const prs = user.prs || {};
+    setBench(dispLift(prs.bench));
+    setSquat(dispLift(prs.squat));
+    setDeadlift(dispLift(prs.deadlift));
+    setOhp(dispLift(prs.ohp));
+    const runs = user.baseline_runs || {};
+    setT5k(secondsToMMSS(runs.t_5k));
+    setT10k(secondsToMMSS(runs.t_10k));
+    const s100 = user.sprints?.["100m"];
+    setT100m(s100 && s100 > 0 ? String(s100) : "");
+    // Only re-run when entering the screen / user loads. Unit handled separately.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manual, user?.user_id]);
+
+  // Toggle lb⇄kg right here and convert whatever lifts are already typed.
+  const changeUnit = (next: "lb" | "kg") => {
+    if (next === unit) return;
+    const conv = (s: string) => {
+      const v = parseFloat(s);
+      if (!s || isNaN(v)) return s;
+      const lb = unit === "kg" ? v * KG : v;
+      const disp = next === "kg" ? lb / KG : lb;
+      return String(Math.round(disp));
+    };
+    setBench(conv(bench));
+    setSquat(conv(squat));
+    setDeadlift(conv(deadlift));
+    setOhp(conv(ohp));
+    setUnit(next);
+  };
+
   const submit = async (skip: boolean) => {
     setBusy(skip ? "skip" : "save");
+    const toLb = (s: string) => {
+      const v = parseFloat(s) || 0;
+      return unit === "kg" ? Math.round(v * KG) : Math.round(v);
+    };
     try {
       const res = await apiFetch(token, "/api/onboarding/baseline", {
         method: "POST",
@@ -86,10 +152,10 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
           skip
             ? { skip: true }
             : {
-                bench: parseFloat(bench) || 0,
-                squat: parseFloat(squat) || 0,
-                deadlift: parseFloat(deadlift) || 0,
-                ohp: parseFloat(ohp) || 0,
+                bench: toLb(bench),
+                squat: toLb(squat),
+                deadlift: toLb(deadlift),
+                ohp: toLb(ohp),
                 t_5k: parseTime(t5k),
                 t_10k: parseTime(t10k),
                 t_100m: parseFloat(t100m) || 0,
@@ -123,18 +189,40 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
         <Text style={styles.sub}>{manual ? "Log your latest bests to update your player stats and watch your percentile climb. Leave any field blank to keep it." : "Log your current bests so your player stats, rank and combat power start from where you really are. Every athlete begins different. You can skip any field."}</Text>
 
         <LinearGradient colors={[colors.brandTertiary, colors.surface2]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
-          <Text style={styles.cardTag}>◆ THE BIG FOUR</Text>
-          <Lift label="Bench Press" value={bench} onChange={setBench} />
-          <Lift label="Squat" value={squat} onChange={setSquat} />
-          <Lift label="Deadlift" value={deadlift} onChange={setDeadlift} />
-          <Lift label="Overhead Press" value={ohp} onChange={setOhp} />
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardTag}>◆ THE BIG FOUR</Text>
+            <View style={styles.unitToggle}>
+              {(["lb", "kg"] as const).map((u) => (
+                <TouchableOpacity
+                  key={u}
+                  testID={`unit-${u}`}
+                  onPress={() => changeUnit(u)}
+                  style={[styles.unitBtn, unit === u && styles.unitBtnActive]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.unitBtnText, unit === u && styles.unitBtnTextActive]}>{u.toUpperCase()}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          <Field label="Bench Press" value={bench} onChange={setBench} unitLabel={unit} testID="bl-bench"
+            inputRef={(r) => (refs.current[0] = r)} onFocus={() => (focusedRef.current = 0)} onSubmitEditing={() => focusIdx(1)} />
+          <Field label="Squat" value={squat} onChange={setSquat} unitLabel={unit} testID="bl-squat"
+            inputRef={(r) => (refs.current[1] = r)} onFocus={() => (focusedRef.current = 1)} onSubmitEditing={() => focusIdx(2)} />
+          <Field label="Deadlift" value={deadlift} onChange={setDeadlift} unitLabel={unit} testID="bl-deadlift"
+            inputRef={(r) => (refs.current[2] = r)} onFocus={() => (focusedRef.current = 2)} onSubmitEditing={() => focusIdx(3)} />
+          <Field label="Overhead Press" value={ohp} onChange={setOhp} unitLabel={unit} testID="bl-ohp"
+            inputRef={(r) => (refs.current[3] = r)} onFocus={() => (focusedRef.current = 3)} onSubmitEditing={() => focusIdx(4)} />
         </LinearGradient>
 
         <View style={[styles.card, styles.cardAlt]}>
           <Text style={[styles.cardTag, { color: colors.success }]}>▸ SPEED &amp; ENGINE</Text>
-          <RunField label="Fastest 5K" value={t5k} onChange={setT5k} ph="mm:ss" hint="mm:ss" />
-          <RunField label="Fastest 10K" value={t10k} onChange={setT10k} ph="mm:ss" hint="mm:ss" />
-          <RunField label="Fastest 100m" value={t100m} onChange={setT100m} ph="0.0" hint="sec" />
+          <Field label="Fastest 5K" value={t5k} onChange={setT5k} unitLabel="mm:ss" numeric={false} placeholder="mm:ss" testID="bl-5k"
+            inputRef={(r) => (refs.current[4] = r)} onFocus={() => (focusedRef.current = 4)} onSubmitEditing={() => focusIdx(5)} />
+          <Field label="Fastest 10K" value={t10k} onChange={setT10k} unitLabel="mm:ss" numeric={false} placeholder="mm:ss" testID="bl-10k"
+            inputRef={(r) => (refs.current[5] = r)} onFocus={() => (focusedRef.current = 5)} onSubmitEditing={() => focusIdx(6)} />
+          <Field label="Fastest 100m" value={t100m} onChange={setT100m} unitLabel="sec" placeholder="0.0" isLast testID="bl-100m"
+            inputRef={(r) => (refs.current[6] = r)} onFocus={() => (focusedRef.current = 6)} onSubmitEditing={() => Keyboard.dismiss()} />
         </View>
 
         <Pressable testID="baseline-save" disabled={!!busy} onPress={() => submit(false)} style={[styles.primary, !!busy && { opacity: 0.6 }]}>
@@ -144,6 +232,19 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
           {busy === "skip" ? <ActivityIndicator color={colors.textDim} /> : <Text style={styles.skipText}>SKIP FOR NOW</Text>}
         </Pressable>
       </ScrollView>
+
+      {Platform.OS === "ios" && (
+        <InputAccessoryView nativeID={ACCESSORY_ID}>
+          <View style={styles.accessory}>
+            <TouchableOpacity testID="kb-next" onPress={() => focusIdx(Math.min(focusedRef.current + 1, 6))} style={styles.accessoryBtn}>
+              <Text style={styles.accessoryNext}>Next ↓</Text>
+            </TouchableOpacity>
+            <TouchableOpacity testID="kb-done" onPress={() => Keyboard.dismiss()} style={styles.accessoryBtn}>
+              <Text style={styles.accessoryDone}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </InputAccessoryView>
+      )}
 
       {reward !== null && (
         <View style={styles.rewardOverlay} pointerEvents="none">
@@ -180,6 +281,16 @@ const styles = StyleSheet.create({
   card: { borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.brandPrimary, padding: spacing.lg, marginBottom: spacing.lg },
   cardAlt: { backgroundColor: colors.surface2, borderColor: colors.borderStrong },
   cardTag: { color: colors.brandPrimary, fontSize: 12, fontWeight: "900", letterSpacing: 2, marginBottom: spacing.sm },
+  cardHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  unitToggle: { flexDirection: "row", backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
+  unitBtn: { paddingHorizontal: spacing.md, paddingVertical: 6, minWidth: 44, alignItems: "center" },
+  unitBtnActive: { backgroundColor: colors.brandPrimary },
+  unitBtnText: { color: colors.textDim, fontSize: 12, fontWeight: "900", letterSpacing: 1 },
+  unitBtnTextActive: { color: "#001122" },
+  accessory: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surface2, borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: spacing.md, paddingVertical: 8 },
+  accessoryBtn: { paddingHorizontal: spacing.md, paddingVertical: 6 },
+  accessoryNext: { color: colors.brandPrimary, fontSize: 15, fontWeight: "800", letterSpacing: 1 },
+  accessoryDone: { color: colors.text, fontSize: 15, fontWeight: "800", letterSpacing: 1 },
   field: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
   fieldLabel: { color: colors.text, fontSize: 14, fontWeight: "700", flex: 1 },
   inputWrap: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.sm, minWidth: 120 },
