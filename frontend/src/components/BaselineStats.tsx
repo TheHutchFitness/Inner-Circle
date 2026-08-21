@@ -18,6 +18,47 @@ function parseTime(v: string): number {
   return Math.round(parseFloat(s) || 0);
 }
 
+// Defined at module scope (NOT inside BaselineStats) so their component identity
+// stays stable across re-renders — otherwise the TextInput remounts on every
+// keystroke and the keyboard closes after each character (iOS).
+function Lift({ label, value, onChange }: { label: string; value: string; onChange: (t: string) => void }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.inputWrap}>
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          keyboardType="numeric"
+          placeholder="0"
+          placeholderTextColor={colors.textDim}
+          style={styles.input}
+        />
+        <Text style={styles.unit}>lb</Text>
+      </View>
+    </View>
+  );
+}
+
+function RunField({ label, value, onChange, ph, hint }: { label: string; value: string; onChange: (t: string) => void; ph: string; hint: string }) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.inputWrap}>
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          keyboardType="numbers-and-punctuation"
+          placeholder={ph}
+          placeholderTextColor={colors.textDim}
+          style={styles.input}
+        />
+        <Text style={styles.unit}>{hint}</Text>
+      </View>
+    </View>
+  );
+}
+
 // First-signup capture of starting lifts + run bests. Skippable.
 // Writes baseline_set:true so it only appears once.
 export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; onSkip?: () => void }) {
@@ -68,39 +109,6 @@ export function BaselineStats({ manual = false, onSkip }: { manual?: boolean; on
       setBusy(null);
     }
   };
-
-  const Lift = ({ label, value, onChange }: { label: string; value: string; onChange: (t: string) => void }) => (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.inputWrap}>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          keyboardType="numeric"
-          placeholder="0"
-          placeholderTextColor={colors.textDim}
-          style={styles.input}
-        />
-        <Text style={styles.unit}>lb</Text>
-      </View>
-    </View>
-  );
-
-  const RunField = ({ label, value, onChange, ph, hint }: { label: string; value: string; onChange: (t: string) => void; ph: string; hint: string }) => (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={styles.inputWrap}>
-        <TextInput
-          value={value}
-          onChangeText={onChange}
-          placeholder={ph}
-          placeholderTextColor={colors.textDim}
-          style={styles.input}
-        />
-        <Text style={styles.unit}>{hint}</Text>
-      </View>
-    </View>
-  );
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={[styles.root, { paddingTop: insets.top }]}>
