@@ -97,7 +97,7 @@ async def admin_members(q: str = "", enhanced_only: bool = False, user=Depends(g
     if ands:
         query["$and"] = ands
     rows = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(100)
-    return [await _member_brief(u) for u in rows]
+    return {"members": [await _member_brief(u) for u in rows], "badge_options": ADMIN_BADGE_OPTIONS}
 
 
 _PURGE_TEST_EMAIL = {"$regex": r"@(test|example)\.(com|org|net)$", "$options": "i"}

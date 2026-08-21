@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator, useWindowDimensions, Modal } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -529,7 +529,7 @@ export default function Journey() {
   const neighborX = (xp: number) => 70 + ((xp - minXp) / Math.max(1, maxXp - minXp)) * (contentW - 150);
 
   const points = nodes.map((_, i) => `${nodeX(i)},${nodeY(i)}`).join(" ");
-  const decor = useMemo(() => {
+  const decor = (() => {
     const set = zoneDecor(data?.zone?.name);
     const count = Math.max(9, Math.round(contentW / 150));
     const items: { emoji: string; x: number; y: number; size: number; op: number }[] = [];
@@ -547,7 +547,7 @@ export default function Journey() {
       });
     }
     return items;
-  }, [data?.zone?.name, contentW, mapH]);
+  })();
   const traveledPoints = nodes.slice(0, heroIndex + 1).map((_, i) => `${nodeX(i)},${nodeY(i)}`).join(" ");
   const traveledCoords = nodes.slice(0, heroIndex + 1).map((_, i) => ({ x: nodeX(i), y: nodeY(i) }));
   const activeIndex = nodes.findIndex((n) => n.complete && !n.claimed);

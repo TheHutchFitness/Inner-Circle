@@ -52,6 +52,7 @@ export function MemberSheet({ userId, visible, onClose }: { userId: string | nul
                 )}
               </View>
               <Text style={[styles.name, m.founder_backer && { color: colors.warning }]}>{m.display_name}</Text>
+              {!!m.full_name && <Text style={styles.legalName}>🪪 {m.full_name}</Text>}
               <Text style={[styles.rank, { color: rankColor }]}>{m.rank?.toUpperCase()} · LV {m.level}</Text>
               {!!loadoutTitle(m.loadout) && <Text style={styles.mtitle}>❰ {loadoutTitle(m.loadout)} ❱</Text>}
               {!!m.gym && m.gym_rank > 0 && (
@@ -143,6 +144,7 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 54 },
   name: { color: colors.text, fontSize: 22, fontWeight: "900", letterSpacing: 1, marginTop: spacing.md },
   rank: { fontSize: 12, letterSpacing: 2, fontWeight: "800", marginTop: 4 },
+  legalName: { color: colors.textMid, fontSize: 12, fontWeight: "600", marginTop: 3 },
   mtitle: { color: colors.warning, fontSize: 10, letterSpacing: 3, fontWeight: "800", marginTop: 6 },
   loadoutLine: { color: colors.brandPrimary, fontSize: 10, letterSpacing: 2, fontWeight: "800", marginTop: 4 },
   cmp: { marginTop: spacing.md, width: "100%", padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },

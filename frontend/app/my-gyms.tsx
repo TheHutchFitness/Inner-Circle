@@ -13,24 +13,33 @@ export default function MyGyms() {
   const [gyms, setGyms] = useState<any[]>([]);
   const [max, setMax] = useState(5);
   const [name, setName] = useState("");
+  const [dir, setDir] = useState<string[]>([]);
+  const [showDrop, setShowDrop] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const load = async () => {
     try { const r = await apiFetch(token, "/api/gyms/mine"); setGyms(r.gyms || []); setMax(r.max || 5); } catch {}
   };
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  const loadDir = async () => {
+    try { const r = await apiFetch(token, "/api/gyms"); setDir(r.gyms || []); } catch {}
+  };
+  useEffect(() => { load(); loadDir(); /* eslint-disable-next-line */ }, []);
 
-  const add = async () => {
-    const n = name.trim();
+  const add = async (picked?: string) => {
+    const n = (picked ?? name).trim();
     if (!n) return;
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setShowDrop(false);
     try {
       const r = await apiFetch(token, "/api/gyms/mine", { method: "POST", body: JSON.stringify({ name: n }) });
       setGyms(r.gyms || []); setName(""); refresh?.();
     } catch (e: any) { setErr(e?.message || "Could not add gym"); }
     setBusy(false);
   };
+  const joined = new Set(gyms.map((g) => g.name.toLowerCase()));
+  const suggestions = dir
+    .filter((d) => !joined.has(d.toLowerCase()) && (name.trim() === "" || d.toLowerCase().includes(name.trim().toLowerCase())))
+    .slice(0, 8);
 
   const doRemove = async (g: any) => {
     try { const r = await apiFetch(token, `/api/gyms/mine?name=${encodeURIComponent(g.name)}`, { method: "DELETE" }); setGyms(r.gyms || []); refresh?.(); } catch {}
@@ -55,18 +64,33 @@ export default function MyGyms() {
         <Text style={styles.helper}>Join up to {max} gyms. Your ★ primary gym is the one used for in-person coaching.</Text>
 
         {!full && (
-          <View style={styles.addRow}>
-            <TextInput
-              testID="gym-add-input"
-              value={name}
-              onChangeText={setName}
-              placeholder="Add a gym by name…"
-              placeholderTextColor={colors.textDim}
-              style={styles.input}
-              autoCapitalize="words"
-              onSubmitEditing={add}
-            />
-            <NeonButton testID="gym-add-btn" label={busy ? "…" : "ADD"} loading={busy} onPress={add} style={{ minWidth: 96 }} />
+          <View style={styles.addWrap}>
+            <View style={styles.addRow}>
+              <Pressable style={styles.dropToggle} onPress={() => setShowDrop((s) => !s)} testID="gym-dropdown-toggle">
+                <Text style={styles.dropToggleText}>▾</Text>
+              </Pressable>
+              <TextInput
+                testID="gym-add-input"
+                value={name}
+                onChangeText={(t) => { setName(t); setShowDrop(true); }}
+                onFocus={() => setShowDrop(true)}
+                placeholder="Pick or type a gym…"
+                placeholderTextColor={colors.textDim}
+                style={styles.input}
+                autoCapitalize="words"
+                onSubmitEditing={() => add()}
+              />
+              <NeonButton testID="gym-add-btn" label={busy ? "…" : "ADD"} loading={busy} onPress={() => add()} style={{ minWidth: 90 }} />
+            </View>
+            {showDrop && suggestions.length > 0 && (
+              <View style={styles.dropdown}>
+                {suggestions.map((s) => (
+                  <Pressable key={s} testID={`gym-opt-${s}`} onPress={() => add(s)} style={styles.dropItem}>
+                    <Text style={styles.dropItemText}>🏋 {s}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
           </View>
         )}
         {full && <Text style={styles.full}>You've reached the {max}-gym limit. Leave one to join another.</Text>}
@@ -104,7 +128,13 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.brandPrimary, fontWeight: "900", letterSpacing: 2, fontSize: 11 },
   h1: { color: colors.text, fontWeight: "900", letterSpacing: 2, fontSize: 24, marginTop: 2 },
   helper: { color: colors.textDim, fontSize: 12, marginTop: 4, marginBottom: spacing.lg, lineHeight: 17 },
-  addRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center", marginBottom: spacing.md },
+  addRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
+  addWrap: { marginBottom: spacing.md },
+  dropToggle: { width: 40, height: 46, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface3, alignItems: "center", justifyContent: "center" },
+  dropToggleText: { color: colors.brandPrimary, fontSize: 16, fontWeight: "900" },
+  dropdown: { marginTop: 6, backgroundColor: colors.surface3, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
+  dropItem: { paddingVertical: 12, paddingHorizontal: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  dropItemText: { color: colors.text, fontSize: 14, fontWeight: "600" },
   input: { flex: 1, backgroundColor: colors.surface3, color: colors.text, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: 13, borderWidth: 1, borderColor: colors.border, fontSize: 14 },
   full: { color: colors.warning, fontSize: 12, fontWeight: "700", marginBottom: spacing.md },
   err: { color: colors.error, fontSize: 12, fontWeight: "700", marginBottom: spacing.sm },

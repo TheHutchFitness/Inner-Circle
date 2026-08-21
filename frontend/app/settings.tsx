@@ -148,6 +148,7 @@ export default function Settings() {
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>APP TOUR</Text>
         <Text style={styles.helper}>Re-watch the quick intro to Quests, the Armory and Clans.</Text>
         <NavButton testID="replay-tour" onPress={replayTour} icon="🧭" label="REPLAY INTRO TOUR" tone="blue" style={{ marginTop: spacing.sm }} />
+        <NavButton testID="replay-whatsnew" onPress={async () => { await AsyncStorage.removeItem("thecircle_whatsnew_v4"); router.replace("/(tabs)"); }} icon="✨" label="WHAT'S NEW & FEATURES" tone="gold" style={{ marginTop: spacing.sm }} />
 
         <Text style={[styles.h1, { marginTop: spacing.xl }]}>APP MODE</Text>
         <Text style={styles.helper}>Full unlocks games, cosmetics & chat. Lite is pure tracking with no distractions. Switch anytime.</Text>

@@ -663,3 +663,14 @@ iOS/Android fitness app for strength/athleticism with cyberpunk/anime + hardcore
 - LEGACY NAME PROMPT: backend POST /api/profile/full-name (validates >=2 chars, stores full_name[:80]). Frontend src/components/LegalNamePrompt.tsx — blocking modal mounted on Home (index.tsx) that shows for any non-admin user whose full_name is empty; on save it refreshes auth. Verified endpoint (400 too-short, 200 valid) + Home renders (hidden for admin).
 - REFERENCE IMAGES: user provided 4 painted zone-background references for the Journey ("Zone Art Upgrade") — NOT yet implemented (needs generated/painted per-zone image assets; deferred to next session to avoid partial work).
 - STILL PENDING from user's list: Zone Art Upgrade (custom painted gym/city backdrops per zone using the provided refs), Gym Chat Rooms (per-gym chat for each of a member's up to 5 gyms).
+
+## Batch 6h (2026-08 — admin users bugfix, gyms dropdown, name on profile, What's New intro)
+- BUGFIX (admin users not showing): iteration_35 testing agent had changed admin_members to return a BARE LIST, but frontend expects {members, badge_options}. Restored: return {"members": [_member_brief…], "badge_options": ADMIN_BADGE_OPTIONS}. Verified 8 members + 10 badges; admin Users tab now populates.
+- MY GYMS DROPDOWN: my-gyms.tsx now fetches /api/gyms (directory) and shows a ▾ dropdown of existing gyms (filtered by input, excludes already-joined) to pick from, alongside free-text add.
+- NAME ON PROFILE: /api/users/{id}/public now returns full_name; MemberSheet shows 🪪 full legal name under the display name on the public card.
+- WHAT'S NEW INTRO: src/components/WhatsNew.tsx — one-time (AsyncStorage key thecircle_whatsnew_v3) scrollable rundown of every feature/room (PR Room, Form Lab, Judge, Journey, Clans, My Gyms, Diet, Cardio, Exercise Library, Enhanced) INCLUDING the Lite Toggle explanation. Mounted on Home; Settings has a ✨ "WHAT'S NEW & FEATURES" replay button (clears the key + returns home). Bump SEEN_KEY to re-show everyone. Verified renders.
+- STILL DEFERRED (larger / need assets): 24h gym check-in (once per day, reset 12:01am); Zone Art Upgrade (painted per-zone backdrops from user's reference images); per-gym Gym Chat Rooms.
+
+## Batch 6i (2026-08 — Journey crash fix + What's New v0.2)
+- CRASH FIX (Journey tab "Rendered more hooks than during the previous render"): the decor computation used useMemo() placed AFTER the loading early-return in journey.tsx → hook-count changed between renders. Converted `decor` to a plain IIFE (no hook) and removed the useMemo import. Journey now loads reliably (verified HUD + nodes + textures render).
+- WHAT'S NEW v0.2: added an "UPDATE 0.2" pill to the WhatsNew modal header; bumped SEEN_KEY to thecircle_whatsnew_v4 (re-shows to everyone) and updated the Settings replay button key to match.
